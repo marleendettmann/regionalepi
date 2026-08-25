@@ -25,3 +25,18 @@ Required contract fields are complete unless an explicit contract exception
 permits `NA`. Geography relation weights are optional allocation proportions in
 `[0, 1]`; sum-to-one and relation-cardinality rules are deferred. The v0.1
 relation types do not include an unresolved relation record.
+
+## Geography Layer v0.1
+
+Spatial-resolution aggregation and historical-vintage harmonization are
+separate public operations. Both operate only on caller-declared additive base
+quantities, preserve caller-declared dimensions, require complete unambiguous
+relations, and enforce group-wise mass balance. Derived indicators are never
+transformed.
+
+`aggregate_geography()` accepts one common input geographic vintage and
+preserves it. `harmonize_vintage()` requires explicit source and target vintages
+and sets the output vintage to the target. Target identifiers, names, and levels
+come only from the canonical geography row valid at the relevant target date.
+Historical splits, boundary allocation, and fractional relation weights are not
+implemented in v0.1.

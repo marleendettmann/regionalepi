@@ -31,6 +31,18 @@ a multiplier, and a unit; other indicator types are not forced into that shape.
 Geography relation weights are optional finite allocation proportions in
 `[0, 1]`. No sum-to-one or relation-cardinality rules are defined in v0.1.
 
+Geography transformations accept ordinary data frames with complete canonical
+`geo_id`, `geo_name`, `geo_level`, and `geo_vintage` fields. Value columns must
+be explicitly declared additive, numeric, finite, and complete. Every other
+non-geographic column must be named as a grouping dimension; unclassified
+columns are errors rather than silently dropped.
+
+Transformation v0.1 supports only one-to-one and many-to-one mappings, so an
+applicable relation weight must be `NA` or one. Fractional weights are valid
+relation metadata but require allocation behavior that is not implemented.
+Mass balance is checked for every value column within every grouping
+combination.
+
 The exported validator documentation lists each contract's required and
 optional fields. The optional `geometry` field is retained without requiring or
 interpreting any particular spatial class.

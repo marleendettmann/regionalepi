@@ -33,3 +33,24 @@ The dissertation typology currently names `population_density` and `mean_age`
 without claiming authoritative definition versions for them. Its
 `youth_dependency_ratio` entry references the authoritative
 `dissertation_v1` indicator specification.
+
+## Geography Layer v0.1
+
+`aggregate_geography()` transforms differences in spatial resolution using
+`identity` and `aggregate` relations. Non-empty input is constrained to one
+common `geo_vintage`, which the output preserves.
+
+`harmonize_vintage()` transforms historical merges using `identity` and
+`historical_merge` relations. It verifies explicit source and target vintages
+and sets output `geo_vintage` to the target vintage.
+
+Both functions require callers to identify additive value columns and every
+non-geographic grouping dimension. They reject unmatched or ambiguous units,
+unclassified columns, fractional allocation weights, unsupported relation
+types, and failed group-wise mass balance. Target `geo_id`, `geo_name`, and
+`geo_level` are read only from the canonical geography row valid at the target
+date. The same ID may occur in other non-applicable historical register rows.
+
+The functions return ordinary lists containing transformed data and simple
+diagnostics. They do not calculate or transform derived epidemiological or
+demographic indicators.
