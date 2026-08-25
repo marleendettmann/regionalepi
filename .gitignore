@@ -1,0 +1,30 @@
+# R session files
+.Rhistory
+.RData
+.Ruserdata
+
+# RStudio
+.Rproj.user/
+
+# R package build/check artifacts
+*.Rcheck/
+*.tar.gz
+
+# renv local library/cache
+renv/library/
+renv/staging/
+renv/local/
+
+# macOS
+.DS_Store
+
+# Local/environment files
+.env
+.env.*
+!.env.example
+
+# Local data and temporary outputs
+data-raw/local/
+inst/extdata/local/
+tmp/
+temp/
