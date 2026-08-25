@@ -54,3 +54,17 @@ date. The same ID may occur in other non-applicable historical register rows.
 The functions return ordinary lists containing transformed data and simple
 diagnostics. They do not calculate or transform derived epidemiological or
 demographic indicators.
+
+## SurvStat file adapter v0.1
+
+`read_survstat()` is a local-file source adapter for the narrowly supported
+SurvStat case-count export layout. It performs no retrieval and has no API or
+PDF dependency. It preserves source geography labels rather than resolving or
+normalizing them, and returns unresolved identifiers and, when unavailable, an
+unresolved geography vintage. Those values must be resolved before geography
+transformations or analytical processing.
+
+The adapter converts ISO reporting weeks to canonical Monday dates and checks
+weekly counts against the national source totals. It neither imports nor
+calculates incidence. The result is an ordinary `list(data, diagnostics)`,
+consistent with the Geography Layer return convention.

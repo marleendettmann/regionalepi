@@ -6,10 +6,10 @@ and stop with an actionable error on failure; they do not coerce values.
 
 Required fields must be complete: values may not be `NA` or empty unless a
 contract explicitly allows that exception. The exceptions are pre-resolution
-surveillance `geo_id`; open-ended `age_to`; open geography `valid_to`; optional
-relation `weight` and `note`; optional fields such as `parent_geo_id`, `sex`, and
-`retrieved_at`; and genuinely unavailable surveillance/context source versions
-in analysis provenance.
+surveillance `geo_id` and `geo_vintage`; open-ended `age_to`; open geography
+`valid_to`; optional relation `weight` and `note`; optional fields such as
+`parent_geo_id`, `sex`, and `retrieved_at`; and genuinely unavailable
+surveillance/context source versions in analysis provenance.
 
 Geographic identifiers are always character vectors. This preserves leading
 zeros in identifiers such as German AGS values. Numeric identifiers are errors.
@@ -46,3 +46,25 @@ combination.
 The exported validator documentation lists each contract's required and
 optional fields. The optional `geometry` field is retained without requiring or
 interpreting any particular spatial class.
+
+## SurvStat file adapter v0.1
+
+`read_survstat()` reads only the supported German-language, UTF-16LE,
+tab-delimited SurvStat case-count export layout. It returns an ordinary list
+with `data` and `diagnostics`; diagnostics are not data-frame attributes.
+Source geography labels are preserved verbatim, while `geo_id` remains
+`NA_character_` pending explicit resolution. `geo_vintage` is caller-supplied
+and may remain `NA_Date_` at this same pre-resolution stage.
+
+Blank geographic weekly cells become zero only when the caller accepts the
+explicit default `blank_is_zero = TRUE`; otherwise they are errors. Weekly
+geographic totals must reconcile exactly with the national `Gesamt` row.
+`Unbekannt` and presentation totals are not canonical geography observations.
+
+The adapter preserves `reporting_year` and `reporting_week` and represents the
+canonical `date` as the Monday of the ISO week. `reference_definition` is
+logical provenance: `TRUE` means selected, `FALSE` means not selected, and `NA`
+means unavailable or unknown. `reporting_path` is character provenance.
+`retrieved_at` is the time at which the export or query was retrieved or
+executed. `data_status` is the source data status reported by SurvStat for that
+query; it is a separate provenance concept.

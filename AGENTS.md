@@ -40,3 +40,14 @@ and sets the output vintage to the target. Target identifiers, names, and levels
 come only from the canonical geography row valid at the relevant target date.
 Historical splits, boundary allocation, and fractional relation weights are not
 implemented in v0.1.
+
+## SurvStat file adapter v0.1
+
+The local-file adapter supports only the approved UTF-16LE, tab-delimited
+SurvStat weekly case-count export structure. It returns an ordinary list with
+validated canonical `data` and separate `diagnostics`. Source geography labels
+remain verbatim; `geo_id` and `geo_vintage` may be `NA` only at this
+pre-resolution stage. Blank weekly cells are zero only under the explicit
+`blank_is_zero` policy, and imported weekly geographic counts must reconcile
+with national totals. Retrieval, PDF parsing, incidence data, name resolution,
+and source-specific geographic special cases remain out of scope.

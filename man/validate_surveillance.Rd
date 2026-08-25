@@ -18,8 +18,9 @@ Requires \code{geo_id}, \code{geo_name}, \code{geo_level}, \code{geo_vintage}, \
 \code{age_group}, \code{sex}, \code{retrieved_at}, and \code{source_version}.
 }
 \details{
-\code{geo_id} is always character, but may contain \code{NA} only at the initial
-canonical/source-adapter stage. Future analytical processing must first
-resolve or explicitly diagnose those values. Other required fields are
-complete. Optional fields may contain \code{NA} when their values are unavailable.
+\code{geo_id} is always character and \code{geo_vintage} is always \code{Date}, but either
+may contain \code{NA} only at the initial canonical/source-adapter stage. Future
+geographic or analytical processing must first resolve or explicitly
+diagnose those values. Other required fields are complete. Optional fields
+may contain \code{NA} when their values are unavailable.
 }

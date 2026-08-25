@@ -23,6 +23,7 @@ test_that("required tabular fields are complete unless explicitly excepted", {
 test_that("documented NA exceptions remain accepted", {
   surveillance <- surveillance_example()
   surveillance$geo_id <- NA_character_
+  surveillance$geo_vintage <- as.Date(NA)
   surveillance$sex <- NA_character_
   surveillance$retrieved_at <- as.POSIXct(NA)
   expect_identical(validate_surveillance(surveillance), surveillance)

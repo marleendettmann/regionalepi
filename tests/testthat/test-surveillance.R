@@ -3,6 +3,8 @@ test_that("valid surveillance data passes and unresolved character IDs are allow
   expect_identical(validate_surveillance(x), x)
   x$geo_id <- NA_character_
   expect_no_error(validate_surveillance(x))
+  x$geo_vintage <- as.Date(NA)
+  expect_no_error(validate_surveillance(x))
 })
 
 test_that("surveillance requires columns and correct types", {
@@ -37,4 +39,10 @@ test_that("surveillance optional fields have canonical types", {
   x <- surveillance_example()
   x$source_version <- 1
   expect_error(validate_surveillance(x), "source_version.*character")
+})
+
+test_that("surveillance geo_vintage remains Date at the pre-resolution stage", {
+  x <- surveillance_example()
+  x$geo_vintage <- NA_character_
+  expect_error(validate_surveillance(x), "geo_vintage.*Date")
 })
