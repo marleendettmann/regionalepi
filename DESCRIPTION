@@ -1,0 +1,19 @@
+Package: regionalepi
+Title: Demographic Context for Regional Infectious-Disease Surveillance
+Version: 0.0.0.9000
+Authors@R: person(
+    given = "Marleen",
+    family = "Dettmann",
+    email = "mail@marleen-dettmann.de",
+    role = c("aut", "cre")
+  )
+Description: Provides data contracts and a reproducible architecture for
+    contextualizing regional infectious-disease surveillance with demographic
+    and geographic data. Publication metadata and licensing are to be decided.
+License: TBD
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.2
+Suggests:
+    testthat (>= 3.0.0)
+Config/testthat/edition: 3
