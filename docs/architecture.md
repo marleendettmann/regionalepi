@@ -68,3 +68,28 @@ The adapter converts ISO reporting weeks to canonical Monday dates and checks
 weekly counts against the national source totals. It neither imports nor
 calculates incidence. The result is an ordinary `list(data, diagnostics)`,
 consistent with the Geography Layer return convention.
+
+## Geographic Resolution v0.1
+
+`resolve_geography()` establishes geographic identity without aggregating,
+harmonizing vintages, or calculating indicators. It resolves each unique source
+unit once, using deterministic source parsing followed by exact canonical name
+and type matching. If exact matching fails, a complete source label may use an
+explicit reviewed alias. There is no fuzzy matching, normalization, or inferred
+alias behavior.
+
+The resolver returns `data`, a one-row-per-source-unit `resolution` audit, and
+compact `diagnostics`. Observation rows retain only `source_geo_id`,
+`source_geo_name`, and `source_geo_level` provenance. Canonical target names,
+levels, and optional VGHID provenance come from the applicable canonical
+register row.
+
+Reviewed `spatial_units` identify real finer- or different-resolution source
+units without pretending that they are an aggregate target. Their opaque
+source IDs are caller-supplied, and their successful state is
+`requires_spatial_relation`. A later relation and `aggregate_geography()` call
+remain necessary.
+
+The register `reference_date` is resolution provenance only. Source
+`geo_vintage` is preserved unchanged, including `NA_Date_`. Any unresolved or
+ambiguous identity aborts the complete resolution call.

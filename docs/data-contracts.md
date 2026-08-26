@@ -68,3 +68,29 @@ means unavailable or unknown. `reporting_path` is character provenance.
 `retrieved_at` is the time at which the export or query was retrieved or
 executed. `data_status` is the source data status reported by SurvStat for that
 query; it is a separate provenance concept.
+
+## Geography aliases
+
+Reviewed aliases contain `source`, `source_version`, `source_label`,
+`source_type`, `target_geo_id`, `valid_from`, `valid_to`, `reason`, and
+`review_status`. `target_vghid` is optional. Identifiers are character and
+validity dates use `Date`; `valid_to` may be open. In v0.1 `review_status` must
+be `"reviewed"`.
+
+An `NA_character_` source version is permitted only when the source genuinely
+has no version. Matching is NA-aware and exact: missing versions match only
+missing versions and are never wildcards. Aliases are complete-label mappings,
+not normalization rules.
+
+## Spatial-unit registry
+
+The optional geographic-resolution spatial-unit registry contains `source`,
+`source_version`, `source_label`, `source_type`, `source_geo_id`,
+`source_geo_name`, `source_geo_level`, `valid_from`, `valid_to`, `reason`, and
+`review_status`. A source ID is a non-empty opaque character identifier supplied
+by the reviewed registry; it is not inferred and is not assumed to be an AGS.
+Applicable source IDs are unique within their source and source-version
+context.
+
+These records do not contain or imply an eventual aggregate target. They mark
+recognized source identities that require explicit spatial relations.

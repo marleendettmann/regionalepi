@@ -16,10 +16,11 @@
 
 ## Current scope
 
-The v0.1 foundation consists only of canonical data contracts, validators,
-versioned reference specifications, tests, and architecture documentation.
-Source adapters, geographic resolution and harmonization, calculations,
-clustering, visualization, and applications are outside this scope.
+The implemented v0.1 foundation includes canonical data contracts, validators,
+versioned reference specifications, the approved local SurvStat file adapter,
+deterministic geographic identity resolution, geography transformations, tests,
+and architecture documentation. Network retrieval, derived calculations,
+clustering, visualization, and applications remain outside this scope.
 
 Required contract fields are complete unless an explicit contract exception
 permits `NA`. Geography relation weights are optional allocation proportions in
@@ -51,3 +52,17 @@ pre-resolution stage. Blank weekly cells are zero only under the explicit
 `blank_is_zero` policy, and imported weekly geographic counts must reconcile
 with national totals. Retrieval, PDF parsing, incidence data, name resolution,
 and source-specific geographic special cases remain out of scope.
+
+## Geographic Resolution v0.1
+
+`resolve_geography()` performs source-specific deterministic identity
+resolution against a canonical register selected at an explicit reference
+date. Exact matches use both name and an explicitly selected canonical type
+column. Reviewed aliases are exact mappings and are considered only after exact
+matching fails. Fuzzy matching and text normalization are not used.
+
+Reviewed spatial units represent real source-level identities that remain
+distinct pending explicit geographic relations and aggregation. Their opaque
+source IDs come only from caller-supplied reviewed registry data. Resolution
+does not infer an aggregation target or territorial vintage. Unresolved or
+ambiguous units abort the complete call.
