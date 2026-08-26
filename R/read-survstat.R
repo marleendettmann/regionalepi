@@ -236,6 +236,9 @@ read_survstat <- function(
     .stop_contract(contract, sprintf("could not parse tabular content: %s", parsed$message))
   }
   parsed[is.na(parsed)] <- ""
+  while (nrow(parsed) && all(parsed[nrow(parsed), , drop = TRUE] == "")) {
+    parsed <- parsed[-nrow(parsed), , drop = FALSE]
+  }
   parsed
 }
 

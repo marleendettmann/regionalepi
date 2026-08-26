@@ -60,7 +60,7 @@ resolve_geography <- function(
   .check_character(
     geography[[canonical_type_col]], canonical_type_col, contract
   )
-  .check_optional(geography, "VGHID", .check_character, contract, allow_na = TRUE)
+  .check_optional(geography, "vghid", .check_character, contract, allow_na = TRUE)
   if (!is.null(aliases)) {
     validate_geography_aliases(aliases)
   }
@@ -222,8 +222,8 @@ resolve_geography <- function(
       return(base)
     }
     if ("target_vghid" %in% names(alias) && !is.na(alias$target_vghid) &&
-        "VGHID" %in% names(target) &&
-        !identical(alias$target_vghid, target$VGHID)) {
+        "vghid" %in% names(target) &&
+        !identical(alias$target_vghid, target$vghid)) {
       base$status <- "ambiguous"
       return(base)
     }
@@ -260,8 +260,8 @@ resolve_geography <- function(
     return(base)
   }
   if ("target_vghid" %in% names(alias) && !is.na(alias$target_vghid) &&
-      "VGHID" %in% names(target) &&
-      !identical(alias$target_vghid, target$VGHID)) {
+      "vghid" %in% names(target) &&
+      !identical(alias$target_vghid, target$vghid)) {
     base$status <- "ambiguous"
     return(base)
   }
@@ -299,7 +299,7 @@ resolve_geography <- function(
   row$target_geo_id <- target$geo_id
   row$target_geo_name <- target$geo_name
   row$target_geo_level <- target$geo_level
-  row$target_vghid <- if ("VGHID" %in% names(target)) target$VGHID else NA_character_
+  row$target_vghid <- if ("vghid" %in% names(target)) target$vghid else NA_character_
   row$resolved_geo_id <- target$geo_id
   row$resolved_geo_name <- target$geo_name
   row$resolved_geo_level <- target$geo_level

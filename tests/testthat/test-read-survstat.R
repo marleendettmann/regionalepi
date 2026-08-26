@@ -80,6 +80,14 @@ test_that("read_survstat returns validated canonical data and diagnostics", {
   expect_false(grepl(dirname(file), result$diagnostics$source_file, fixed = TRUE))
 })
 
+test_that("terminal blank lines do not become source geography rows", {
+  file <- write_survstat_fixture(c(survstat_lines(), ""))
+  result <- read_survstat(file, "synthetic", 2024)
+
+  expect_identical(result$diagnostics$source_geographic_units, 2L)
+  expect_false(any(result$data$geo_name == ""))
+})
+
 test_that("read_survstat preserves supplied geography vintage and logical provenance", {
   file <- write_survstat_fixture(survstat_lines())
   result <- read_survstat(

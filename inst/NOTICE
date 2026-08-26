@@ -1,0 +1,17 @@
+BKG VG-Hist data attribution
+
+The regionalepi geography resource for reference date 2024-12-31 is derived
+and modified from Verwaltungsgebiete Historisch (VG-Hist), product version
+2026-01, supplied by the Bundesamt für Kartographie und Geodäsie (BKG).
+
+© BKG 2026 CC BY 4.0, Datenquellen:
+https://sgx.geodatenzentrum.de/web_public/gdz/datenquellen/datenquellen_vg-hist.pdf
+
+BKG: https://www.bkg.bund.de
+CC BY 4.0: https://creativecommons.org/licenses/by/4.0/
+
+Modification notice: The derived resource selects German district records
+applicable on 2024-12-31, omits geometry, and renames and reorders attributes.
+
+These source-data terms are distinct from the regionalepi package-code license,
+which remains undecided (License: TBD).

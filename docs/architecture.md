@@ -81,7 +81,7 @@ alias behavior.
 The resolver returns `data`, a one-row-per-source-unit `resolution` audit, and
 compact `diagnostics`. Observation rows retain only `source_geo_id`,
 `source_geo_name`, and `source_geo_level` provenance. Canonical target names,
-levels, and optional VGHID provenance come from the applicable canonical
+levels, and optional `vghid` provenance come from the applicable canonical
 register row.
 
 Reviewed `spatial_units` identify real finer- or different-resolution source
@@ -93,3 +93,19 @@ remain necessary.
 The register `reference_date` is resolution provenance only. Source
 `geo_vintage` is preserved unchanged, including `NA_Date_`. Any unresolved or
 ambiguous identity aborts the complete resolution call.
+
+## Reviewed geography resources v0.1
+
+`regionalepi_geography_resources_2024` is the small non-geometric runtime layer
+for the reviewed 2024 resolution case. It contains the BKG VG-Hist district
+register applicable on 2024-12-31, exact reviewed SurvStat aliases, reviewed
+Berlin Bezirk source identities, and compact dataset-level provenance.
+
+The reproducible builder and reviewed inputs are kept in Git under `data-raw`.
+The official GeoPackage stays ignored under `data-raw/local`, and `data-raw` is
+excluded from built source packages. Only the generated resource, its
+documentation, and the installed attribution notice are shipped.
+
+No Berlin aggregate relations are provided. The register reference date is not
+evidence of the SurvStat source territorial vintage, so real validation stops
+after resolution and preserves `geo_vintage = NA_Date_`.

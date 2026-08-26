@@ -26,7 +26,7 @@ resolution_geography <- function(
     geo_id = ids, geo_name = names, geo_level = rep("district", length(ids)),
     valid_from = rep(from, length(ids)), valid_to = rep(to, length(ids)),
     source = rep("synthetic register", length(ids)), TYP = types,
-    VGHID = vghid, stringsAsFactors = FALSE
+    vghid = vghid, stringsAsFactors = FALSE
   )
 }
 
@@ -353,7 +353,7 @@ test_that("mixed exact alias and spatial paths share one audit", {
   expect_identical(result$diagnostics$spatial_relation_required_count, 1L)
 })
 
-test_that("validity endpoints are inclusive and VGHID consistency is checked", {
+test_that("validity endpoints are inclusive and vghid consistency is checked", {
   geography <- resolution_geography(
     from = as.Date("2024-12-31"), to = as.Date("2024-12-31")
   )

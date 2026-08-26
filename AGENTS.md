@@ -66,3 +66,18 @@ distinct pending explicit geographic relations and aggregation. Their opaque
 source IDs come only from caller-supplied reviewed registry data. Resolution
 does not infer an aggregation target or territorial vintage. Unresolved or
 ambiguous units abort the complete call.
+
+## Reviewed geography resources v0.1
+
+`regionalepi_geography_resources_2024` contains a non-geometric BKG VG-Hist
+district register for 2024-12-31, 19 exact reviewed SurvStat aliases, 12
+reviewed Berlin Bezirk source identities, and dataset-level provenance. The
+development builder and reviewed inputs are version-controlled under
+`data-raw`; the official local GeoPackage is ignored and all `data-raw`
+materials are excluded from built packages.
+
+The dated directives mean reviewed and established for the reference date and
+do not claim historical applicability. No Berlin aggregate relations exist:
+the resolution reference date is not evidence of SurvStat territorial vintage.
+Real validation therefore stops after `resolve_geography()` with unchanged
+unresolved `geo_vintage`.

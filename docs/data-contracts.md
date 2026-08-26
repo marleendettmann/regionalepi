@@ -94,3 +94,17 @@ context.
 
 These records do not contain or imply an eventual aggregate target. They mark
 recognized source identities that require explicit spatial relations.
+
+## Reviewed geography resources
+
+`regionalepi_geography_resources_2024` bundles the canonical non-geometric BKG
+VG-Hist district register applicable on 2024-12-31 with the reviewed SurvStat
+aliases and spatial-unit identities established for that reference date.
+Dataset-level provenance records the BKG product/version, source checksum,
+license, derivation, builder, and selection date without repeating long
+metadata in every row.
+
+The one-day directive intervals express the scope of review, not one-day
+geographic existence or unreviewed historical applicability. No Berlin
+aggregation relations or source territorial vintage are supplied. The BKG
+resolution reference date must not be substituted for SurvStat `geo_vintage`.
