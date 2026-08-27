@@ -19,7 +19,8 @@
 The implemented v0.1 foundation includes canonical data contracts, validators,
 versioned reference specifications, the approved local SurvStat file adapter,
 deterministic geographic identity resolution, geography transformations, tests,
-and architecture documentation. Network retrieval, derived calculations,
+architecture documentation, and the narrow authenticated Regionaldatenbank
+total-population adapter. Other network retrieval, derived calculations,
 clustering, visualization, and applications remain outside this scope.
 
 Required contract fields are complete unless an explicit contract exception
@@ -87,3 +88,24 @@ source spatial relations from the Berlin identities to canonical Berlin
 passthrough, and an explicit applicability/reference date. It never infers or
 changes `geo_vintage`. `harmonize_vintage()` remains exclusively based on
 historical `geography_relations` and explicit source/target vintages.
+
+## Regionaldatenbank total-population adapter v0.1
+
+`fetch_regional_population()` is a narrow authenticated adapter for reviewed
+Regionaldatenbank table `12411-01-01-4` and statistic `12411`. It retrieves
+district total population at 31 December for the approved 2019-2025 period and
+returns validated `population_denominator` data with separate diagnostics and
+dataset-level provenance. It is not a generic GENESIS client.
+
+Credentials are infrastructure configuration read only from
+`REGIONALSTATISTIK_USER` and `REGIONALSTATISTIK_PASSWORD`. The package does not
+parse `.env`, expose credential arguments, store credentials, or include them
+in returned objects and errors. Ordinary tests use a synthetic internal
+transport boundary and require neither credentials nor network access.
+
+Regionaldatenbank AGS values remain character identifiers and source names are
+source metadata. The observation `reference_date` does not establish a BKG
+territorial vintage, so this adapter returns `geo_vintage = NA_Date_`.
+Population-basis codes are `census_2011` for 2019-2021 and `census_2022` for
+2022-2025. Age structure, demographic indicators, incidence calculation, and
+denominator-selection policy remain outside this block.

@@ -1,3 +1,5 @@
 ^AGENTS\.md$
 ^docs$
 ^data-raw$
+^\.env$
+^\.env\..*$

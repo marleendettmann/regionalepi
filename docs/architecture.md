@@ -15,8 +15,10 @@ The intended future processing order is:
 6. versioned typology specifications may be executed; and
 7. clients such as Shiny consume package results.
 
-Only the contracts and specifications needed to describe these boundaries are
-implemented in v0.1. The package core has no network or external-API dependency.
+The package core remains independent of external-service availability. The
+narrow Regionaldatenbank source adapter is the only authenticated network
+adapter in this scope; normal tests and all downstream contracts and geography
+operations remain offline.
 
 Geographic matching must never be guessed silently. A missing `geo_id` is
 allowed in canonical surveillance data only at the initial source-adapter stage
@@ -122,3 +124,35 @@ The reviewed resource includes 12 ordinary relations from the reviewed
 SurvStat Berlin Bezirk identities to canonical Berlin `11000`.
 `harmonize_vintage()` remains a separate historical operation using explicit
 source and target vintages and `geography_relations`.
+
+## Regionaldatenbank total-population adapter v0.1
+
+`fetch_regional_population(reference_dates, regions = NULL)` retrieves only
+reviewed Regionaldatenbank table `12411-01-01-4` (statistic `12411`). It uses
+the official GENESIS-compatible `data/table` operation, validates the API
+envelope and `Structure` metadata, and then parses the semicolon-delimited table
+content. It selects district total population (`Insgesamt`, unit `Anzahl`) and
+does not expose a generic public GENESIS client.
+
+Authentication is resolved internally from `REGIONALSTATISTIK_USER` and
+`REGIONALSTATISTIK_PASSWORD`. Credentials are absent from the public signature,
+returned results, errors, examples, and stored package state. The package does
+not read `.env`. An internal transport boundary makes the ordinary test suite
+completely synthetic and offline.
+
+The return value is `list(data, diagnostics, provenance)`. Observation data use
+the separate `population_denominator` contract. Diagnostics contain compact
+request/result counts and credential-free status information; longer source,
+methodological, population-basis, and attribution material appears once in
+provenance.
+
+Regionaldatenbank supplies character AGS and source names directly. It is not
+used for name resolution, and source names do not supersede the canonical BKG
+register. Reference dates are population observation dates. Because they do not
+independently establish territorial vintage, `geo_vintage` remains `NA_Date_`.
+The documented population-basis break is represented as `census_2011` for
+2019-2021 and `census_2022` for 2022-2025.
+
+Age table `12411-09-01-4` is the reviewed next potential context source, but
+age retrieval, youth dependency, mean age, density, incidence calculation, and
+denominator-selection policy are not implemented here.

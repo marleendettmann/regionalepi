@@ -15,3 +15,17 @@ applicable on 2024-12-31, omits geometry, and renames and reorders attributes.
 
 These source-data terms are distinct from the regionalepi package-code license,
 which remains undecided (License: TBD).
+
+Regionaldatenbank Deutschland attribution
+
+Population observations retrieved at runtime from Regionaldatenbank
+Deutschland table 12411-01-01-4 are provided by the Statistische Ämter des
+Bundes und der Länder. The service response states that the data are licensed
+under Datenlizenz Deutschland - Namensnennung - Version 2.0.
+
+Regionaldatenbank Deutschland: https://www.regionalstatistik.de/
+Datenlizenz Deutschland - Namensnennung - Version 2.0:
+https://www.govdata.de/dl-de/by-2-0
+
+These source-data terms are distinct from the regionalepi package-code license,
+which remains undecided (License: TBD).

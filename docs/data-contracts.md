@@ -19,6 +19,27 @@ non-negative, whole-valued numeric values. Population values are numeric,
 finite, and non-negative. Population is base data; no contract for later
 harmonized population representations is defined here.
 
+## Population denominator
+
+`population_denominator` is a separate total-population contract. It requires
+`geo_id`, `geo_name`, `geo_level`, `geo_vintage`, `reference_date`,
+`population`, `population_basis`, `source`, `source_table`, `retrieved_at`, and
+`data_status`. All fields are complete except that `geo_vintage` may be
+`NA_Date_` when no independently established territorial vintage is available.
+
+Each `geo_id` and `reference_date` combination is unique. All rows in one data
+set share one complete `POSIXct` retrieval event. Population is finite,
+non-negative numeric base data and is not required to use integer storage.
+`population_basis` is a documented, non-empty source-provenance code.
+
+This contract does not replace age-banded `context_population`. It also does
+not select an incidence denominator, calculate incidence, or establish that an
+observation reference date is a geographic vintage.
+
+The reviewed Regionaldatenbank adapter emits `census_2011` for 2019-2021 and
+`census_2022` for 2022-2025. Detailed methodological descriptions are stored
+once in result-level provenance rather than repeated in every observation.
+
 An age interval has a non-negative, whole-valued numeric `age_from`, regardless
 of integer or double storage. Its `age_to` follows the same rule and is greater
 than or equal to `age_from`, or is `NA` for an open-ended group.
