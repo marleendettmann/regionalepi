@@ -1,7 +1,8 @@
 test_that("reviewed 2024 resource bundle has stable structure and provenance", {
   resource <- regionalepi_geography_resources_2024
   expect_named(resource, c("bkg_districts", "survstat_aliases",
-                           "survstat_spatial_units", "provenance"),
+                           "survstat_spatial_units",
+                           "survstat_source_spatial_relations", "provenance"),
                ignore.order = FALSE)
   expect_identical(resource$provenance$resource_version, "2024.12.31-v1")
   expect_identical(resource$provenance$reference_date, as.Date("2024-12-31"))
@@ -11,6 +12,26 @@ test_that("reviewed 2024 resource bundle has stable structure and provenance", {
   expect_true(resource$provenance$derived_resource)
   expect_match(resource$provenance$valid_to_transformation,
                "does not explicitly define 9999-12-31")
+})
+
+test_that("reviewed Berlin source spatial relations have exact integrity", {
+  resource <- regionalepi_geography_resources_2024
+  relations <- resource$survstat_source_spatial_relations
+  spatial <- resource$survstat_spatial_units
+  expect_identical(validate_source_spatial_relations(relations), relations)
+  expect_identical(nrow(relations), 12L)
+  expect_setequal(relations$from_geo_id, spatial$source_geo_id)
+  expect_identical(anyDuplicated(relations$from_geo_id), 0L)
+  expect_true(all(relations$source == "SurvStat@RKI"))
+  expect_true(all(relations$source_version == "SurvStat@RKI 2.0"))
+  expect_true(all(relations$from_geo_level == "survstat_berlin_bezirk"))
+  expect_true(all(relations$to_geo_id == "11000"))
+  expect_true(all(relations$relation_type == "aggregate"))
+  expect_true(all(relations$valid_from == as.Date("2024-12-31")))
+  expect_true(all(relations$valid_to == as.Date("2024-12-31")))
+  expect_true(all(relations$review_status == "reviewed"))
+  expect_false(any(c("from_vintage", "to_vintage", "weight") %in%
+                     names(relations)))
 })
 
 test_that("BKG district register satisfies canonical and reviewed invariants", {

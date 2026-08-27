@@ -6,8 +6,9 @@
 \usage{
 aggregate_geography(
   data,
-  relations,
+  source_spatial_relations,
   target_geography,
+  reference_date,
   value_cols,
   group_cols,
   value_semantics = "additive",
@@ -15,16 +16,20 @@ aggregate_geography(
 )
 }
 \arguments{
-\item{data}{A data frame or tibble containing canonical \code{geo_id}, \code{geo_name},
-\code{geo_level}, and \code{geo_vintage} columns, grouping columns, and additive
-value columns.}
+\item{data}{A data frame or tibble containing \code{geo_id}, \code{geo_name},
+\code{geo_level}, \code{source}, \code{source_version}, optional \code{geo_vintage}, grouping
+columns, additive value columns, and optionally the three known resolver
+provenance columns.}
 
-\item{relations}{A data frame or tibble satisfying the
-\code{geography_relations} contract.}
+\item{source_spatial_relations}{A data frame or tibble satisfying the
+\code{source_spatial_relations} contract.}
 
 \item{target_geography}{A canonical geography register satisfying the
 \code{geography} contract. Exactly one row per target ID must be valid at the
-relevant vintage; the ID may occur in other historical rows.}
+relevant reference date; the ID may occur in other historical rows.}
+
+\item{reference_date}{Complete scalar \code{Date} selecting applicable relation
+and canonical-register rows. It is not a territorial vintage.}
 
 \item{value_cols}{Character vector naming numeric additive value columns.}
 
@@ -40,14 +45,20 @@ supported in v0.1.}
 A list with elements \code{data} and \code{diagnostics}.
 }
 \description{
-\code{aggregate_geography()} handles differences in spatial resolution using
-\code{identity} and \code{aggregate} relations. In Geography Layer v0.1, every
-non-empty input must contain exactly one common \code{geo_vintage}; multi-vintage
-input is not supported. The output preserves that vintage.
+\code{aggregate_geography()} handles source-specific differences in spatial
+resolution using reviewed source spatial relations. Rows without an
+applicable relation pass through only when their current identifier has one
+uniquely applicable same-ID row in the canonical target register.
 }
 \details{
 Target names and levels always come from the single row of
-\code{target_geography} that is valid at the input vintage. Values are aggregated
-only after the caller explicitly declares their additive semantics and all
-non-geographic grouping dimensions.
+\code{target_geography} that is valid at \code{reference_date}. The reference date is
+relation/register applicability provenance, not a territorial vintage.
+\code{geo_vintage} is optional, is never inferred or changed, and automatically
+prevents rows with different values from being combined.
+
+The known resolver provenance columns \code{source_geo_id}, \code{source_geo_name}, and
+\code{source_geo_level} are omitted from aggregated output rather than becoming
+grouping dimensions. Their authoritative detail remains in the separate
+resolution audit. Any other unclassified column is an error.
 }

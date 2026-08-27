@@ -36,9 +36,10 @@ without claiming authoritative definition versions for them. Its
 
 ## Geography Layer v0.1
 
-`aggregate_geography()` transforms differences in spatial resolution using
-`identity` and `aggregate` relations. Non-empty input is constrained to one
-common `geo_vintage`, which the output preserves.
+`aggregate_geography()` transforms source-specific differences in spatial
+resolution using reviewed `source_spatial_relations` plus canonical same-ID
+passthrough. Its explicit reference date selects applicable relations and
+target-register rows; it does not require, infer, or change `geo_vintage`.
 
 `harmonize_vintage()` transforms historical merges using `identity` and
 `historical_merge` relations. It verifies explicit source and target vintages
@@ -46,10 +47,10 @@ and sets output `geo_vintage` to the target vintage.
 
 Both functions require callers to identify additive value columns and every
 non-geographic grouping dimension. They reject unmatched or ambiguous units,
-unclassified columns, fractional allocation weights, unsupported relation
-types, and failed group-wise mass balance. Target `geo_id`, `geo_name`, and
-`geo_level` are read only from the canonical geography row valid at the target
-date. The same ID may occur in other non-applicable historical register rows.
+unclassified columns, unsupported relation types, and failed group-wise mass
+balance. Target `geo_id`, `geo_name`, and `geo_level` are read only from the
+canonical geography row valid at the relevant reference or target date. The
+same ID may occur in other non-applicable historical register rows.
 
 The functions return ordinary lists containing transformed data and simple
 diagnostics. They do not calculate or transform derived epidemiological or
@@ -106,6 +107,18 @@ The official GeoPackage stays ignored under `data-raw/local`, and `data-raw` is
 excluded from built source packages. Only the generated resource, its
 documentation, and the installed attribution notice are shipped.
 
-No Berlin aggregate relations are provided. The register reference date is not
-evidence of the SurvStat source territorial vintage, so real validation stops
-after resolution and preserves `geo_vintage = NA_Date_`.
+The register reference date is not evidence of the SurvStat source territorial
+vintage, so resolution preserves `geo_vintage = NA_Date_`.
+
+## Source spatial aggregation relations
+
+Source-version-specific spatial-resolution mappings are represented by
+`source_spatial_relations`, not historical `geography_relations`.
+`aggregate_geography()` selects them at an explicit applicability/reference
+date and permits canonical same-ID passthrough only against one uniquely valid
+target-register row. It never interprets that date as `geo_vintage`.
+
+The reviewed resource includes 12 ordinary relations from the reviewed
+SurvStat Berlin Bezirk identities to canonical Berlin `11000`.
+`harmonize_vintage()` remains a separate historical operation using explicit
+source and target vintages and `geography_relations`.

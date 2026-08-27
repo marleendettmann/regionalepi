@@ -17,16 +17,14 @@ harmonize_vintage(
 )
 }
 \arguments{
-\item{data}{A data frame or tibble containing canonical \code{geo_id}, \code{geo_name},
-\code{geo_level}, and \code{geo_vintage} columns, grouping columns, and additive
-value columns.}
+\item{data}{A data frame or tibble containing complete canonical \code{geo_id},
+\code{geo_name}, \code{geo_level}, and \code{geo_vintage} columns, grouping columns, and
+additive value columns.}
 
-\item{relations}{A data frame or tibble satisfying the
-\code{geography_relations} contract.}
+\item{relations}{Historical relations satisfying the \code{geography_relations}
+contract.}
 
-\item{target_geography}{A canonical geography register satisfying the
-\code{geography} contract. Exactly one row per target ID must be valid at the
-relevant vintage; the ID may occur in other historical rows.}
+\item{target_geography}{A canonical geography register.}
 
 \item{source_vintage}{A complete scalar \code{Date} identifying the input vintage.}
 
@@ -34,13 +32,11 @@ relevant vintage; the ID may occur in other historical rows.}
 
 \item{value_cols}{Character vector naming numeric additive value columns.}
 
-\item{group_cols}{Character vector naming every non-geographic dimension to
-preserve. No dimensions are inferred.}
+\item{group_cols}{Character vector naming every non-geographic dimension.}
 
-\item{value_semantics}{The declared value semantics. Only \code{"additive"} is
-supported in v0.1.}
+\item{value_semantics}{Only \code{"additive"} is supported in v0.1.}
 
-\item{tolerance}{A finite positive numeric tolerance for mass-balance checks.}
+\item{tolerance}{A finite positive numeric mass-balance tolerance.}
 }
 \value{
 A list with elements \code{data} and \code{diagnostics}.

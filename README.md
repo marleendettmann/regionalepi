@@ -14,4 +14,9 @@ ignored local VG-Hist GeoPackage and all `data-raw` materials are excluded from
 built source packages. The package contains no source download, indicator
 calculation, clustering, spatial processing, mapping, or application code.
 
+Reviewed source spatial relations support additive aggregation of the 12
+SurvStat Berlin Bezirk identities to canonical Berlin without inventing a
+territorial vintage. Historical vintage harmonization remains a separate
+operation and contract.
+
 See `docs/architecture.md` and `docs/data-contracts.md` for the v0.1 design.

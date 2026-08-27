@@ -79,6 +79,15 @@ survstat_spatial_units <- read_reviewed(
 )
 survstat_spatial_units$valid_from <- as.Date(survstat_spatial_units$valid_from)
 survstat_spatial_units$valid_to <- as.Date(survstat_spatial_units$valid_to)
+survstat_source_spatial_relations <- read_reviewed(
+  "data-raw/reviewed/survstat-source-spatial-relations-2024.csv"
+)
+survstat_source_spatial_relations$valid_from <- as.Date(
+  survstat_source_spatial_relations$valid_from
+)
+survstat_source_spatial_relations$valid_to <- as.Date(
+  survstat_source_spatial_relations$valid_to
+)
 
 # Load current source validators without requiring an installed development
 # version of regionalepi.
@@ -89,6 +98,9 @@ for (file in sort(list.files("R", pattern = "[.]R$", full.names = TRUE))) {
 validation_environment$validate_geography(bkg_districts)
 validation_environment$validate_geography_aliases(survstat_aliases)
 validation_environment$.validate_spatial_units(survstat_spatial_units)
+validation_environment$validate_source_spatial_relations(
+  survstat_source_spatial_relations
+)
 
 stopifnot(
   nrow(bkg_districts) == 400L,
@@ -102,13 +114,20 @@ stopifnot(
   all(!is.na(targets)),
   nrow(survstat_spatial_units) == 12L,
   !anyDuplicated(survstat_spatial_units$source_geo_id),
-  !any(survstat_spatial_units$source_geo_id %in% bkg_districts$geo_id)
+  !any(survstat_spatial_units$source_geo_id %in% bkg_districts$geo_id),
+  nrow(survstat_source_spatial_relations) == 12L,
+  setequal(survstat_source_spatial_relations$from_geo_id,
+           survstat_spatial_units$source_geo_id),
+  all(survstat_source_spatial_relations$to_geo_id == "11000"),
+  all(survstat_source_spatial_relations$from_geo_level ==
+        "survstat_berlin_bezirk")
 )
 
 regionalepi_geography_resources_2024 <- list(
   bkg_districts = bkg_districts,
   survstat_aliases = survstat_aliases,
   survstat_spatial_units = survstat_spatial_units,
+  survstat_source_spatial_relations = survstat_source_spatial_relations,
   provenance = list(
     resource_id = "regionalepi_geography_resources_2024",
     resource_version = "2024.12.31-v1",

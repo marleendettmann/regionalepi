@@ -35,12 +35,14 @@ quantities, preserve caller-declared dimensions, require complete unambiguous
 relations, and enforce group-wise mass balance. Derived indicators are never
 transformed.
 
-`aggregate_geography()` accepts one common input geographic vintage and
-preserves it. `harmonize_vintage()` requires explicit source and target vintages
-and sets the output vintage to the target. Target identifiers, names, and levels
-come only from the canonical geography row valid at the relevant target date.
-Historical splits, boundary allocation, and fractional relation weights are not
-implemented in v0.1.
+`aggregate_geography()` uses applicability-dated `source_spatial_relations` and
+validated canonical same-ID passthrough. It does not require, infer, or change
+`geo_vintage`; differing values remain separate data dimensions.
+`harmonize_vintage()` requires explicit source and target vintages and sets the
+output vintage to the target. Target identifiers, names, and levels come only
+from the canonical geography row valid at the relevant reference or target
+date. Historical splits, boundary allocation, and fractional relation weights
+are not implemented in v0.1.
 
 ## SurvStat file adapter v0.1
 
@@ -77,7 +79,11 @@ development builder and reviewed inputs are version-controlled under
 materials are excluded from built packages.
 
 The dated directives mean reviewed and established for the reference date and
-do not claim historical applicability. No Berlin aggregate relations exist:
-the resolution reference date is not evidence of SurvStat territorial vintage.
-Real validation therefore stops after `resolve_geography()` with unchanged
-unresolved `geo_vintage`.
+do not claim historical applicability. The resource contains 12 reviewed
+source spatial relations from the Berlin identities to canonical Berlin
+`11000`; these are not historical territorial-vintage relations.
+
+`aggregate_geography()` uses `source_spatial_relations`, canonical same-ID
+passthrough, and an explicit applicability/reference date. It never infers or
+changes `geo_vintage`. `harmonize_vintage()` remains exclusively based on
+historical `geography_relations` and explicit source/target vintages.

@@ -4,7 +4,7 @@
 #' reviewed SurvStat 2024 source geography labels against BKG VG-Hist districts
 #' applicable on 2024-12-31.
 #'
-#' @format A named list with four elements:
+#' @format A named list with five elements:
 #' \describe{
 #'   \item{bkg_districts}{A 400-row canonical geography register with
 #'   `geo_id`, `geo_name`, `geo_level`, `valid_from`, `valid_to`, `source`,
@@ -15,6 +15,10 @@
 #'   \item{survstat_spatial_units}{Twelve reviewed Berlin Bezirk source
 #'   identities with opaque namespaced identifiers. They do not identify or
 #'   imply an aggregation target.}
+#'   \item{survstat_source_spatial_relations}{Twelve reviewed, source-version-
+#'   specific aggregate relations from the Berlin Bezirk source identities to
+#'   canonical Berlin `11000`. Applicability dates are not territorial
+#'   vintages.}
 #'   \item{provenance}{Dataset-level BKG product, reference-date, checksum,
 #'   license, transformation, builder, and reviewed SurvStat metadata.}
 #' }
@@ -22,7 +26,8 @@
 #' Alias and spatial-unit validity from 2024-12-31 through 2024-12-31 means
 #' "reviewed and established for this reference date"; it does not assert that
 #' a mapping existed for only one calendar day or establish historical
-#' applicability. VG-Hist's `9999-12-31` `END` values are preserved because the
+#' applicability. This convention also applies to source spatial relations.
+#' VG-Hist's `9999-12-31` `END` values are preserved because the
 #' supplied official documentation defines `END` as an inclusive end date but
 #' does not explicitly identify that value as an open-ended sentinel.
 #'

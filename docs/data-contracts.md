@@ -105,6 +105,21 @@ license, derivation, builder, and selection date without repeating long
 metadata in every row.
 
 The one-day directive intervals express the scope of review, not one-day
-geographic existence or unreviewed historical applicability. No Berlin
-aggregation relations or source territorial vintage are supplied. The BKG
+geographic existence or unreviewed historical applicability. The BKG
 resolution reference date must not be substituted for SurvStat `geo_vintage`.
+
+## Source spatial relations
+
+`source_spatial_relations` are distinct from historical
+`geography_relations`. They contain `source`, NA-aware `source_version`,
+`from_geo_id`, `from_geo_level`, `to_geo_id`, `relation_type`, `valid_from`,
+`valid_to`, `review_status`, and `reason`. Applicability dates select reviewed
+source-resolution directives; they are not territorial vintages. V0.1 permits
+only non-overlapping reviewed `aggregate` and `identity` mappings.
+
+`aggregate_geography()` uses these relations plus validated canonical same-ID
+passthrough. It accepts an explicit `reference_date`, never infers or changes
+`geo_vintage`, and keeps different vintage values in separate groups. Known
+resolver `source_geo_*` provenance is omitted from aggregated output because
+the separate resolution audit is authoritative; other unclassified columns
+remain errors.

@@ -5,7 +5,7 @@
 \alias{regionalepi_geography_resources_2024}
 \title{Reviewed geography resources for the 2024 reference register}
 \format{
-A named list with four elements:
+A named list with five elements:
 \describe{
 \item{bkg_districts}{A 400-row canonical geography register with
 \code{geo_id}, \code{geo_name}, \code{geo_level}, \code{valid_from}, \code{valid_to}, \code{source},
@@ -16,6 +16,10 @@ applicable character SKZ; \code{vghid} is retained historical provenance.}
 \item{survstat_spatial_units}{Twelve reviewed Berlin Bezirk source
 identities with opaque namespaced identifiers. They do not identify or
 imply an aggregation target.}
+\item{survstat_source_spatial_relations}{Twelve reviewed, source-version-
+specific aggregate relations from the Berlin Bezirk source identities to
+canonical Berlin \code{11000}. Applicability dates are not territorial
+vintages.}
 \item{provenance}{Dataset-level BKG product, reference-date, checksum,
 license, transformation, builder, and reviewed SurvStat metadata.}
 }
@@ -23,7 +27,8 @@ license, transformation, builder, and reviewed SurvStat metadata.}
 Alias and spatial-unit validity from 2024-12-31 through 2024-12-31 means
 "reviewed and established for this reference date"; it does not assert that
 a mapping existed for only one calendar day or establish historical
-applicability. VG-Hist's \code{9999-12-31} \code{END} values are preserved because the
+applicability. This convention also applies to source spatial relations.
+VG-Hist's \code{9999-12-31} \code{END} values are preserved because the
 supplied official documentation defines \code{END} as an inclusive end date but
 does not explicitly identify that value as an open-ended sentinel.
 

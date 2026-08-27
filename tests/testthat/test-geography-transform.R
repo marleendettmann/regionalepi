@@ -13,6 +13,25 @@ relation_rows <- function(from, to, type, from_vintage, to_vintage,
   )
 }
 
+source_relation_rows <- function(
+    from, to, type = "aggregate", source = "synthetic",
+    version = "synthetic_v1", level = "surveillance_unit",
+    valid_from = "2024-12-31", valid_to = "2024-12-31") {
+  data.frame(
+    source = rep(source, length(from)),
+    source_version = rep(version, length(from)),
+    from_geo_id = from,
+    from_geo_level = rep(level, length(from)),
+    to_geo_id = to,
+    relation_type = rep(type, length.out = length(from)),
+    valid_from = rep(as.Date(valid_from), length(from)),
+    valid_to = rep(as.Date(valid_to), length(from)),
+    review_status = rep("reviewed", length(from)),
+    reason = rep("reviewed synthetic relation", length(from)),
+    stringsAsFactors = FALSE
+  )
+}
+
 geography_rows <- function(id, name, level = "target",
                            valid_from = "2000-01-01", valid_to = NA) {
   data.frame(
@@ -36,6 +55,7 @@ berlin_input <- function() {
     pathogen = "influenza",
     age_group = "all",
     sex = "all",
+    source = "synthetic",
     source_version = "synthetic_v1",
     cases = c(10, 15, 20, 25, 30, 35),
     admissions = c(1, 2, 3, 4, 5, 6),
@@ -44,10 +64,7 @@ berlin_input <- function() {
 }
 
 berlin_relations <- function() {
-  relation_rows(
-    c("B01", "B02", "B03"), rep("11000", 3), rep("aggregate", 3),
-    "2020-12-31", "2020-12-31"
-  )
+  source_relation_rows(c("B01", "B02", "B03"), rep("11000", 3))
 }
 
 berlin_target <- function() {
@@ -58,9 +75,9 @@ test_that("Berlin-style aggregation preserves weeks and dimensions", {
   input <- berlin_input()
   original <- input
   result <- aggregate_geography(
-    input, berlin_relations(), berlin_target(),
+    input, berlin_relations(), berlin_target(), as.Date("2024-12-31"),
     value_cols = c("cases", "admissions"),
-    group_cols = c("week", "pathogen", "age_group", "sex", "source_version")
+    group_cols = c("week", "pathogen", "age_group", "sex", "source", "source_version")
   )
 
   expect_identical(input, original)
@@ -81,9 +98,9 @@ test_that("Berlin-style aggregation preserves weeks and dimensions", {
 
 test_that("aggregation diagnostics record simple transformation provenance", {
   result <- aggregate_geography(
-    berlin_input(), berlin_relations(), berlin_target(),
+    berlin_input(), berlin_relations(), berlin_target(), as.Date("2024-12-31"),
     value_cols = c("cases", "admissions"),
-    group_cols = c("week", "pathogen", "age_group", "sex", "source_version")
+    group_cols = c("week", "pathogen", "age_group", "sex", "source", "source_version")
   )
   diagnostics <- result$diagnostics
   expect_identical(diagnostics$operation, "aggregate_geography")
@@ -105,8 +122,9 @@ test_that("target metadata comes from the uniquely valid historical register row
     geography_rows("11000", "Canonical Berlin", "canonical_level", "2000-01-01", NA)
   )
   result <- aggregate_geography(
-    berlin_input(), berlin_relations(), target, c("cases", "admissions"),
-    c("week", "pathogen", "age_group", "sex", "source_version")
+    berlin_input(), berlin_relations(), target, as.Date("2024-12-31"),
+    c("cases", "admissions"),
+    c("week", "pathogen", "age_group", "sex", "source", "source_version")
   )
   expect_identical(unique(result$data$geo_name), "Canonical Berlin")
   expect_identical(unique(result$data$geo_level), "canonical_level")
@@ -114,8 +132,9 @@ test_that("target metadata comes from the uniquely valid historical register row
   target$valid_to[1] <- as.Date(NA)
   expect_error(
     aggregate_geography(
-      berlin_input(), berlin_relations(), target, c("cases", "admissions"),
-      c("week", "pathogen", "age_group", "sex", "source_version")
+      berlin_input(), berlin_relations(), target, as.Date("2024-12-31"),
+      c("cases", "admissions"),
+      c("week", "pathogen", "age_group", "sex", "source", "source_version")
     ),
     "multiple target geography rows"
   )
@@ -159,11 +178,11 @@ test_that("historical merge preserves additive weekly counts", {
 
 test_that("identity relations preserve rows and use target metadata", {
   input <- berlin_input()[1:2, ]
-  relations <- relation_rows("B01", "B01", "identity", "2020-12-31", "2020-12-31")
+  relations <- source_relation_rows("B01", "B01", "identity")
   target <- geography_rows("B01", "Canonical B01", "canonical_unit")
   result <- aggregate_geography(
-    input, relations, target, c("cases", "admissions"),
-    c("week", "pathogen", "age_group", "sex", "source_version")
+    input, relations, target, as.Date("2024-12-31"), c("cases", "admissions"),
+    c("week", "pathogen", "age_group", "sex", "source", "source_version")
   )
   expect_identical(result$data$cases, c(10, 15))
   expect_identical(result$data$geo_name, rep("Canonical B01", 2))
@@ -173,61 +192,54 @@ test_that("unmatched and ambiguous source units fail explicitly", {
   relations <- berlin_relations()[1:2, ]
   expect_error(
     aggregate_geography(
-      berlin_input(), relations, berlin_target(), "cases",
-      c("week", "pathogen", "age_group", "sex", "source_version", "admissions")
+      berlin_input(), relations, berlin_target(), as.Date("2024-12-31"), "cases",
+      c("week", "pathogen", "age_group", "sex", "source", "source_version", "admissions")
     ),
-    "unmatched.*B03"
+    "no target geography row.*B03"
   )
 
-  relations <- rbind(
-    berlin_relations(),
-    relation_rows("B01", "99999", "aggregate", "2020-12-31", "2020-12-31")
-  )
+  relations <- rbind(berlin_relations(), source_relation_rows("B01", "99999"))
   target <- rbind(berlin_target(), geography_rows("99999", "Other target"))
   expect_error(
     aggregate_geography(
-      berlin_input(), relations, target, "cases",
-      c("week", "pathogen", "age_group", "sex", "source_version", "admissions")
+      berlin_input(), relations, target, as.Date("2024-12-31"), "cases",
+      c("week", "pathogen", "age_group", "sex", "source", "source_version", "admissions")
     ),
-    "ambiguous.*B01"
+    "intervals must not overlap"
   )
 })
 
-test_that("unsupported and wrong-operation relation types fail explicitly", {
-  for (type in c("historical_split", "boundary_change", "historical_merge")) {
-    relations <- berlin_relations()
-    relations$relation_type[1] <- type
-    expect_error(
-      aggregate_geography(
-        berlin_input(), relations, berlin_target(), "cases",
-        c("week", "pathogen", "age_group", "sex", "source_version", "admissions")
-      ),
-      "unsupported relation type"
-    )
-  }
-
+test_that("historical and source-spatial relation contracts stay distinct", {
+  expect_error(
+    aggregate_geography(
+      berlin_input(), berlin_relations()[, 1:8], berlin_target(),
+      as.Date("2024-12-31"), "cases",
+      c("week", "pathogen", "age_group", "sex", "source", "source_version", "admissions")
+    ),
+    "missing required column"
+  )
   input <- berlin_input()[1, ]
   relations <- relation_rows("B01", "B01", "aggregate", "2020-12-31", "2021-12-31")
   expect_error(
     harmonize_vintage(
       input, relations, geography_rows("B01", "B01"),
       as.Date("2020-12-31"), as.Date("2021-12-31"), "cases",
-      c("week", "pathogen", "age_group", "sex", "source_version", "admissions")
+      c("week", "pathogen", "age_group", "sex", "source", "source_version", "admissions")
     ),
     "unsupported relation type"
   )
 })
 
-test_that("vintage consistency is enforced by each operation", {
+test_that("aggregation preserves mixed vintages while harmonization enforces them", {
   input <- berlin_input()
   input$geo_vintage[1] <- as.Date("2019-12-31")
-  expect_error(
-    aggregate_geography(
-      input, berlin_relations(), berlin_target(), "cases",
-      c("week", "pathogen", "age_group", "sex", "source_version", "admissions")
-    ),
-    "one common.*geo_vintage"
+  result <- aggregate_geography(
+    input, berlin_relations(), berlin_target(), as.Date("2024-12-31"), "cases",
+    c("week", "pathogen", "age_group", "sex", "source", "source_version", "admissions")
   )
+  expect_setequal(unique(result$data$geo_vintage),
+                  as.Date(c("2019-12-31", "2020-12-31")))
+  expect_false(result$diagnostics$geo_vintage_inferred_or_changed)
 
   input <- berlin_input()[1, ]
   expect_error(
@@ -236,7 +248,7 @@ test_that("vintage consistency is enforced by each operation", {
       relation_rows("B01", "B01", "identity", "2019-12-31", "2021-12-31"),
       geography_rows("B01", "B01"), as.Date("2019-12-31"),
       as.Date("2021-12-31"), "cases",
-      c("week", "pathogen", "age_group", "sex", "source_version", "admissions")
+      c("week", "pathogen", "age_group", "sex", "source", "source_version", "admissions")
     ),
     "must equal.*source_vintage"
   )
@@ -247,7 +259,7 @@ test_that("vintage consistency is enforced by each operation", {
       relation_rows("B01", "B01", "identity", "2020-12-31", "2022-12-31"),
       geography_rows("B01", "B01"), as.Date("2020-12-31"),
       as.Date("2021-12-31"), "cases",
-      c("week", "pathogen", "age_group", "sex", "source_version", "admissions")
+      c("week", "pathogen", "age_group", "sex", "source", "source_version", "admissions")
     ),
     "unmatched.*source/target vintages"
   )
@@ -255,75 +267,116 @@ test_that("vintage consistency is enforced by each operation", {
 
 test_that("value, grouping, and semantic arguments are strict", {
   input <- berlin_input()
-  groups <- c("week", "pathogen", "age_group", "sex", "source_version", "admissions")
+  groups <- c("week", "pathogen", "age_group", "sex", "source", "source_version", "admissions")
   input$cases <- as.character(input$cases)
   expect_error(
-    aggregate_geography(input, berlin_relations(), berlin_target(), "cases", groups),
+    aggregate_geography(input, berlin_relations(), berlin_target(), as.Date("2024-12-31"), "cases", groups),
     "cases.*numeric"
   )
   input <- berlin_input()
   input$cases[1] <- NA_real_
   expect_error(
-    aggregate_geography(input, berlin_relations(), berlin_target(), "cases", groups),
+    aggregate_geography(input, berlin_relations(), berlin_target(), as.Date("2024-12-31"), "cases", groups),
     "cases.*must not contain NA"
   )
   input$cases[1] <- Inf
   expect_error(
-    aggregate_geography(input, berlin_relations(), berlin_target(), "cases", groups),
+    aggregate_geography(input, berlin_relations(), berlin_target(), as.Date("2024-12-31"), "cases", groups),
     "cases.*finite"
   )
   input <- berlin_input()
   expect_error(
-    aggregate_geography(input, berlin_relations(), berlin_target(), "missing", groups),
+    aggregate_geography(input, berlin_relations(), berlin_target(), as.Date("2024-12-31"), "missing", groups),
     "missing requested"
   )
   expect_error(
-    aggregate_geography(input, berlin_relations(), berlin_target(), "cases", c(groups, "missing")),
+    aggregate_geography(input, berlin_relations(), berlin_target(), as.Date("2024-12-31"), "cases", c(groups, "missing")),
     "missing requested"
   )
   expect_error(
-    aggregate_geography(input, berlin_relations(), berlin_target(), "cases", groups[-length(groups)]),
+    aggregate_geography(input, berlin_relations(), berlin_target(), as.Date("2024-12-31"), "cases", groups[-length(groups)]),
     "unclassified.*admissions"
   )
   expect_error(
-    aggregate_geography(input, berlin_relations(), berlin_target(), "cases", c(groups, "cases")),
+    aggregate_geography(input, berlin_relations(), berlin_target(), as.Date("2024-12-31"), "cases", c(groups, "cases")),
     "both values and groups"
   )
   expect_error(
     aggregate_geography(
-      input, berlin_relations(), berlin_target(), "cases", groups,
+      input, berlin_relations(), berlin_target(), as.Date("2024-12-31"), "cases", groups,
       value_semantics = "rate"
     ),
     "exactly.*additive"
   )
 })
 
-test_that("fractional relation allocation is not implemented", {
-  relations <- berlin_relations()
-  relations$weight[1] <- 0.5
+test_that("canonical passthrough is validated and resolver provenance is omitted", {
+  input <- berlin_input()[1:2, ]
+  input$geo_id <- "11000"
+  input$source_geo_id <- "raw-id"
+  input$source_geo_name <- "verbatim source label"
+  input$source_geo_level <- "raw-level"
+  result <- aggregate_geography(
+    input, berlin_relations()[0, ], berlin_target(), as.Date("2024-12-31"),
+    c("cases", "admissions"),
+    c("week", "pathogen", "age_group", "sex", "source", "source_version")
+  )
+  expect_identical(result$diagnostics$canonical_passthrough_units, 1L)
+  expect_identical(result$diagnostics$explicit_relation_units, 0L)
+  expect_false(any(startsWith(names(result$data), "source_geo_")))
+  input$unknown <- "not classified"
   expect_error(
     aggregate_geography(
-      berlin_input(), relations, berlin_target(), "cases",
-      c("week", "pathogen", "age_group", "sex", "source_version", "admissions")
+      input, berlin_relations()[0, ], berlin_target(), as.Date("2024-12-31"),
+      "cases", c("week", "pathogen", "age_group", "sex", "source",
+                 "source_version", "admissions")
     ),
-    "fractional relation weights.*unsupported"
+    "unclassified.*unknown"
+  )
+})
+
+test_that("source-version matching is exact and geo_vintage is optional", {
+  input <- berlin_input()[1:2, ]
+  input$source_version <- NA_character_
+  relations <- source_relation_rows("B01", "11000", version = NA_character_)
+  input$geo_vintage <- NULL
+  result <- aggregate_geography(
+    input, relations, berlin_target(), as.Date("2024-12-31"),
+    c("cases", "admissions"),
+    c("week", "pathogen", "age_group", "sex", "source", "source_version")
+  )
+  expect_false("geo_vintage" %in% names(result$data))
+  expect_false(result$diagnostics$geo_vintage_present)
+
+  relations$source_version <- "synthetic_v1"
+  expect_error(
+    aggregate_geography(
+      input, relations, berlin_target(), as.Date("2024-12-31"), "cases",
+      c("week", "pathogen", "age_group", "sex", "source", "source_version",
+        "admissions")
+    ),
+    "no target geography row.*B01"
   )
 })
 
 test_that("zero-row inputs return structured successful diagnostics", {
   input <- berlin_input()[0, ]
   result <- aggregate_geography(
-    input, berlin_relations(), berlin_target(), c("cases", "admissions"),
-    c("week", "pathogen", "age_group", "sex", "source_version")
+    input, berlin_relations(), berlin_target(), as.Date("2024-12-31"),
+    c("cases", "admissions"),
+    c("week", "pathogen", "age_group", "sex", "source", "source_version")
   )
-  expect_identical(result$data, input)
+  expect_identical(nrow(result$data), 0L)
+  expect_false(any(startsWith(names(result$data), "source_geo_")))
   expect_identical(result$diagnostics$input_rows, 0L)
   expect_true(all(result$diagnostics$mass_balance$balanced))
 
   result <- harmonize_vintage(
-    input, berlin_relations(), berlin_target(), as.Date("2020-12-31"),
+    input, relation_rows(c("B01", "B02", "B03"), rep("11000", 3),
+                         rep("aggregate", 3), "2020-12-31", "2021-12-31"),
+    berlin_target(), as.Date("2020-12-31"),
     as.Date("2021-12-31"), c("cases", "admissions"),
-    c("week", "pathogen", "age_group", "sex", "source_version")
+    c("week", "pathogen", "age_group", "sex", "source", "source_version")
   )
   expect_identical(nrow(result$data), 0L)
   expect_s3_class(result$data$geo_vintage, "Date")
