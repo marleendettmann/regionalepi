@@ -79,5 +79,6 @@ geography, or calculate incidence.
 Blank incidence cells become \code{NA_real_}; numeric zero remains zero. A blank
 is never interpreted as a zero rate. Query metadata is supplied explicitly
 by the caller and returned once in \code{provenance}, while observation rows carry
-only the compact \code{query_id}.
+only the compact \code{query_id}. German-formatted non-negative values may use a
+decimal comma and correctly grouped thousands points.
 }

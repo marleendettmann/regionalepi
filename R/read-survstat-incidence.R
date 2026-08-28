@@ -10,7 +10,8 @@
 #' Blank incidence cells become `NA_real_`; numeric zero remains zero. A blank
 #' is never interpreted as a zero rate. Query metadata is supplied explicitly
 #' by the caller and returned once in `provenance`, while observation rows carry
-#' only the compact `query_id`.
+#' only the compact `query_id`. German-formatted non-negative values may use a
+#' decimal comma and correctly grouped thousands points.
 #'
 #' @param file Path to one local SurvStat export file.
 #' @param layout Exactly `"kreis_rows"` or `"reporting_year_rows"`.
@@ -377,14 +378,18 @@ read_survstat_incidence <- function(
 .parse_survstat_incidence <- function(x, field, contract) {
   values <- as.character(x)
   blank <- is.na(values) | values == ""
-  valid <- blank | grepl("^[0-9]+(,[0-9]+)?$", values)
+  valid <- blank | grepl(
+    "^(?:[0-9]+|[0-9]{1,3}(?:\\.[0-9]{3})+)(?:,[0-9]+)?$", values
+  )
   if (any(!valid)) {
     .stop_contract(
       contract,
       sprintf("%s contain a value outside the non-negative decimal-comma format", field)
     )
   }
-  parsed <- suppressWarnings(as.numeric(sub(",", ".", values, fixed = TRUE)))
+  normalized <- gsub(".", "", values, fixed = TRUE)
+  normalized <- sub(",", ".", normalized, fixed = TRUE)
+  parsed <- suppressWarnings(as.numeric(normalized))
   parsed[blank] <- NA_real_
   if (any(!is.finite(parsed[!blank])) || any(parsed[!blank] < 0)) {
     .stop_contract(contract, sprintf("%s must be finite and non-negative", field))

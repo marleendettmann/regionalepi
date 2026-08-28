@@ -40,5 +40,8 @@ source-specific knowledge is supplied in \code{specification}.
 Both inputs must already have the geographic identities required by the
 specification. Query-level provenance is supplied separately and retained
 once in the result; observation rows retain their original compact
-\code{query_id}.
+\code{query_id}. Temporal compatibility is derived from the observations actually
+supplied to this call, not from the immutable scope of either original
+source query. Callers must therefore subset both inputs to the intended
+assembly scope before calling this function.
 }

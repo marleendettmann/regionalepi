@@ -130,6 +130,30 @@ test_that("incidence decimal parser rejects decimal points", {
   )
 })
 
+test_that("incidence parser accepts only correctly grouped German thousands", {
+  lines <- survstat_incidence_kreis_lines(
+    weeks = c("01", "02"), geographies = "LK Alpha",
+    values = matrix(c("1.234,56", "12.345,00"), nrow = 1L)
+  )
+  result <- read_survstat_incidence(
+    write_utf16_survstat_fixture(lines), "kreis_rows", "Disease", 2024,
+    "q", "base"
+  )
+  expect_identical(result$data$incidence, c(1234.56, 12345))
+
+  malformed <- survstat_incidence_kreis_lines(
+    weeks = "01", geographies = "LK Alpha",
+    values = matrix("12.34,56", nrow = 1L)
+  )
+  expect_error(
+    read_survstat_incidence(
+      write_utf16_survstat_fixture(malformed), "kreis_rows", "Disease", 2024,
+      "q", "base"
+    ),
+    "decimal-comma"
+  )
+})
+
 test_that("inapplicable ISO week values cannot be silently omitted", {
   lines <- survstat_incidence_year_lines(
     years = "2024", values = list(`2024` = c("1,00", "2,00", "3,00"))

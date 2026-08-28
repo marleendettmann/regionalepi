@@ -8,7 +8,10 @@
 #' Both inputs must already have the geographic identities required by the
 #' specification. Query-level provenance is supplied separately and retained
 #' once in the result; observation rows retain their original compact
-#' `query_id`.
+#' `query_id`. Temporal compatibility is derived from the observations actually
+#' supplied to this call, not from the immutable scope of either original
+#' source query. Callers must therefore subset both inputs to the intended
+#' assembly scope before calling this function.
 #'
 #' @param base_data Canonical `surveillance_incidence` observations for the
 #'   reviewed base query.
@@ -57,7 +60,13 @@ assemble_surveillance_incidence <- function(
   }
   base_keys <- .incidence_temporal_keys(base_data, temporal_keys)
   replacement_keys <- .incidence_temporal_keys(replacement_data, temporal_keys)
-  if (!setequal(unique(base_keys), unique(replacement_keys))) {
+  assembly_coverage <- .incidence_assembly_coverage(
+    base_data, replacement_data, contract
+  )
+  if (!identical(
+    assembly_coverage$base_coverage,
+    assembly_coverage$replacement_coverage
+  )) {
     .stop_contract(contract, "base and replacement temporal coverage must match exactly")
   }
 
@@ -116,6 +125,10 @@ assemble_surveillance_incidence <- function(
       specification_version = spec$spec_version,
       base_query_id = base_provenance$query_id,
       replacement_query_id = replacement_provenance$query_id,
+      assembly_reporting_years = assembly_coverage$reporting_years,
+      assembly_reporting_week_coverage = assembly_coverage$week_coverage,
+      base_query_reporting_years = base_provenance$reporting_years,
+      replacement_query_reporting_years = replacement_provenance$reporting_years,
       temporal_groups = length(keys),
       excluded_source_units = length(excluded_ids),
       replacement_units_per_temporal_group = spec$expected_replacement_units,
@@ -240,7 +253,7 @@ assemble_surveillance_incidence <- function(
   identical_fields <- c(
     "source", "source_version", "pathogen", "measure", "value_semantics",
     "reference_definition", "reporting_path", "epidemiological_filters",
-    "time_unit", "reporting_years", "reporting_week_coverage", "data_status"
+    "time_unit", "data_status"
   )
   incompatible <- identical_fields[!vapply(
     identical_fields,
@@ -254,6 +267,38 @@ assemble_surveillance_incidence <- function(
     )
   }
   invisible(TRUE)
+}
+
+.incidence_assembly_coverage <- function(base, replacement, contract) {
+  coverage_fields <- c("reporting_year", "reporting_week", "date")
+  .require_columns(base, coverage_fields, contract)
+  .require_columns(replacement, coverage_fields, contract)
+  if (anyNA(base[coverage_fields]) || anyNA(replacement[coverage_fields])) {
+    .stop_contract(contract, "observed temporal coverage must be complete")
+  }
+  normalize <- function(x) {
+    coverage <- unique(x[coverage_fields])
+    coverage <- coverage[order(
+      coverage$reporting_year, coverage$reporting_week, coverage$date
+    ), , drop = FALSE]
+    rownames(coverage) <- NULL
+    coverage
+  }
+  base_coverage <- normalize(base)
+  replacement_coverage <- normalize(replacement)
+  years <- sort(unique(base_coverage$reporting_year))
+  week_coverage <- stats::setNames(
+    lapply(years, function(year) {
+      sort(base_coverage$reporting_week[base_coverage$reporting_year == year])
+    }),
+    as.character(years)
+  )
+  list(
+    base_coverage = base_coverage,
+    replacement_coverage = replacement_coverage,
+    reporting_years = years,
+    week_coverage = week_coverage
+  )
 }
 
 .incidence_temporal_keys <- function(x, fields) {

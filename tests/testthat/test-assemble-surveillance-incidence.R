@@ -94,29 +94,126 @@ test_that("reviewed replacement removes rates and appends rates without arithmet
                     "base-query"))
   expect_false(result$diagnostics$rate_summation_performed)
   expect_false(result$diagnostics$rate_averaging_performed)
+  expect_identical(result$diagnostics$assembly_reporting_years, 2024L)
+  expect_identical(
+    result$diagnostics$assembly_reporting_week_coverage,
+    list(`2024` = c(1L, 2L))
+  )
   expect_named(result$provenance, c("base-query", "replacement-query"))
+})
+
+test_that("assembly compatibility uses supplied observations rather than query scope", {
+  pair <- incidence_query_pair()
+  pair$base_provenance$reporting_years <- 2024L
+  pair$base_provenance$reporting_week_coverage <- list(`2024` = c(1L, 2L))
+  pair$replacement_provenance$reporting_years <- 2017:2026
+  pair$replacement_provenance$reporting_week_coverage <- stats::setNames(
+    rep(list(1:52), 10L), as.character(2017:2026)
+  )
+  original_base <- pair$base_provenance
+  original_replacement <- pair$replacement_provenance
+
+  result <- assemble_surveillance_incidence(
+    pair$base_data, pair$replacement_data,
+    pair$base_provenance, pair$replacement_provenance,
+    synthetic_incidence_spec()
+  )
+
+  expect_identical(result$provenance$`base-query`, original_base)
+  expect_identical(result$provenance$`replacement-query`, original_replacement)
+  expect_identical(result$diagnostics$base_query_reporting_years, 2024L)
+  expect_identical(result$diagnostics$replacement_query_reporting_years, 2017:2026)
+  expect_identical(result$diagnostics$assembly_reporting_years, 2024L)
+  expect_true(all(result$data$query_id[result$data$geo_id == "target"] ==
+                    "replacement-query"))
+  expect_true(all(result$data$query_id[result$data$geo_id != "target"] ==
+                    "base-query"))
+})
+
+test_that("multi-year observation subsets may assemble across different query scopes", {
+  pair <- incidence_query_pair()
+  make_two_years <- function(x) {
+    later <- x
+    later$reporting_year <- 2025L
+    later$date <- later$date + 364
+    rbind(x, later)
+  }
+  pair$base_data <- make_two_years(pair$base_data)
+  pair$replacement_data <- make_two_years(pair$replacement_data)
+  pair$base_provenance$reporting_years <- c(2024L, 2025L)
+  pair$base_provenance$reporting_week_coverage <- list(
+    `2024` = 1:2, `2025` = 1:2
+  )
+  pair$replacement_provenance$reporting_years <- 2017:2026
+  pair$replacement_provenance$reporting_week_coverage <- stats::setNames(
+    rep(list(1:52), 10L), as.character(2017:2026)
+  )
+
+  result <- assemble_surveillance_incidence(
+    pair$base_data, pair$replacement_data,
+    pair$base_provenance, pair$replacement_provenance,
+    synthetic_incidence_spec()
+  )
+  expect_identical(result$diagnostics$assembly_reporting_years, c(2024L, 2025L))
+  expect_identical(result$diagnostics$temporal_groups, 4L)
+  expect_identical(nrow(result$data), 12L)
+})
+
+test_that("observed temporal coverage rejects missing and unexpected periods", {
+  pair <- incidence_query_pair()
+  call <- function(replacement) {
+    assemble_surveillance_incidence(
+      pair$base_data, replacement,
+      pair$base_provenance, pair$replacement_provenance,
+      synthetic_incidence_spec()
+    )
+  }
+  expect_error(call(pair$replacement_data[-1L, ]), "temporal coverage")
+
+  unexpected_week <- pair$replacement_data[1L, ]
+  unexpected_week$reporting_week <- 3L
+  unexpected_week$date <- as.Date("2024-01-15")
+  expect_error(call(rbind(pair$replacement_data, unexpected_week)), "temporal coverage")
+
+  unexpected_year <- pair$replacement_data[1L, ]
+  unexpected_year$reporting_year <- 2025L
+  unexpected_year$date <- as.Date("2024-12-30")
+  expect_error(call(rbind(pair$replacement_data, unexpected_year)), "temporal coverage")
+
+  wrong_date <- pair$replacement_data
+  wrong_date$date[1L] <- wrong_date$date[1L] + 1
+  expect_error(call(wrong_date), "temporal coverage")
 })
 
 test_that("assembly fails on incompatible query metadata and strict data status", {
   pair <- incidence_query_pair()
-  changed <- pair$replacement_provenance
-  changed$pathogen <- "Other"
-  expect_error(
-    assemble_surveillance_incidence(
-      pair$base_data, pair$replacement_data, pair$base_provenance, changed,
-      synthetic_incidence_spec()
+  changes <- list(
+    pathogen = list(value = "Other", pattern = "pathogen"),
+    reference_definition = list(value = FALSE, pattern = "reference_definition"),
+    reporting_path = list(value = "other", pattern = "reporting_path"),
+    epidemiological_filters = list(
+      value = list(sex = "female"), pattern = "epidemiological_filters"
     ),
-    "pathogen"
+    source_version = list(value = "other", pattern = "source_version"),
+    measure = list(value = "cases", pattern = "non-additive incidence"),
+    time_unit = list(value = "day", pattern = "time_unit"),
+    data_status = list(
+      value = pair$replacement_provenance$data_status + 1,
+      pattern = "data_status"
+    )
   )
-  changed <- pair$replacement_provenance
-  changed$data_status <- changed$data_status + 1
-  expect_error(
-    assemble_surveillance_incidence(
-      pair$base_data, pair$replacement_data, pair$base_provenance, changed,
-      synthetic_incidence_spec()
-    ),
-    "data_status"
-  )
+  for (field in names(changes)) {
+    changed <- pair$replacement_provenance
+    changed[[field]] <- changes[[field]]$value
+    expect_error(
+      assemble_surveillance_incidence(
+        pair$base_data, pair$replacement_data, pair$base_provenance, changed,
+        synthetic_incidence_spec()
+      ),
+      changes[[field]]$pattern,
+      fixed = TRUE
+    )
+  }
 })
 
 test_that("assembly fails on missing, duplicate, and unexpected coverage", {
