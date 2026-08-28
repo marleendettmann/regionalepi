@@ -10,8 +10,9 @@ The intended future processing order is:
 3. spatial aggregation and historical-vintage harmonization are handled as
    distinct operations;
 4. additive base quantities are harmonized;
-5. ratios, rates, incidence, densities, and demographic indicators are
-   recalculated from those quantities;
+5. calculated ratios, rates, incidence, densities, and demographic indicators
+   are recalculated from those quantities, while explicitly source-provided
+   rates remain separate non-additive observations;
 6. versioned typology specifications may be executed; and
 7. clients such as Shiny consume package results.
 
@@ -72,6 +73,25 @@ weekly counts against the national source totals. It neither imports nor
 calculates incidence. The result is an ordinary `list(data, diagnostics)`,
 consistent with the Geography Layer return convention.
 
+## Source-provided SurvStat incidence v0.1
+
+`surveillance_incidence` is a separate non-additive contract. Its shared
+geographic-observation fields permit deterministic identity resolution without
+weakening count validation, but `incidence` is rejected by both additive
+geography transformations.
+
+`read_survstat_incidence()` supports only two evidenced layouts: Kreis rows
+with one explicit reporting year, and Meldejahr rows with one explicit source
+geography supplied through query-filter metadata. Blank rate cells are
+`NA_real_`, not zero. Query settings are explicit caller-supplied provenance;
+the package does not parse Info PDFs or expose a generic public query-spec API.
+
+`assemble_surveillance_incidence()` is a reviewed replacement operation. It
+removes specified base source units and appends separately queried replacement
+observations after strict temporal and query compatibility checks. It performs
+no rate arithmetic. Query-level metadata is retained once and observation rows
+link to it through `query_id`.
+
 ## Geographic Resolution v0.1
 
 `resolve_geography()` establishes geographic identity without aggregating,
@@ -103,6 +123,9 @@ ambiguous identity aborts the complete resolution call.
 for the reviewed 2024 resolution case. It contains the BKG VG-Hist district
 register applicable on 2024-12-31, exact reviewed SurvStat aliases, reviewed
 Berlin Bezirk source identities, and compact dataset-level provenance.
+It also contains a separate reviewed Bundesland incidence alias and versioned
+12-row incidence assembly specification. Those data express the Berlin PoC;
+the reader, resolver, and assembly function contain no Berlin-specific branch.
 
 The reproducible builder and reviewed inputs are kept in Git under `data-raw`.
 The official GeoPackage stays ignored under `data-raw/local`, and `data-raw` is

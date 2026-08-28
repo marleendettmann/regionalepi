@@ -6,7 +6,8 @@ and stop with an actionable error on failure; they do not coerce values.
 
 Required fields must be complete: values may not be `NA` or empty unless a
 contract explicitly allows that exception. The exceptions are pre-resolution
-surveillance `geo_id` and `geo_vintage`; open-ended `age_to`; open geography
+surveillance `geo_id` and `geo_vintage`; blank source-provided `incidence`;
+open-ended `age_to`; open geography
 `valid_to`; optional relation `weight` and `note`; optional fields such as
 `parent_geo_id`, `sex`, and `retrieved_at`; and genuinely unavailable
 surveillance/context source versions in analysis provenance.
@@ -90,6 +91,26 @@ means unavailable or unknown. `reporting_path` is character provenance.
 executed. `data_status` is the source data status reported by SurvStat for that
 query; it is a separate provenance concept.
 
+## Source-provided surveillance incidence
+
+`surveillance_incidence` requires the common surveillance geographic and
+temporal fields, `incidence`, and `query_id`. Incidence is numeric, finite when
+present, non-negative, and explicitly non-additive. `NA_real_` preserves a
+blank or unavailable source rate and is not numeric zero. Count surveillance
+remains a separate whole-valued `cases` contract.
+
+`read_survstat_incidence()` returns `list(data, diagnostics, provenance)`.
+Repeated query settings are stored once in internal query-level provenance;
+observation rows contain the compact query identifier. The reader supports
+only reviewed Kreis-row and Meldejahr-row layouts and does not parse Info PDFs.
+
+Reviewed incidence assembly requires exact query compatibility for source,
+version, pathogen, measure, reference definition, reporting path, relevant
+filters, time unit, years, weeks, and data status. Retrieval timestamps may
+differ and remain in provenance. Assembly only removes and appends rows: rates
+are never summed or averaged. Additive geography operations reject a canonical
+`incidence` value column.
+
 ## Geography aliases
 
 Reviewed aliases contain `source`, `source_version`, `source_label`,
@@ -121,6 +142,9 @@ recognized source identities that require explicit spatial relations.
 `regionalepi_geography_resources_2024` bundles the canonical non-geometric BKG
 VG-Hist district register applicable on 2024-12-31 with the reviewed SurvStat
 aliases and spatial-unit identities established for that reference date.
+Separate reviewed data identify the Bundesland incidence alias and the 12-to-1
+incidence replacement specification; these are not spatial aggregation or
+historical-vintage relations.
 Dataset-level provenance records the BKG product/version, source checksum,
 license, derivation, builder, and selection date without repeating long
 metadata in every row.

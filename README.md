@@ -14,6 +14,13 @@ ignored local VG-Hist GeoPackage and all `data-raw` materials are excluded from
 built source packages. The package contains no indicator calculation,
 clustering, spatial processing, mapping, or application code.
 
+SurvStat counts and source-provided incidence use separate canonical contracts.
+`read_survstat()` remains the additive count reader;
+`read_survstat_incidence()` supports only the two reviewed incidence layouts
+and preserves blank rates as missing. Reviewed incidence assembly replaces
+explicit source units with separately queried replacement observations without
+summing or averaging rates.
+
 Reviewed source spatial relations support additive aggregation of the 12
 SurvStat Berlin Bezirk identities to canonical Berlin without inventing a
 territorial vintage. Historical vintage harmonization remains a separate

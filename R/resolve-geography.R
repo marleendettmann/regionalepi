@@ -14,7 +14,7 @@
 #' `reference_date` selects applicable register/directive rows; it is not the
 #' source territorial vintage. The returned `geo_vintage` is unchanged.
 #'
-#' @param data Canonical surveillance data.
+#' @param data Canonical count surveillance or source-provided incidence data.
 #' @param geography A canonical register satisfying `validate_geography()`.
 #' @param reference_date Complete scalar `Date` used to select register rows.
 #' @param source Complete scalar source system; initially `"SurvStat@RKI"`.
@@ -35,7 +35,7 @@ resolve_geography <- function(
     data, geography, reference_date, source, canonical_type_col,
     aliases = NULL, spatial_units = NULL) {
   contract <- "geography resolution"
-  validate_surveillance(data)
+  .validate_surveillance_observations(data)
   validate_geography(geography)
   .check_resolution_scalar_date(reference_date, "reference_date", contract)
   .check_resolution_scalar_character(source, "source", contract)
@@ -139,7 +139,7 @@ resolve_geography <- function(
     output$geo_name <- resolution$resolved_geo_name[matched]
     output$geo_level <- resolution$resolved_geo_level[matched]
   }
-  validate_surveillance(output)
+  .validate_surveillance_observations(output)
 
   methods <- sort(unique(resolution$resolution_method))
   methods <- methods[!is.na(methods)]

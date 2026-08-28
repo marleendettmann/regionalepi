@@ -74,6 +74,16 @@ survstat_aliases$valid_to <- as.Date(survstat_aliases$valid_to)
 targets <- match(survstat_aliases$target_geo_id, bkg_districts$geo_id)
 survstat_aliases$target_vghid <- bkg_districts$vghid[targets]
 
+survstat_incidence_aliases <- read_reviewed(
+  "data-raw/reviewed/survstat-incidence-aliases-2024.csv"
+)
+survstat_incidence_aliases$valid_from <- as.Date(survstat_incidence_aliases$valid_from)
+survstat_incidence_aliases$valid_to <- as.Date(survstat_incidence_aliases$valid_to)
+incidence_targets <- match(
+  survstat_incidence_aliases$target_geo_id, bkg_districts$geo_id
+)
+survstat_incidence_aliases$target_vghid <- bkg_districts$vghid[incidence_targets]
+
 survstat_spatial_units <- read_reviewed(
   "data-raw/reviewed/survstat-spatial-units-2024.csv"
 )
@@ -88,6 +98,17 @@ survstat_source_spatial_relations$valid_from <- as.Date(
 survstat_source_spatial_relations$valid_to <- as.Date(
   survstat_source_spatial_relations$valid_to
 )
+survstat_incidence_assembly_spec <- read_reviewed(
+  "data-raw/reviewed/survstat-incidence-assembly-spec-2024.csv"
+)
+for (field in c(
+  "expected_base_units", "expected_excluded_units",
+  "expected_replacement_units", "expected_output_units"
+)) {
+  survstat_incidence_assembly_spec[[field]] <- as.integer(
+    survstat_incidence_assembly_spec[[field]]
+  )
+}
 
 # Load current source validators without requiring an installed development
 # version of regionalepi.
@@ -97,10 +118,14 @@ for (file in sort(list.files("R", pattern = "[.]R$", full.names = TRUE))) {
 }
 validation_environment$validate_geography(bkg_districts)
 validation_environment$validate_geography_aliases(survstat_aliases)
+validation_environment$validate_geography_aliases(survstat_incidence_aliases)
 validation_environment$.validate_spatial_units(survstat_spatial_units)
 validation_environment$validate_source_spatial_relations(
   survstat_source_spatial_relations
 )
+invisible(validation_environment$.validate_incidence_assembly_spec(
+  survstat_incidence_assembly_spec, "reviewed incidence assembly specification"
+))
 
 stopifnot(
   nrow(bkg_districts) == 400L,
@@ -112,6 +137,11 @@ stopifnot(
   all(!is.na(bkg_districts$canonical_type)),
   nrow(survstat_aliases) == 19L,
   all(!is.na(targets)),
+  nrow(survstat_incidence_aliases) == 1L,
+  identical(survstat_incidence_aliases$source_label, "Berlin"),
+  identical(survstat_incidence_aliases$source_type, "Bundesland"),
+  identical(survstat_incidence_aliases$target_geo_id, "11000"),
+  all(!is.na(incidence_targets)),
   nrow(survstat_spatial_units) == 12L,
   !anyDuplicated(survstat_spatial_units$source_geo_id),
   !any(survstat_spatial_units$source_geo_id %in% bkg_districts$geo_id),
@@ -120,17 +150,25 @@ stopifnot(
            survstat_spatial_units$source_geo_id),
   all(survstat_source_spatial_relations$to_geo_id == "11000"),
   all(survstat_source_spatial_relations$from_geo_level ==
-        "survstat_berlin_bezirk")
+        "survstat_berlin_bezirk"),
+  nrow(survstat_incidence_assembly_spec) == 12L,
+  setequal(survstat_incidence_assembly_spec$exclude_geo_id,
+           survstat_spatial_units$source_geo_id),
+  all(survstat_incidence_assembly_spec$replacement_target_geo_id == "11000"),
+  all(survstat_incidence_assembly_spec$expected_base_units == 411L),
+  all(survstat_incidence_assembly_spec$expected_output_units == 400L)
 )
 
 regionalepi_geography_resources_2024 <- list(
   bkg_districts = bkg_districts,
   survstat_aliases = survstat_aliases,
+  survstat_incidence_aliases = survstat_incidence_aliases,
   survstat_spatial_units = survstat_spatial_units,
   survstat_source_spatial_relations = survstat_source_spatial_relations,
+  survstat_incidence_assembly_spec = survstat_incidence_assembly_spec,
   provenance = list(
     resource_id = "regionalepi_geography_resources_2024",
-    resource_version = "2024.12.31-v1",
+    resource_version = "2024.12.31-v2",
     reference_date = reference_date,
     provider = "Bundesamt für Kartographie und Geodäsie (BKG)",
     product = "Verwaltungsgebiete Historisch (VG-Hist)",
@@ -151,6 +189,11 @@ regionalepi_geography_resources_2024 <- list(
     ),
     reviewed_survstat_source = "SurvStat@RKI",
     reviewed_survstat_source_version = "SurvStat@RKI 2.0",
+    reviewed_incidence_assembly = paste(
+      "The incidence assembly specification replaces 12 reviewed Berlin Bezirk",
+      "source-incidence units with one separately queried Bundesland incidence",
+      "without summing or averaging rates."
+    ),
     directive_applicability = paste(
       "Alias and spatial-unit mappings were reviewed and established for",
       "2024-12-31; the one-day interval does not assert one-day historical existence."

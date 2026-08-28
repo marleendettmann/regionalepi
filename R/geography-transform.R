@@ -162,6 +162,9 @@ harmonize_vintage <- function(data, relations, target_geography,
       sprintf("missing requested column(s): %s", paste(missing, collapse = ", "))
     )
   }
+  if ("incidence" %in% value_cols) {
+    .stop_contract(contract, "`incidence` is non-additive and cannot be harmonized")
+  }
   unclassified <- setdiff(names(data), c(reserved, requested))
   if (length(unclassified)) {
     .stop_contract(
@@ -258,6 +261,9 @@ harmonize_vintage <- function(data, relations, target_geography,
       contract,
       sprintf("missing requested column(s): %s", paste(missing, collapse = ", "))
     )
+  }
+  if ("incidence" %in% value_cols) {
+    .stop_contract(contract, "`incidence` is non-additive and cannot be aggregated")
   }
   unclassified <- setdiff(names(data), c(allowed_unclassified, requested))
   if (length(unclassified)) {

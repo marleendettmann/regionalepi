@@ -4,7 +4,7 @@
 #' reviewed SurvStat 2024 source geography labels against BKG VG-Hist districts
 #' applicable on 2024-12-31.
 #'
-#' @format A named list with five elements:
+#' @format A named list with seven elements:
 #' \describe{
 #'   \item{bkg_districts}{A 400-row canonical geography register with
 #'   `geo_id`, `geo_name`, `geo_level`, `valid_from`, `valid_to`, `source`,
@@ -12,6 +12,8 @@
 #'   applicable character SKZ; `vghid` is retained historical provenance.}
 #'   \item{survstat_aliases}{Nineteen exact reviewed aliases satisfying
 #'   `validate_geography_aliases()`.}
+#'   \item{survstat_incidence_aliases}{One exact reviewed alias for the
+#'   Bundesland-filtered Berlin source geography used by the incidence PoC.}
 #'   \item{survstat_spatial_units}{Twelve reviewed Berlin Bezirk source
 #'   identities with opaque namespaced identifiers. They do not identify or
 #'   imply an aggregation target.}
@@ -19,6 +21,10 @@
 #'   specific aggregate relations from the Berlin Bezirk source identities to
 #'   canonical Berlin `11000`. Applicability dates are not territorial
 #'   vintages.}
+#'   \item{survstat_incidence_assembly_spec}{A twelve-row reviewed, versioned
+#'   specification identifying the Berlin Bezirk source identities excluded
+#'   from Kreis incidence and canonical Berlin `11000` as the single
+#'   replacement target. It specifies replacement, not rate aggregation.}
 #'   \item{provenance}{Dataset-level BKG product, reference-date, checksum,
 #'   license, transformation, builder, and reviewed SurvStat metadata.}
 #' }

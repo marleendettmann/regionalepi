@@ -5,7 +5,7 @@
 \alias{regionalepi_geography_resources_2024}
 \title{Reviewed geography resources for the 2024 reference register}
 \format{
-A named list with five elements:
+A named list with seven elements:
 \describe{
 \item{bkg_districts}{A 400-row canonical geography register with
 \code{geo_id}, \code{geo_name}, \code{geo_level}, \code{valid_from}, \code{valid_to}, \code{source},
@@ -13,6 +13,8 @@ A named list with five elements:
 applicable character SKZ; \code{vghid} is retained historical provenance.}
 \item{survstat_aliases}{Nineteen exact reviewed aliases satisfying
 \code{validate_geography_aliases()}.}
+\item{survstat_incidence_aliases}{One exact reviewed alias for the
+Bundesland-filtered Berlin source geography used by the incidence PoC.}
 \item{survstat_spatial_units}{Twelve reviewed Berlin Bezirk source
 identities with opaque namespaced identifiers. They do not identify or
 imply an aggregation target.}
@@ -20,6 +22,10 @@ imply an aggregation target.}
 specific aggregate relations from the Berlin Bezirk source identities to
 canonical Berlin \code{11000}. Applicability dates are not territorial
 vintages.}
+\item{survstat_incidence_assembly_spec}{A twelve-row reviewed, versioned
+specification identifying the Berlin Bezirk source identities excluded
+from Kreis incidence and canonical Berlin \code{11000} as the single
+replacement target. It specifies replacement, not rate aggregation.}
 \item{provenance}{Dataset-level BKG product, reference-date, checksum,
 license, transformation, builder, and reviewed SurvStat metadata.}
 }

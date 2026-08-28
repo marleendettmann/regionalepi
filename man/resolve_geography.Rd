@@ -15,7 +15,7 @@ resolve_geography(
 )
 }
 \arguments{
-\item{data}{Canonical surveillance data.}
+\item{data}{Canonical count surveillance or source-provided incidence data.}
 
 \item{geography}{A canonical register satisfying \code{validate_geography()}.}
 

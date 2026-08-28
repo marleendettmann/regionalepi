@@ -10,6 +10,9 @@ must not be committed. The builder checks the reviewed source checksum and
 reads only non-geometric attributes through DBI and RSQLite; it does not use
 `sf`, download data, or create historical territorial relations. Reviewed
 source spatial relations are ordinary version-controlled input data.
+The reviewed incidence alias and incidence assembly specification are also
+ordinary version-controlled inputs. They describe source-provided rate
+replacement and are not additive source spatial relations.
 
 The complete `data-raw` directory is excluded from built source archives. The
 built and installed package instead contains the generated non-geometric

@@ -20,7 +20,9 @@ The implemented v0.1 foundation includes canonical data contracts, validators,
 versioned reference specifications, the approved local SurvStat file adapter,
 deterministic geographic identity resolution, geography transformations, tests,
 architecture documentation, and the narrow authenticated Regionaldatenbank
-total-population adapter. Other network retrieval, derived calculations,
+total-population adapter. The separate source-provided SurvStat incidence
+contract, local-file reader, and reviewed non-additive replacement assembly are
+also implemented. Other network retrieval, derived calculations,
 clustering, visualization, and applications remain outside this scope.
 
 Required contract fields are complete unless an explicit contract exception
@@ -53,8 +55,23 @@ validated canonical `data` and separate `diagnostics`. Source geography labels
 remain verbatim; `geo_id` and `geo_vintage` may be `NA` only at this
 pre-resolution stage. Blank weekly cells are zero only under the explicit
 `blank_is_zero` policy, and imported weekly geographic counts must reconcile
-with national totals. Retrieval, PDF parsing, incidence data, name resolution,
+with national totals. Retrieval, PDF parsing, incidence calculation, name resolution,
 and source-specific geographic special cases remain out of scope.
+
+## SurvStat source-provided incidence v0.1
+
+Source-provided incidence is separate from additive count surveillance.
+`read_survstat_incidence()` supports only Kreis rows with one explicit year and
+Meldejahr rows with one explicit filtered source geography. Blank incidence is
+`NA_real_`, distinct from numeric zero. Query metadata is caller-supplied,
+stored once as internal query-level provenance, and referenced by `query_id` on
+observations; Info PDFs are not parsed.
+
+`assemble_surveillance_incidence()` performs only reviewed row replacement. It
+never sums or averages rates and incidence is explicitly rejected by additive
+geography transformations. The reviewed resource supplies the Berlin-specific
+12-to-1 specification and Bundesland alias as data; analytical function code
+contains no Berlin branch. Incidence calculation remains deferred.
 
 ## Geographic Resolution v0.1
 
@@ -74,7 +91,9 @@ ambiguous units abort the complete call.
 
 `regionalepi_geography_resources_2024` contains a non-geometric BKG VG-Hist
 district register for 2024-12-31, 19 exact reviewed SurvStat aliases, 12
-reviewed Berlin Bezirk source identities, and dataset-level provenance. The
+reviewed Berlin Bezirk source identities, a separate reviewed Bundesland
+incidence alias, a 12-row incidence replacement specification, and
+dataset-level provenance. The
 development builder and reviewed inputs are version-controlled under
 `data-raw`; the official local GeoPackage is ignored and all `data-raw`
 materials are excluded from built packages.

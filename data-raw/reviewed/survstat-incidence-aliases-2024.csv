@@ -1,0 +1,2 @@
+source,source_version,source_label,source_type,target_geo_id,valid_from,valid_to,reason,review_status
+SurvStat@RKI,SurvStat@RKI 2.0,Berlin,Bundesland,11000,2024-12-31,2024-12-31,Reviewed Bundesland-filtered SurvStat source geography for source-provided incidence,reviewed

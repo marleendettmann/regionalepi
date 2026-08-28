@@ -1,10 +1,12 @@
 test_that("reviewed 2024 resource bundle has stable structure and provenance", {
   resource <- regionalepi_geography_resources_2024
   expect_named(resource, c("bkg_districts", "survstat_aliases",
+                           "survstat_incidence_aliases",
                            "survstat_spatial_units",
-                           "survstat_source_spatial_relations", "provenance"),
+                           "survstat_source_spatial_relations",
+                           "survstat_incidence_assembly_spec", "provenance"),
                ignore.order = FALSE)
-  expect_identical(resource$provenance$resource_version, "2024.12.31-v1")
+  expect_identical(resource$provenance$resource_version, "2024.12.31-v2")
   expect_identical(resource$provenance$reference_date, as.Date("2024-12-31"))
   expect_identical(resource$provenance$product_version, "2026-01")
   expect_identical(resource$provenance$source_license,
@@ -12,6 +14,51 @@ test_that("reviewed 2024 resource bundle has stable structure and provenance", {
   expect_true(resource$provenance$derived_resource)
   expect_match(resource$provenance$valid_to_transformation,
                "does not explicitly define 9999-12-31")
+})
+
+test_that("reviewed incidence resources reuse Berlin identities without rate arithmetic", {
+  resource <- regionalepi_geography_resources_2024
+  aliases <- resource$survstat_incidence_aliases
+  spec <- resource$survstat_incidence_assembly_spec
+  expect_identical(validate_geography_aliases(aliases), aliases)
+  expect_identical(nrow(aliases), 1L)
+  expect_identical(aliases$source_label, "Berlin")
+  expect_identical(aliases$source_type, "Bundesland")
+  expect_identical(aliases$target_geo_id, "11000")
+  expect_identical(nrow(spec), 12L)
+  expect_setequal(spec$exclude_geo_id,
+                  resource$survstat_spatial_units$source_geo_id)
+  expect_identical(anyDuplicated(spec$exclude_geo_id), 0L)
+  expect_true(all(spec$replacement_target_geo_id == "11000"))
+  expect_true(all(spec$expected_base_units == 411L))
+  expect_true(all(spec$expected_excluded_units == 12L))
+  expect_true(all(spec$expected_replacement_units == 1L))
+  expect_true(all(spec$expected_output_units == 400L))
+  expect_true(all(spec$measure == "incidence"))
+  expect_true(all(spec$review_status == "reviewed"))
+  expect_false(any(c("weight", "relation_type", "from_vintage", "to_vintage") %in%
+                     names(spec)))
+})
+
+test_that("reviewed Bundesland incidence geography resolves to canonical register", {
+  resource <- regionalepi_geography_resources_2024
+  data <- data.frame(
+    geo_id = NA_character_, geo_name = "Berlin",
+    geo_level = "survstat_bundesland", geo_vintage = as.Date(NA),
+    date = as.Date("2024-01-01"), time_unit = "week",
+    pathogen = "synthetic", incidence = 1.25, source = "SurvStat@RKI",
+    source_version = "SurvStat@RKI 2.0", query_id = "synthetic-state",
+    stringsAsFactors = FALSE
+  )
+  result <- resolve_geography(
+    data, resource$bkg_districts, as.Date("2024-12-31"), "SurvStat@RKI",
+    "canonical_type", aliases = resource$survstat_incidence_aliases
+  )
+  expect_identical(result$data$geo_id, "11000")
+  expect_identical(result$data$geo_name, "Berlin")
+  expect_identical(result$data$geo_level, "district")
+  expect_identical(result$resolution$resolution_method, "reviewed_alias")
+  expect_true(is.na(result$data$geo_vintage))
 })
 
 test_that("reviewed Berlin source spatial relations have exact integrity", {
