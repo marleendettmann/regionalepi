@@ -200,5 +200,22 @@ reference date, requires compatible names, levels, and NA-aware vintages, and
 divides without rounding. `summarize_indicator_period()` accepts only complete
 annual observations and an unweighted arithmetic mean. Dissertation workflow
 code obtains 2017--2020 and the method from `dissertation_typology_spec()`.
-Neither function harmonizes geography, infers `geo_vintage`, calculates
-incidence, or performs standardization or clustering.
+Neither function harmonizes geography, infers `geo_vintage`, or calculates
+incidence.
+
+## Dissertation typology reproduction
+
+`fit_dissertation_typology()` is deliberately not a generic clustering API. It
+accepts the complete `dissertation_v1` 2017--2020 period summary, requires the
+three authoritative indicator definitions and units, orders the columns from
+the frozen specification, and orders five-character AGS lexically before
+fitting. It explicitly centers by column means and divides by sample standard
+deviations with denominator `n - 1`, without rounding.
+
+The fit uses the frozen base-R k-means parameters. Raw cluster numbers retain
+no general substantive meaning. The historical ClD/ClJ/ClA mapping is applied
+only under the explicit historical-reference option. `compare_typology()`
+instead evaluates all six mappings of a candidate three-cluster solution and
+chooses the greatest assignment agreement on common IDs, leaving raw clusters
+unchanged. Local historical workbooks remain ignored development evidence and
+are not package data or ordinary test fixtures.

@@ -137,7 +137,20 @@ dissertation_typology_spec <- function() {
       nstart = 25L,
       algorithm = "Lloyd",
       iter.max = 50L,
-      seed = 123L
+      seed = 123L,
+      center = TRUE,
+      scale = TRUE,
+      scale_semantics = "base_r_sample_sd_n_minus_1",
+      row_order = "ascending_five_character_geo_id",
+      historical_label_mapping = list(
+        list(raw_cluster = 1L, cluster_code = "ClD",
+             cluster_label = "dichte Regionen"),
+        list(raw_cluster = 3L, cluster_code = "ClJ",
+             cluster_label = "familiengepr\u00e4gte Regionen"),
+        list(raw_cluster = 2L, cluster_code = "ClA",
+             cluster_label = "\u00e4ltere, l\u00e4ndliche Regionen")
+      ),
+      label_mapping_scope = "historical_fitted_solution_only"
     ),
     definition_version = "dissertation_v1"
   )

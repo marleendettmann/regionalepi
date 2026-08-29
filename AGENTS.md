@@ -25,6 +25,13 @@ contract, local-file reader, and reviewed non-additive replacement assembly are
 also implemented. Other network retrieval, standardization, clustering,
 visualization, and applications remain outside this scope.
 
+The frozen dissertation typology reproduction is implemented as a narrow
+exception to otherwise deferred clustering. It consumes only validated
+2017--2020 demographic period summaries, reproduces explicit base-R scaling
+and the approved k-means specification, and keeps historical fitted-solution
+labels separate from permutation-safe comparison of later fits. It is not a
+generic clustering framework.
+
 Required contract fields are complete unless an explicit contract exception
 permits `NA`. Geography relation weights are optional allocation proportions in
 `[0, 1]`; sum-to-one and relation-cardinality rules are deferred. The v0.1

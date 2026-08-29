@@ -80,6 +80,29 @@ test_that("dissertation typology preserves every reference parameter", {
   expect_identical(x$method_parameters$algorithm, "Lloyd")
   expect_identical(x$method_parameters$iter.max, 50L)
   expect_identical(x$method_parameters$seed, 123L)
+  expect_true(x$method_parameters$center)
+  expect_true(x$method_parameters$scale)
+  expect_identical(
+    x$method_parameters$scale_semantics, "base_r_sample_sd_n_minus_1"
+  )
+  expect_identical(
+    x$method_parameters$row_order, "ascending_five_character_geo_id"
+  )
+  expect_identical(
+    x$method_parameters$label_mapping_scope,
+    "historical_fitted_solution_only"
+  )
+  expect_identical(
+    x$method_parameters$historical_label_mapping,
+    list(
+      list(raw_cluster = 1L, cluster_code = "ClD",
+           cluster_label = "dichte Regionen"),
+      list(raw_cluster = 3L, cluster_code = "ClJ",
+           cluster_label = "familiengeprägte Regionen"),
+      list(raw_cluster = 2L, cluster_code = "ClA",
+           cluster_label = "ältere, ländliche Regionen")
+    )
+  )
 
   expect_identical(
     x$indicators[[1]],

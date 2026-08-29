@@ -11,8 +11,9 @@ distinct from the package code license (`TBD`).
 
 Reproducible development inputs are kept in Git under `data-raw`, while ignored
 local source files and all `data-raw` materials are excluded from built source
-packages. The package contains no clustering, spatial processing, mapping, or
-application code.
+packages. The package contains only the narrow frozen dissertation k-means
+reproduction; it contains no generic clustering framework, spatial processing,
+mapping, or application code.
 
 SurvStat counts and source-provided incidence use separate canonical contracts.
 `read_survstat()` remains the additive count reader;
@@ -36,5 +37,11 @@ Population density is derived without rounding, and complete annual indicators
 may be summarized with an unweighted arithmetic mean. Geographic vintage
 remains unresolved; no historical harmonization is inferred from observation
 dates.
+
+`fit_dissertation_typology()` consumes the complete 2017--2020 indicator
+summary and reproduces the dissertation's explicit base-R scaling and frozen
+three-center k-means. Historical labels require an explicit reproduction mode.
+`compare_typology()` safely aligns arbitrary raw cluster numbers to a reviewed
+historical partition by evaluating all six permutations.
 
 See `docs/architecture.md` and `docs/data-contracts.md` for the v0.1 design.

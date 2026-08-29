@@ -206,3 +206,18 @@ passthrough. It accepts an explicit `reference_date`, never infers or changes
 resolver `source_geo_*` provenance is omitted from aggregated output because
 the separate resolution audit is authoritative; other unclassified columns
 remain errors.
+
+## Dissertation typology input and output
+
+The typology input is the ordinary `list(data, diagnostics, provenance)` from
+`summarize_indicator_period()`. Its long-form data must contain exactly one
+complete 2017--2020 arithmetic mean per five-character `geo_id` and each of
+`population_density@dissertation_v1`, `mean_age@dissertation_v1`, and
+`youth_dependency_ratio@dissertation_v1`. Units, versions, periods, and ID sets
+must match exactly; missing values are errors and are never silently omitted.
+
+The fit returns an ordinary list. Assignment data contain `geo_id`, immutable
+`raw_cluster`, and optional historical `cluster_code`/`cluster_label`. Matrix
+diagnostics retain the input and standardized matrices, indicator and row
+order, scaling centers, and sample standard deviations. Fit diagnostics retain
+centers, sizes, sums of squares, iterations, and any base-R fault value.
