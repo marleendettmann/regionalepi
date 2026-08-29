@@ -221,3 +221,38 @@ The fit returns an ordinary list. Assignment data contain `geo_id`, immutable
 diagnostics retain the input and standardized matrices, indicator and row
 order, scaling centers, and sample standard deviations. Fit diagnostics retain
 centers, sizes, sums of squares, iterations, and any base-R fault value.
+
+## Epidemiological periods
+
+An epidemiological period row contains `period_set_id`, `period_id`,
+`pathogen`, optional `season_id`, `period_type`, `label`, inclusive
+`start_date` and `end_date`, `definition_version`, `source_reference`,
+`review_status`, and optional `note`. Dates are authoritative. Identifiers are
+complete, intervals are ordered, IDs are unique within a set, and mutually
+exclusive periods may not overlap.
+
+An Influenza season is not an Influenza wave. A reviewed season can contain
+zero, one, or multiple wave rows. A separate season-review table records that
+cardinality, including seasons with no wave. RKI boundaries are reviewed
+external metadata; regionalepi does not infer them from SurvStat incidence or
+cases. Influenza and COVID waves retain separate `period_type` semantics.
+
+`assign_epidemiological_periods()` matches canonical observation dates to
+inclusive intervals and returns data, diagnostics, and the period audit.
+Observations outside all periods remain explicit and an observation may match
+at most one period in a mutually exclusive set.
+
+## Typology attachment and incidence summary
+
+Typology/surveillance compatibility records the exact reviewed ID-set
+difference. `attach_typology()` joins canonical character `geo_id` only,
+requires unique assignments, validates the complete observed set difference,
+and never performs name matching, refitting, reassignment, or incidence
+transformation.
+
+`summarize_incidence_by_typology()` supports only the median in v0.1. Its
+estimand is median source-provided district incidence by pathogen, period,
+week, typology, and cluster. It reports expected, observed non-missing,
+missing, and zero counts plus minimum-group-size status. Zero remains zero;
+`NA` is omitted only explicitly and an all-missing group has an `NA` median.
+No pooled or population-weighted cluster incidence is calculated.

@@ -44,4 +44,11 @@ three-center k-means. Historical labels require an explicit reproduction mode.
 `compare_typology()` safely aligns arbitrary raw cluster numbers to a reviewed
 historical partition by evaluating all six permutations.
 
+Reviewed period resources represent RKI Influenza waves and frozen
+dissertation COVID waves as inclusive date intervals. Seasons may have zero,
+one, or multiple waves; boundaries are not inferred from SurvStat. Canonical-ID
+typology attachment validates reviewed geography differences, and weekly
+summaries calculate median district incidence only. Missing incidence remains
+distinct from zero; no pooled cluster incidence is calculated.
+
 See `docs/architecture.md` and `docs/data-contracts.md` for the v0.1 design.

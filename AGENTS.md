@@ -141,3 +141,16 @@ indicators may be summarized only by a complete unweighted arithmetic mean.
 All adapter-produced `geo_vintage` values remain `NA_Date_`. Incidence
 calculation, denominator selection, standardization, and clustering remain
 outside this block.
+
+## Epidemiological contextualization v0.1
+
+Reviewed epidemiological periods are external versioned metadata with
+inclusive dates. Influenza seasons and waves are distinct; a season may have
+zero, one, or multiple waves, and boundaries are never inferred from SurvStat
+incidence or cases. COVID wave semantics remain separate.
+
+Typology attachment uses canonical character `geo_id` plus reviewed expected
+set differences; it never uses name matching or hard-coded territorial cases.
+The weekly summary estimand is median source-provided district incidence by
+period and cluster. Numeric zero is retained, missing incidence remains `NA`,
+and no pooled or population-weighted cluster incidence is calculated.

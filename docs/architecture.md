@@ -219,3 +219,23 @@ instead evaluates all six mappings of a candidate three-cluster solution and
 chooses the greatest assignment agreement on common IDs, leaving raw clusters
 unchanged. Local historical workbooks remain ignored development evidence and
 are not package data or ordinary test fixtures.
+
+## Epidemiological contextualization
+
+The epidemiology layer follows canonical geography, reviewed incidence
+assembly, and typology fitting. Reviewed compatibility data describe expected
+typology/surveillance ID-set differences; generic code has no Eisenach,
+Berlin, or name-based branch.
+
+Versioned period resources keep RKI Influenza-wave metadata separate from
+SurvStat observations. A season can have no wave or multiple waves, while
+COVID wave semantics remain separate. Assignment uses inclusive dates and
+preserves query provenance. Weekly contextualization calculates the median
+distribution of district incidences, not a pooled rate. Missing incidence is
+never converted to zero by the production path.
+
+Frozen resources preserve the dissertation's three Influenza intervals and
+principal COVID `Welle2` intervals. The current reviewed RKI resource covers
+2017/18 through 2025/26, including wave-free 2020/21, the late low 2021/22
+wave, and both 2022/23 waves. API retrieval, automatic wave detection, dynamic
+clustering, inferential tests, plots, and Shiny remain future blocks.
