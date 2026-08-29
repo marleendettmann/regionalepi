@@ -21,8 +21,19 @@ validate_indicator_spec <- function(x) {
   if (!is.list(x$parameters) || is.data.frame(x$parameters)) {
     .stop_contract(contract, "`parameters` must be a list")
   }
-  if (identical(x$indicator_type, "ratio")) {
+  types <- c("source_provided", "ratio", "density")
+  if (!x$indicator_type %in% types) {
+    .stop_contract(
+      contract,
+      "`indicator_type` must be source_provided, ratio, or density"
+    )
+  }
+  if (identical(x$indicator_type, "source_provided")) {
+    .validate_source_provided_parameters(x$parameters, contract)
+  } else if (identical(x$indicator_type, "ratio")) {
     .validate_ratio_parameters(x$parameters, contract)
+  } else {
+    .validate_density_parameters(x$parameters, contract)
   }
   invisible(x)
 }
@@ -54,6 +65,71 @@ validate_indicator_spec <- function(x) {
   .check_scalar_number(parameters$multiplier, "multiplier", contract,
                        non_negative = TRUE)
   .check_scalar_character(parameters$unit, "unit", contract)
+  if ("interpretation" %in% names(parameters)) {
+    .check_scalar_character(parameters$interpretation, "interpretation", contract)
+  }
+}
+
+.validate_source_provided_parameters <- function(parameters, contract) {
+  required <- c(
+    "statistic", "table", "measure", "selection", "unit",
+    "reference_date_semantics"
+  )
+  .require_named_list(parameters, required, paste(contract, "source parameters"))
+  if (!setequal(names(parameters), required)) {
+    .stop_contract(contract, "source-provided parameters contain unexpected fields")
+  }
+  for (field in setdiff(required, "selection")) {
+    .check_scalar_character(parameters[[field]], field, contract)
+  }
+  selection <- parameters$selection
+  if (!is.list(selection) || is.data.frame(selection) || !length(selection) ||
+      is.null(names(selection)) || any(!nzchar(names(selection))) ||
+      anyDuplicated(names(selection))) {
+    .stop_contract(contract, "`selection` must be a uniquely named list")
+  }
+  for (field in names(selection)) {
+    .check_scalar_character(selection[[field]], field, contract)
+  }
+}
+
+.validate_density_parameters <- function(parameters, contract) {
+  required <- c(
+    "numerator", "denominator", "multiplier", "unit",
+    "reference_date_alignment"
+  )
+  .require_named_list(parameters, required, paste(contract, "density parameters"))
+  if (!setequal(names(parameters), required)) {
+    .stop_contract(contract, "density parameters contain unexpected fields")
+  }
+  components <- list(
+    numerator = c(variable = "population", unit = "persons"),
+    denominator = c(variable = "area", unit = "km2")
+  )
+  for (name in names(components)) {
+    part <- parameters[[name]]
+    .require_named_list(part, c("variable", "unit"), paste(contract, name))
+    if (!setequal(names(part), c("variable", "unit"))) {
+      .stop_contract(contract, "density components contain unexpected fields")
+    }
+    for (field in c("variable", "unit")) {
+      .check_scalar_character(part[[field]], field, contract)
+    }
+    if (!identical(unlist(part, use.names = TRUE), components[[name]])) {
+      .stop_contract(contract, sprintf("unsupported density %s", name))
+    }
+  }
+  .check_scalar_number(parameters$multiplier, "multiplier", contract)
+  if (parameters$multiplier <= 0) {
+    .stop_contract(contract, "density multiplier must be positive")
+  }
+  .check_scalar_character(parameters$unit, "unit", contract)
+  .check_scalar_character(
+    parameters$reference_date_alignment, "reference_date_alignment", contract
+  )
+  if (!identical(parameters$reference_date_alignment, "exact")) {
+    .stop_contract(contract, "density reference-date alignment must be exact")
+  }
 }
 
 .typology_fields <- c("typology_id", "indicators", "reference_years",

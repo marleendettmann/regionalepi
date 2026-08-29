@@ -11,8 +11,8 @@ A validated typology specification.
 }
 \description{
 Preserves the 2017--2020 arithmetic-mean, z-score, three-center k-means
-specification. Population density and mean age are currently identified but
-do not claim definition versions. The youth dependency ratio references the
-authoritative version returned by
-\code{\link[=dissertation_youth_dependency_ratio_spec]{dissertation_youth_dependency_ratio_spec()}}. No clustering is performed.
+specification. All three indicators reference their authoritative
+\code{dissertation_v1} definitions. The youth age boundaries remain authoritative
+only in \code{\link[=dissertation_youth_dependency_ratio_spec]{dissertation_youth_dependency_ratio_spec()}}. No clustering is
+performed.
 }

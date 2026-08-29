@@ -7,7 +7,9 @@ and stop with an actionable error on failure; they do not coerce values.
 Required fields must be complete: values may not be `NA` or empty unless a
 contract explicitly allows that exception. The exceptions are pre-resolution
 surveillance `geo_id` and `geo_vintage`; blank source-provided `incidence`;
-open-ended `age_to`; open geography
+open-ended `age_to`; unresolved source-stage `geo_vintage` in context
+population, demographic indicators, regional area, and population denominator;
+open geography
 `valid_to`; optional relation `weight` and `note`; optional fields such as
 `parent_geo_id`, `sex`, and `retrieved_at`; and genuinely unavailable
 surveillance/context source versions in analysis provenance.
@@ -37,7 +39,7 @@ This contract does not replace age-banded `context_population`. It also does
 not select an incidence denominator, calculate incidence, or establish that an
 observation reference date is a geographic vintage.
 
-The reviewed Regionaldatenbank adapter emits `census_2011` for 2019-2021 and
+The reviewed Regionaldatenbank adapter emits `census_2011` for 2017-2021 and
 `census_2022` for 2022-2025. Detailed methodological descriptions are stored
 once in result-level provenance rather than repeated in every observation.
 
@@ -46,9 +48,45 @@ of integer or double storage. Its `age_to` follows the same rule and is greater
 than or equal to `age_from`, or is `NA` for an open-ended group.
 
 Indicator specifications contain `indicator_id`, `indicator_type`,
-`definition_version`, and `parameters`. Type-specific structure is confined to
-`parameters`. A ratio has numerator and denominator variable/age definitions,
-a multiplier, and a unit; other indicator types are not forced into that shape.
+`definition_version`, and `parameters`. Exactly `source_provided`, `ratio`, and
+`density` are accepted. Type-specific structure is confined to `parameters`.
+A ratio has numerator and denominator variable/age definitions, a multiplier,
+and a unit; source-provided and density specifications have their own strict
+structures.
+
+## Demographic indicators and regional area
+
+`demographic_indicator` is annual long-form district data with geographic and
+31 December reference fields, an indicator ID/value/unit and definition
+version, `source_provided` or `derived` value origin, population basis, source,
+and compact provenance ID. Values are finite and non-negative, keys are unique,
+and `geo_vintage` may remain `NA_Date_` until an annual source identifier set is
+independently matched to a canonical snapshot. No validator requires a fixed
+number of districts.
+
+`regional_area` contains positive finite `area_km2` observations from reviewed
+table `11111-01-01-4`, measure `FLC006`, plus source, retrieval, status, and
+provenance fields. It also permits unresolved `geo_vintage` and does not infer
+vintage from its observation date.
+
+The narrow Regionaldatenbank adapters filter KREISE response hierarchy rows
+and expand source city-state keys `02` and `11` to the five-character AGS
+`02000` and `11000`. This is explicit source-format handling, not geographic
+name matching or territorial-vintage inference.
+
+The authoritative dissertation specifications are
+`mean_age@dissertation_v1`,
+`youth_dependency_ratio@dissertation_v1`, and
+`population_density@dissertation_v1`. The youth unit is
+`persons_under_20_per_100_persons_20_64`; this is a semantic-unit terminology
+correction, not a numerical definition change. Its sole authoritative formula
+remains population age 0--19 divided by population age 20--64, multiplied by
+100.
+
+Density output links once to both population and area provenance and is not
+rounded. Period summaries require exactly one complete compatible observation
+per requested year and calculate only an unweighted arithmetic mean; no missing
+values are removed.
 
 Geography relation weights are optional finite allocation proportions in
 `[0, 1]`. No sum-to-one or relation-cardinality rules are defined in v0.1.

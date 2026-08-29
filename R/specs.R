@@ -28,7 +28,53 @@ dissertation_youth_dependency_ratio_spec <- function() {
       numerator = list(variable = "population", age_from = 0, age_to = 19),
       denominator = list(variable = "population", age_from = 20, age_to = 64),
       multiplier = 100,
-      unit = "percent"
+      unit = "persons_under_20_per_100_persons_20_64",
+      interpretation = "quotient"
+    )
+  )
+}
+
+#' Dissertation mean-age specification
+#'
+#' References the source-provided Regionaldatenbank mean age calculated from
+#' all available individual ages. No mean-age calculation is performed.
+#'
+#' @return A validated indicator specification.
+#' @export
+dissertation_mean_age_spec <- function() {
+  new_indicator_spec(
+    indicator_id = "mean_age",
+    indicator_type = "source_provided",
+    definition_version = "dissertation_v1",
+    parameters = list(
+      statistic = "12411",
+      table = "12411-07-01-4",
+      measure = "BEV519",
+      selection = list(sex = "Insgesamt"),
+      unit = "years",
+      reference_date_semantics = "stock_at_31_december"
+    )
+  )
+}
+
+#' Dissertation population-density specification
+#'
+#' Defines population divided by district area in square kilometres at the
+#' same 31 December reference date. No rounding is requested.
+#'
+#' @return A validated indicator specification.
+#' @export
+dissertation_population_density_spec <- function() {
+  new_indicator_spec(
+    indicator_id = "population_density",
+    indicator_type = "density",
+    definition_version = "dissertation_v1",
+    parameters = list(
+      numerator = list(variable = "population", unit = "persons"),
+      denominator = list(variable = "area", unit = "km2"),
+      multiplier = 1,
+      unit = "persons_per_km2",
+      reference_date_alignment = "exact"
     )
   )
 }
@@ -54,18 +100,26 @@ new_typology_spec <- function(typology_id, indicators, reference_years,
 #' Dissertation regional typology specification
 #'
 #' Preserves the 2017--2020 arithmetic-mean, z-score, three-center k-means
-#' specification. Population density and mean age are currently identified but
-#' do not claim definition versions. The youth dependency ratio references the
-#' authoritative version returned by
-#' [dissertation_youth_dependency_ratio_spec()]. No clustering is performed.
+#' specification. All three indicators reference their authoritative
+#' `dissertation_v1` definitions. The youth age boundaries remain authoritative
+#' only in [dissertation_youth_dependency_ratio_spec()]. No clustering is
+#' performed.
 #'
 #' @return A validated typology specification.
 #' @export
 dissertation_typology_spec <- function() {
+  mean_age <- dissertation_mean_age_spec()
   youth <- dissertation_youth_dependency_ratio_spec()
+  density <- dissertation_population_density_spec()
   refs <- list(
-    list(indicator_id = "population_density"),
-    list(indicator_id = "mean_age"),
+    list(
+      indicator_id = density$indicator_id,
+      definition_version = density$definition_version
+    ),
+    list(
+      indicator_id = mean_age$indicator_id,
+      definition_version = mean_age$definition_version
+    ),
     list(
       indicator_id = youth$indicator_id,
       definition_version = youth$definition_version

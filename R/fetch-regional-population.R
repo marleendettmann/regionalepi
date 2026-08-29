@@ -8,7 +8,7 @@
 #' Fetch district total population from Regionaldatenbank Deutschland
 #'
 #' Retrieves reviewed total-population observations from Regionaldatenbank
-#' table `12411-01-01-4` for 31 December reference dates from 2019 through
+#' table `12411-01-01-4` for 31 December reference dates from 2017 through
 #' 2025. The public function is deliberately narrow and is not a generic
 #' GENESIS client.
 #'
@@ -21,9 +21,12 @@
 #' Identifiers are preserved as character values. The source observation date
 #' does not establish a canonical territorial vintage, so `geo_vintage` remains
 #' `NA_Date_`.
+#' Regionaldatenbank represents the district-equivalent city states Hamburg and
+#' Berlin with regional keys `02` and `11` in this response; these are
+#' deterministically expanded to AGS `02000` and `11000`.
 #'
 #' @param reference_dates A non-empty `Date` vector containing unique
-#'   31 December dates from 2019 through 2025.
+#'   31 December dates from 2017 through 2025.
 #' @param regions `NULL` to return all supplied district observations, or a
 #'   non-empty character vector of unique five-character district AGS values.
 #' @return An ordinary list with validated `data`, compact `diagnostics`, and
@@ -60,8 +63,8 @@ fetch_regional_population <- function(reference_dates, regions = NULL) {
     .stop_contract(contract, "every `reference_dates` value must be 31 December")
   }
   years <- as.integer(format(reference_dates, "%Y"))
-  if (any(years < 2019L | years > 2025L)) {
-    .stop_contract(contract, "`reference_dates` must be within the reviewed 2019-2025 scope")
+  if (any(years < 2017L | years > 2025L)) {
+    .stop_contract(contract, "`reference_dates` must be within the reviewed 2017-2025 scope")
   }
   if (!is.null(regions)) {
     if (!is.character(regions) || !length(regions) || anyNA(regions) ||
@@ -79,15 +82,7 @@ fetch_regional_population <- function(reference_dates, regions = NULL) {
 }
 
 .regional_population_credentials <- function() {
-  username <- Sys.getenv("REGIONALSTATISTIK_USER", unset = "")
-  password <- Sys.getenv("REGIONALSTATISTIK_PASSWORD", unset = "")
-  if (!nzchar(username) || !nzchar(password)) {
-    .stop_contract(
-      "Regionaldatenbank authentication",
-      "required environment variables are missing or empty"
-    )
-  }
-  list(username = username, password = password)
+  .regional_credentials()
 }
 
 .perform_regional_population_request <- function(reference_dates, regions,
@@ -115,47 +110,9 @@ fetch_regional_population <- function(reference_dates, regions = NULL) {
 
 .regional_population_http_transport <- function(reference_dates, regions,
                                                   credentials) {
-  years <- as.integer(format(reference_dates, "%Y"))
-  fields <- list(
-    name = .regional_population_table,
-    area = "all",
-    compress = "false",
-    transpose = "false",
-    startyear = as.character(min(years)),
-    endyear = as.character(max(years)),
-    regionalvariable = "KREISE"
+  .regional_http_transport(
+    .regional_population_table, reference_dates, regions, credentials
   )
-  if (!is.null(regions)) {
-    fields$regionalkey <- paste(regions, collapse = ",")
-  }
-  request <- httr2::request(paste0(.regional_population_base_url, "data/table"))
-  request <- httr2::req_headers(
-    request,
-    username = credentials$username,
-    password = credentials$password
-  )
-  request <- do.call(
-    httr2::req_body_form,
-    c(list(.req = request), fields, list(.multipart = FALSE))
-  )
-  response <- tryCatch(
-    httr2::req_perform(request),
-    error = function(error) error
-  )
-  if (inherits(response, "error")) {
-    .stop_contract(
-      "Regionaldatenbank response",
-      "the official service request failed; no credentials are included"
-    )
-  }
-  text <- tryCatch(
-    httr2::resp_body_string(response),
-    error = function(error) error
-  )
-  if (inherits(text, "error")) {
-    .stop_contract("Regionaldatenbank response", "response body could not be read")
-  }
-  text
 }
 
 .regional_population_result <- function(response, reference_dates, regions,
@@ -226,7 +183,7 @@ fetch_regional_population <- function(reference_dates, regions = NULL) {
     unit = "Anzahl",
     reference_date_semantics = "Population stock at 31 December",
     population_basis = c(
-      census_2011 = "2019-2021 observations are based on the 2011 Census population basis.",
+      census_2011 = "2017-2021 observations are based on the 2011 Census population basis.",
       census_2022 = "Observations from 2022 are based on the 2022 Census population basis."
     ),
     methodological_note = paste(
@@ -323,7 +280,7 @@ fetch_regional_population <- function(reference_dates, regions = NULL) {
     .stop_contract(contract, "response does not contain every requested reference date")
   }
 
-  data_lines <- lines[grepl("^[0-9]{5};", lines)]
+  data_lines <- lines[grepl("^(?:[0-9]{5}|02|11);", lines)]
   if (!length(data_lines)) {
     .stop_contract(contract, "response contains no district observation rows")
   }
@@ -332,6 +289,8 @@ fetch_regional_population <- function(reference_dates, regions = NULL) {
     .stop_contract(contract, "district rows do not match the table header width")
   }
   ids <- vapply(rows, `[[`, character(1), 1L)
+  ids[ids == "02"] <- "02000"
+  ids[ids == "11"] <- "11000"
   names <- trimws(vapply(rows, `[[`, character(1), 2L))
   if (any(!grepl("^[0-9]{5}$", ids)) || any(!nzchar(names))) {
     .stop_contract(contract, "district identifiers or names are malformed")

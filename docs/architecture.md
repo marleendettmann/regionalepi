@@ -32,10 +32,10 @@ The dissertation definitions are preserved as versioned reference
 specifications. They are examples that support reproducibility, not fixed
 package-wide defaults.
 
-The dissertation typology currently names `population_density` and `mean_age`
-without claiming authoritative definition versions for them. Its
-`youth_dependency_ratio` entry references the authoritative
-`dissertation_v1` indicator specification.
+The dissertation typology references authoritative `dissertation_v1`
+specifications for `population_density`, `mean_age`, and
+`youth_dependency_ratio`. The youth ratio's age boundaries are defined only by
+its indicator specification.
 
 ## Geography Layer v0.1
 
@@ -148,10 +148,11 @@ SurvStat Berlin Bezirk identities to canonical Berlin `11000`.
 `harmonize_vintage()` remains a separate historical operation using explicit
 source and target vintages and `geography_relations`.
 
-## Regionaldatenbank total-population adapter v0.1
+## Regionaldatenbank demographic context adapters v0.1
 
 `fetch_regional_population(reference_dates, regions = NULL)` retrieves only
-reviewed Regionaldatenbank table `12411-01-01-4` (statistic `12411`). It uses
+reviewed Regionaldatenbank table `12411-01-01-4` (statistic `12411`) for
+2017--2025. It uses
 the official GENESIS-compatible `data/table` operation, validates the API
 envelope and `Structure` metadata, and then parses the semicolon-delimited table
 content. It selects district total population (`Insgesamt`, unit `Anzahl`) and
@@ -174,8 +175,30 @@ used for name resolution, and source names do not supersede the canonical BKG
 register. Reference dates are population observation dates. Because they do not
 independently establish territorial vintage, `geo_vintage` remains `NA_Date_`.
 The documented population-basis break is represented as `census_2011` for
-2019-2021 and `census_2022` for 2022-2025.
+2017--2021 and `census_2022` for 2022--2025.
 
-Age table `12411-09-01-4` is the reviewed next potential context source, but
-age retrieval, youth dependency, mean age, density, incidence calculation, and
-denominator-selection policy are not implemented here.
+Three additional narrow adapters use the same internal credential, transport,
+envelope, and provenance infrastructure. `fetch_regional_mean_age()` reads
+source-provided `BEV519` from `12411-07-01-4`;
+`fetch_regional_youth_dependency()` reads authoritative `BEV216` from
+`12411-08-01-4`; and `fetch_regional_area()` reads `FLC006` square kilometres
+from `11111-01-01-4`. An internal `12411-09-01-4` age-population adapter exists
+only to reproduce the source youth quotient independently. It never replaces
+the authoritative source value.
+
+The KREISE responses include Deutschland, Länder, and intermediate hierarchy
+rows. The adapters retain district observations only. Regionaldatenbank emits
+district-equivalent Hamburg and Berlin at their two-character city-state keys
+`02` and `11`; the adapters deterministically expand those source keys to AGS
+`02000` and `11000`. Structurally absent historical rows marked `-` are omitted
+from an all-district result and recorded in diagnostics; an explicitly
+requested structurally absent region is an error. Other missing or quality
+markers remain errors.
+
+`derive_population_density()` joins population and area only by exact AGS and
+reference date, requires compatible names, levels, and NA-aware vintages, and
+divides without rounding. `summarize_indicator_period()` accepts only complete
+annual observations and an unweighted arithmetic mean. Dissertation workflow
+code obtains 2017--2020 and the method from `dissertation_typology_spec()`.
+Neither function harmonizes geography, infers `geo_vintage`, calculates
+incidence, or performs standardization or clustering.

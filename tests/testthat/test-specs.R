@@ -11,15 +11,38 @@ test_that("dissertation indicator preserves its sole authoritative definition", 
   expect_identical(x$parameters$denominator$age_from, 20)
   expect_identical(x$parameters$denominator$age_to, 64)
   expect_identical(x$parameters$multiplier, 100)
-  expect_identical(x$parameters$unit, "percent")
+  expect_identical(
+    x$parameters$unit, "persons_under_20_per_100_persons_20_64"
+  )
+  expect_identical(x$parameters$interpretation, "quotient")
 })
 
-test_that("non-ratio indicators are not forced into ratio parameters", {
+test_that("unknown indicator types are rejected", {
   x <- list(
     indicator_id = "example", indicator_type = "custom",
     definition_version = "v1", parameters = list(custom_parameter = 1)
   )
-  expect_identical(validate_indicator_spec(x), x)
+  expect_error(validate_indicator_spec(x), "source_provided, ratio, or density")
+})
+
+test_that("authoritative demographic source and density specs are exact", {
+  mean_age <- dissertation_mean_age_spec()
+  expect_identical(mean_age$indicator_type, "source_provided")
+  expect_identical(mean_age$definition_version, "dissertation_v1")
+  expect_identical(mean_age$parameters$table, "12411-07-01-4")
+  expect_identical(mean_age$parameters$measure, "BEV519")
+  expect_identical(mean_age$parameters$selection, list(sex = "Insgesamt"))
+  expect_identical(mean_age$parameters$unit, "years")
+
+  density <- dissertation_population_density_spec()
+  expect_identical(density$indicator_type, "density")
+  expect_identical(density$definition_version, "dissertation_v1")
+  expect_identical(density$parameters$numerator,
+                   list(variable = "population", unit = "persons"))
+  expect_identical(density$parameters$denominator,
+                   list(variable = "area", unit = "km2"))
+  expect_identical(density$parameters$multiplier, 1)
+  expect_identical(density$parameters$unit, "persons_per_km2")
 })
 
 test_that("indicator specs reject missing elements and malformed ratios", {
@@ -58,8 +81,15 @@ test_that("dissertation typology preserves every reference parameter", {
   expect_identical(x$method_parameters$iter.max, 50L)
   expect_identical(x$method_parameters$seed, 123L)
 
-  expect_identical(x$indicators[[1]], list(indicator_id = "population_density"))
-  expect_identical(x$indicators[[2]], list(indicator_id = "mean_age"))
+  expect_identical(
+    x$indicators[[1]],
+    list(indicator_id = "population_density",
+         definition_version = "dissertation_v1")
+  )
+  expect_identical(
+    x$indicators[[2]],
+    list(indicator_id = "mean_age", definition_version = "dissertation_v1")
+  )
   youth <- x$indicators[[3]]
   expect_identical(youth$indicator_id, "youth_dependency_ratio")
   expect_identical(

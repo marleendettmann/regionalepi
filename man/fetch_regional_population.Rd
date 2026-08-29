@@ -8,7 +8,7 @@ fetch_regional_population(reference_dates, regions = NULL)
 }
 \arguments{
 \item{reference_dates}{A non-empty \code{Date} vector containing unique
-31 December dates from 2019 through 2025.}
+31 December dates from 2017 through 2025.}
 
 \item{regions}{\code{NULL} to return all supplied district observations, or a
 non-empty character vector of unique five-character district AGS values.}
@@ -19,7 +19,7 @@ dataset-level \code{provenance}.
 }
 \description{
 Retrieves reviewed total-population observations from Regionaldatenbank
-table \code{12411-01-01-4} for 31 December reference dates from 2019 through
+table \code{12411-01-01-4} for 31 December reference dates from 2017 through
 2025. The public function is deliberately narrow and is not a generic
 GENESIS client.
 }
@@ -33,4 +33,7 @@ Regional identifiers and names come directly from the source response.
 Identifiers are preserved as character values. The source observation date
 does not establish a canonical territorial vintage, so \code{geo_vintage} remains
 \code{NA_Date_}.
+Regionaldatenbank represents the district-equivalent city states Hamburg and
+Berlin with regional keys \code{02} and \code{11} in this response; these are
+deterministically expanded to AGS \code{02000} and \code{11000}.
 }

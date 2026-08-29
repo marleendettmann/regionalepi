@@ -17,6 +17,8 @@ Requires \code{geo_id}, \code{geo_name}, \code{geo_level}, \code{geo_vintage},
 \code{reference_date}, \code{age_from}, \code{age_to}, \code{population}, \code{population_basis},
 and \code{source}. Optional fields are \code{sex} and \code{retrieved_at}.
 Required fields are complete except that \code{age_to} may be \code{NA} for an
-open-ended group. Age boundaries are non-negative whole-valued numerics and
-may use either integer or double storage.
+open-ended group and \code{geo_vintage} may be \code{NA_Date_} for
+pre-snapshot-validation source data. \code{reference_date} never establishes
+territorial vintage by itself. Age boundaries are non-negative whole-valued
+numerics and may use either integer or double storage.
 }

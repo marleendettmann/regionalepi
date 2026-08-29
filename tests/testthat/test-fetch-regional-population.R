@@ -81,14 +81,28 @@ test_that("fetch_regional_population returns validated data and safe metadata", 
   expect_false(grepl("synthetic-user|synthetic-password", printed))
 })
 
+test_that("population expands Regionaldatenbank city-state keys", {
+  transport <- function(...) regional_population_json(rows = c(
+    "02; Hamburg;1900000;1;1",
+    "11; Berlin;3700000;1;1"
+  ))
+  result <- with_regional_population_transport(
+    transport, fetch_regional_population(as.Date("2024-12-31"))
+  )
+  expect_identical(result$data$geo_id, c("02000", "11000"))
+  expect_identical(result$data$geo_name, c("Hamburg", "Berlin"))
+})
+
 test_that("request dates and explicit regions are validated", {
   check <- regionalepi:::.validate_regional_population_request
   expect_no_error(check(as.Date("2019-12-31"), NULL))
+  expect_no_error(check(as.Date("2017-12-31"), NULL))
   expect_no_error(check(as.Date(c("2019-12-31", "2025-12-31")), c("01001", "16063")))
   expect_error(check("2024-12-31", NULL), "Date")
   expect_error(check(as.Date("2024-12-30"), NULL), "31 December")
   expect_error(check(as.Date(c("2024-12-31", "2024-12-31")), NULL), "duplicates")
-  expect_error(check(as.Date("2018-12-31"), NULL), "2019-2025")
+  expect_no_error(check(as.Date("2018-12-31"), NULL))
+  expect_error(check(as.Date("2016-12-31"), NULL), "2017-2025")
   expect_error(check(as.Date("2024-12-31"), 16063), "character")
   expect_error(check(as.Date("2024-12-31"), c("16063", "16063")), "duplicates")
   expect_error(check(as.Date("2024-12-31"), "1063"), "five-character")

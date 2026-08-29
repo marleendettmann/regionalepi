@@ -19,11 +19,11 @@
 The implemented v0.1 foundation includes canonical data contracts, validators,
 versioned reference specifications, the approved local SurvStat file adapter,
 deterministic geographic identity resolution, geography transformations, tests,
-architecture documentation, and the narrow authenticated Regionaldatenbank
-total-population adapter. The separate source-provided SurvStat incidence
+architecture documentation, and narrow authenticated Regionaldatenbank
+demographic-context adapters. The separate source-provided SurvStat incidence
 contract, local-file reader, and reviewed non-additive replacement assembly are
-also implemented. Other network retrieval, derived calculations,
-clustering, visualization, and applications remain outside this scope.
+also implemented. Other network retrieval, standardization, clustering,
+visualization, and applications remain outside this scope.
 
 Required contract fields are complete unless an explicit contract exception
 permits `NA`. Geography relation weights are optional allocation proportions in
@@ -108,11 +108,11 @@ passthrough, and an explicit applicability/reference date. It never infers or
 changes `geo_vintage`. `harmonize_vintage()` remains exclusively based on
 historical `geography_relations` and explicit source/target vintages.
 
-## Regionaldatenbank total-population adapter v0.1
+## Regionaldatenbank demographic context adapters v0.1
 
 `fetch_regional_population()` is a narrow authenticated adapter for reviewed
 Regionaldatenbank table `12411-01-01-4` and statistic `12411`. It retrieves
-district total population at 31 December for the approved 2019-2025 period and
+district total population at 31 December for the approved 2017-2025 period and
 returns validated `population_denominator` data with separate diagnostics and
 dataset-level provenance. It is not a generic GENESIS client.
 
@@ -125,6 +125,12 @@ transport boundary and require neither credentials nor network access.
 Regionaldatenbank AGS values remain character identifiers and source names are
 source metadata. The observation `reference_date` does not establish a BKG
 territorial vintage, so this adapter returns `geo_vintage = NA_Date_`.
-Population-basis codes are `census_2011` for 2019-2021 and `census_2022` for
-2022-2025. Age structure, demographic indicators, incidence calculation, and
-denominator-selection policy remain outside this block.
+Population-basis codes are `census_2011` for 2017-2021 and `census_2022` for
+2022-2025. Narrow adapters retrieve source-provided mean age and youth
+dependency quotients plus district area. An internal age-population adapter
+validates, but never replaces, the authoritative youth quotient. Population
+density is derived by exact identifier/date joins without rounding, and annual
+indicators may be summarized only by a complete unweighted arithmetic mean.
+All adapter-produced `geo_vintage` values remain `NA_Date_`. Incidence
+calculation, denominator selection, standardization, and clustering remain
+outside this block.

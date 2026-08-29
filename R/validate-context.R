@@ -4,8 +4,10 @@
 #' `reference_date`, `age_from`, `age_to`, `population`, `population_basis`,
 #' and `source`. Optional fields are `sex` and `retrieved_at`.
 #' Required fields are complete except that `age_to` may be `NA` for an
-#' open-ended group. Age boundaries are non-negative whole-valued numerics and
-#' may use either integer or double storage.
+#' open-ended group and `geo_vintage` may be `NA_Date_` for
+#' pre-snapshot-validation source data. `reference_date` never establishes
+#' territorial vintage by itself. Age boundaries are non-negative whole-valued
+#' numerics and may use either integer or double storage.
 #'
 #' @param x A data frame or tibble.
 #' @return `x`, invisibly.
@@ -20,7 +22,7 @@ validate_context_population <- function(x) {
   for (field in c("geo_id", "geo_name", "geo_level", "population_basis", "source")) {
     .check_character(x[[field]], field, contract)
   }
-  .check_date(x$geo_vintage, "geo_vintage", contract)
+  .check_date(x$geo_vintage, "geo_vintage", contract, allow_na = TRUE)
   .check_date(x$reference_date, "reference_date", contract)
   .check_whole_number(x$age_from, "age_from", contract, non_negative = TRUE)
   .check_whole_number(x$age_to, "age_to", contract, allow_na = TRUE,
