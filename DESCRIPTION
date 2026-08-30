@@ -20,7 +20,8 @@ Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.2
 Imports:
     httr2,
-    jsonlite
+    jsonlite,
+    xml2
 Suggests:
     DBI,
     RSQLite,

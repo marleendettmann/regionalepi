@@ -74,6 +74,14 @@ Meldejahr rows with one explicit filtered source geography. Blank incidence is
 stored once as internal query-level provenance, and referenced by `query_id` on
 observations; Info PDFs are not parsed.
 
+`fetch_survstat_incidence()` is a narrow official RKI SOAP adapter for
+source-provided weekly incidence. It accepts explicit reporting years and only
+Kreis output or one exact Bundesland filter, records live cube/member
+provenance, and uses deterministic one-year request chunks. It is not a generic
+SurvStat client. Missing incidence remains distinct from zero; geographic
+identity and vintage remain unresolved until the ordinary reviewed pipeline.
+Offline tests use a synthetic internal transport boundary.
+
 `assemble_surveillance_incidence()` performs only reviewed row replacement. It
 never sums or averages rates and incidence is explicitly rejected by additive
 geography transformations. The reviewed resource supplies the Berlin-specific

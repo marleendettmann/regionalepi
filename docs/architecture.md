@@ -86,6 +86,29 @@ geography supplied through query-filter metadata. Blank rate cells are
 `NA_real_`, not zero. Query settings are explicit caller-supplied provenance;
 the package does not parse Info PDFs or expose a generic public query-spec API.
 
+`fetch_survstat_incidence()` is a deliberately narrow network adapter for the
+official RKI `SurvStatWebService.svc` SOAP service. It uses the reviewed
+`SurvStat` cube and its exact hierarchy/member identifiers, requests only the
+service-provided incidence measure, and chunks deterministic requests by one
+explicit reporting year. The public interface supports Kreis output or one
+exactly filtered Bundesland; it is not a generic MDX or SOAP client. The
+official endpoint is
+`https://tools.rki.de/SurvStat/SurvStatWebService.svc`; the reviewed service
+metadata requires no authentication. The
+adapter records retrieval time, cube data status, endpoint, binding, operation,
+hierarchies, and selected member identifiers. SOAP faults, malformed payloads,
+unknown source members, duplicate observations, and unsupported measure or
+geography scopes fail explicitly. Ordinary tests replace an internal transport
+boundary and require no network access.
+
+The API is a second acquisition path into the existing non-additive incidence
+contract, not a second analytical model. Source labels and source member IDs
+remain source provenance, `geo_id` and `geo_vintage` remain unresolved before
+the ordinary resolver, and no rate is calculated, summed, or averaged. The
+reviewed Berlin workflow still consists of an independent Kreis query, an
+independent Bundesland query, deterministic resolution, and reviewed
+replacement assembly. No Berlin condition is present in the adapter.
+
 `assemble_surveillance_incidence()` is a reviewed replacement operation. It
 removes specified base source units and appends separately queried replacement
 observations after strict temporal and query compatibility checks. It performs

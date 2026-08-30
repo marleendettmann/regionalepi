@@ -142,6 +142,23 @@ Repeated query settings are stored once in internal query-level provenance;
 observation rows contain the compact query identifier. The reader supports
 only reviewed Kreis-row and Meldejahr-row layouts and does not parse Info PDFs.
 
+`fetch_survstat_incidence()` returns the same three-part structure and the same
+validated observation contract. Its API provenance additionally records the
+official endpoint, SOAP binding and operation, cube, exact pathogen/geography
+member identifiers, selected geography hierarchy, and reporting-week coverage
+for each requested year. `retrieved_at` is the local UTC execution time;
+`data_status` is the source cube's independently reported last-update time.
+The query uses explicit years and deterministic one-year chunks; no paging
+token or implicit current-year default is accepted.
+
+For API observations, blank source cells are `NA_real_` and an explicit
+numeric source zero is `0`. Kreis labels are returned verbatim with
+`geo_level = "survstat_kreis"`; a filtered state result uses the exact selected
+source member caption with `geo_level = "survstat_bundesland"`. Both enter the
+contract with unresolved `geo_id` and `geo_vintage`, to be resolved by the
+existing reviewed geography layer. Source member identifiers are provenance,
+not canonical geographic identifiers.
+
 Reviewed incidence assembly requires exact query compatibility for source,
 version, pathogen, measure, reference definition, reporting path, relevant
 filters, time unit, years, weeks, and data status. Retrieval timestamps may

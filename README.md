@@ -22,6 +22,15 @@ and preserves blank rates as missing. Reviewed incidence assembly replaces
 explicit source units with separately queried replacement observations without
 summing or averaging rates.
 
+`fetch_survstat_incidence()` is the first narrow live adapter for the official
+RKI SurvStat SOAP service. It retrieves only source-provided weekly incidence
+for explicit reporting years, either for Kreis rows or one exactly selected
+Bundesland. The adapter discovers exact source members, preserves blank cells
+as missing, records the live cube status and member identifiers, and performs
+neither geographic resolution nor incidence calculation. Its return contract
+is the same as the local incidence reader, so reviewed Berlin replacement and
+the existing downstream analysis remain separate steps.
+
 Reviewed source spatial relations support additive aggregation of the 12
 SurvStat Berlin Bezirk identities to canonical Berlin without inventing a
 territorial vintage. Historical vintage harmonization remains a separate
