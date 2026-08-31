@@ -239,6 +239,45 @@ diagnostics retain the input and standardized matrices, indicator and row
 order, scaling centers, and sample standard deviations. Fit diagnostics retain
 centers, sizes, sums of squares, iterations, and any base-R fault value.
 
+## Map geometry resource
+
+`map_geometry_resource` is an ordinary `list(features, provenance,
+discrepancies)` and is separate from canonical non-spatial geography.
+Features contain one complete five-character character `geo_id`, canonical
+name, level, complete map vintage, source feature ID, and one non-empty closed
+GeoJSON-compatible `MultiPolygon`. The generic validator requires unique IDs
+but no universal feature count. Geometry coordinates are finite EPSG:4326 XY
+positions and require no `sf` class.
+
+Dataset-level provenance records source product/vintage/file/layer, input and
+output CRS, feature and vertex counts, checksum, acquisition context, builder,
+license, attribution, and change notice. Reviewed source/canonical name
+differences are explicit keyed data. The reviewed 2024 resource additionally
+requires exact equality with the canonical 2024 register, 400 features, no
+simplification, and vintage 2024-12-31. It is visualization-only and is never
+an area source.
+
+## Dynamic indicator sets and typologies
+
+`indicator_set_spec` contains a versioned ordered indicator-reference list,
+standardization settings, completeness policy, and review provenance. It does
+not contain a demographic reference period. `demographic_structure_v1`
+requires, in order, population density, mean age, and youth dependency ratio,
+all at `dissertation_v1`, with complete common IDs and explicit base-R
+sample-SD z-standardization.
+
+`dynamic_fitting_spec` separately versions algorithm, starts, iteration limit,
+seed, row ordering, and supported `k`. `dynamic_kmeans_v1` supports exactly
+2--5 and does not inherit frozen dissertation parameters.
+
+Dynamic fit assignments retain `fit_id`, canonical `geo_id`, immutable raw
+cluster number, and a neutral fit-local display ID. Profile rows contain one
+cluster/indicator combination with original mean/median, standardized center,
+neutral ranks, size, proportion, definition, and unit. Cluster diagnostics
+carry withinss and the non-mutating minimum-size warning threshold
+`max(5, ceiling(0.02 * n))`. Display IDs and comparisons never imply
+cross-fit semantic equivalence or historical ClD/ClJ/ClA labels.
+
 ## Epidemiological periods
 
 An epidemiological period row contains `period_set_id`, `period_id`,

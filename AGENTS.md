@@ -147,8 +147,22 @@ validates, but never replaces, the authoritative youth quotient. Population
 density is derived by exact identifier/date joins without rounding, and annual
 indicators may be summarized only by a complete unweighted arithmetic mean.
 All adapter-produced `geo_vintage` values remain `NA_Date_`. Incidence
-calculation, denominator selection, standardization, and clustering remain
-outside this block.
+calculation and denominator selection remain outside this block.
+
+## Map geometry and dynamic typology v0.1
+
+`regionalepi_map_geometry_2024` is a visualization-only, map-ready VG2500
+resource for 2024-12-31. It contains ordinary GeoJSON-compatible EPSG:4326
+MultiPolygon lists keyed exactly to the reviewed canonical register, was not
+simplified, and is never used for population area. Runtime validation does not
+require `sf`; the reproducible local-source builder uses `sf` from Suggests.
+
+`demographic_structure_v1` is a reviewed dynamic indicator set containing the
+three existing dissertation-version indicator definitions without freezing a
+reference period. `dynamic_kmeans_v1` is a separate deterministic fitting
+specification for k 2--5. Dynamic fits use fit-local neutral C01/C02 display
+IDs and validated profiles; they never alter or apply the frozen dissertation
+ClD/ClJ/ClA semantics and do not generate natural-language names.
 
 ## Epidemiological contextualization v0.1
 

@@ -14,6 +14,14 @@ The reviewed incidence alias and incidence assembly specification are also
 ordinary version-controlled inputs. They describe source-provided rate
 replacement and are not additive source spatial relations.
 
+`Rscript data-raw/build-map-resource-2024.R` builds the separate reviewed
+visualization resource from the ignored official VG2500 file at
+`data-raw/local/bkg/vg2500_2024-12-31/vg2500/DE_VG2500.gpkg`. The builder
+requires suggested package `sf`, verifies the reviewed source checksum and
+exact canonical AGS set, transforms EPSG:25832 geometry to EPSG:4326, and does
+not simplify it. Only the derived GeoJSON-compatible R resource is installed;
+the GeoPackage and BKG PDFs remain ignored and excluded from package archives.
+
 The complete `data-raw` directory is excluded from built source archives. The
 built and installed package instead contains the generated non-geometric
 resource, its R documentation, and `inst/NOTICE` with source attribution.

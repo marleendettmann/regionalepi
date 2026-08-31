@@ -243,6 +243,38 @@ chooses the greatest assignment agreement on common IDs, leaving raw clusters
 unchanged. Local historical workbooks remain ignored development evidence and
 are not package data or ordinary test fixtures.
 
+## Map geometry and dynamic typology
+
+The reviewed `regionalepi_map_geometry_2024` resource is visualization
+geography, not an extension of the canonical non-spatial geography contract.
+Its 400 features are exact-ID joined to the reviewed 2024 register and use
+canonical register names. Geometry comes from BKG VG2500 `vg2500_krs`, is
+transformed once from EPSG:25832 to EPSG:4326, and is not simplified. The
+three reviewed source/canonical name differences remain explicit resource
+data. Geometry is stored as ordinary GeoJSON-compatible R lists, so core
+loading and validation do not depend on `sf`; the reproducible builder uses
+suggested `sf`. Map geometry is never an area denominator.
+
+Dynamic demographic clustering is a separate path from
+`fit_dissertation_typology()`. `demographic_structure_v1` orders the three
+reviewed indicator definitions and specifies complete common-unit sample-SD
+z-standardization without fixing a period. `dynamic_kmeans_v1` independently
+specifies Lloyd k-means, 50 starts, 100 iterations, seed `20241231`, ascending
+character-ID row order, and supported `k` values 2 through 5.
+
+`fit_dynamic_typology()` validates complete period summaries, constructs the
+ordered matrix, preserves caller RNG state, and returns immutable raw cluster
+numbers plus deterministic fit-local `C01`, `C02`, ... display IDs. Those IDs
+are ordered lexicographically by standardized centers in indicator-set order
+and have meaning only when qualified by `fit_id`. Profiles retain original
+means/medians, standardized centers, neutral ranks, sizes, and small-cluster
+flags. No dissertation or generated natural-language labels are applied.
+
+`compare_dynamic_partitions()` reports only same-unit contingency, cluster
+sizes, and adjusted Rand index. It accepts differing `k` without forcing a
+one-to-one mapping. Historical `compare_typology()` remains unchanged and
+three-cluster-specific.
+
 ## Epidemiological contextualization
 
 The epidemiology layer follows canonical geography, reviewed incidence
@@ -260,5 +292,5 @@ never converted to zero by the production path.
 Frozen resources preserve the dissertation's three Influenza intervals and
 principal COVID `Welle2` intervals. The current reviewed RKI resource covers
 2017/18 through 2025/26, including wave-free 2020/21, the late low 2021/22
-wave, and both 2022/23 waves. API retrieval, automatic wave detection, dynamic
-clustering, inferential tests, plots, and Shiny remain future blocks.
+wave, and both 2022/23 waves. Automatic wave detection, inferential tests,
+plots, and Shiny remain future blocks.

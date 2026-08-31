@@ -16,6 +16,28 @@ applicable on 2024-12-31, omits geometry, and renames and reorders attributes.
 These source-data terms are distinct from the regionalepi package-code license,
 which remains undecided (License: TBD).
 
+BKG VG2500 map-geometry attribution
+
+The regionalepi map resource for reference date 2024-12-31 is derived and
+modified from Verwaltungsgebiete 1 : 2 500 000 (VG2500), source vintage
+2024-12-31, supplied by the Bundesamt für Kartographie und Geodäsie (BKG).
+
+© BKG 2025 dl-de/by-2-0, Datenquellen:
+https://sgx.geodatenzentrum.de/web_public/gdz/datenquellen/datenquellen_vg_nuts.pdf
+
+BKG: https://www.bkg.bund.de
+dl-de/by-2-0: https://www.govdata.de/dl-de/by-2-0
+
+Change notice: Derived and modified for visualization. Selected the district
+layer, validated exact AGS compatibility with the reviewed 2024 canonical
+register, replaced three source display names with reviewed canonical names,
+removed unnecessary source attributes, transformed geometry from EPSG:25832
+to EPSG:4326, and performed no simplification. The geometry is not used for
+population-density area.
+
+These source-data terms are distinct from the regionalepi package-code license,
+which remains undecided (License: TBD).
+
 Regionaldatenbank Deutschland attribution
 
 Population observations retrieved at runtime from Regionaldatenbank

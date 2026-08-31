@@ -36,6 +36,13 @@ SurvStat Berlin Bezirk identities to canonical Berlin without inventing a
 territorial vintage. Historical vintage harmonization remains a separate
 operation and contract.
 
+`regionalepi_map_geometry()` supplies a separate visualization-only 2024
+district resource derived from BKG VG2500. It contains GeoJSON-compatible
+EPSG:4326 MultiPolygons, canonical reviewed names, complete BKG attribution,
+and no population-area semantics. Ordinary loading and validation require no
+`sf`; the reproducible development builder uses `sf` only as a suggested
+dependency.
+
 `fetch_regional_population()` retrieves reviewed district total-population
 data for 2017-2025 from Regionaldatenbank table `12411-01-01-4`. It requires
 the ordinary environment variables `REGIONALSTATISTIK_USER` and
@@ -52,6 +59,13 @@ summary and reproduces the dissertation's explicit base-R scaling and frozen
 three-center k-means. Historical labels require an explicit reproduction mode.
 `compare_typology()` safely aligns arbitrary raw cluster numbers to a reviewed
 historical partition by evaluating all six permutations.
+
+The separate `demographic_structure_v1` indicator set and
+`dynamic_kmeans_v1` fitting specification support deterministic exploratory
+demographic typologies for `k = 2` through `5`. Dynamic fits retain raw
+k-means numbers, add only fit-local neutral `C01`, `C02`, ... identifiers, and
+return original-scale and standardized cluster profiles. They never apply the
+frozen dissertation labels or generate natural-language cluster names.
 
 Reviewed period resources represent RKI Influenza waves and frozen
 dissertation COVID waves as inclusive date intervals. Seasons may have zero,
