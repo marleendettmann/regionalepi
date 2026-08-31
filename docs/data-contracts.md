@@ -312,3 +312,13 @@ week, typology, and cluster. It reports expected, observed non-missing,
 missing, and zero counts plus minimum-group-size status. Zero remains zero;
 `NA` is omitted only explicitly and an all-missing group has an `NA` median.
 No pooled or population-weighted cluster incidence is calculated.
+
+## Shiny orchestration boundaries
+
+The Shiny PoC introduces no analytical data contract. Its internal cache keys
+encode only the inputs that can change each stage: demographic years for live
+demography, pathogen and reporting years for SurvStat, summary provenance plus
+fitting specification and `k` for typology, and surveillance scope, reviewed
+period and fit ID for the final summary. Map joins use canonical `geo_id`
+exclusively. The 2017--2020 map difference is retained explicitly as typology-
+only `16056`; it is neither renamed nor silently treated as a 2024 feature.

@@ -176,3 +176,19 @@ set differences; it never uses name matching or hard-coded territorial cases.
 The weekly summary estimand is median source-provided district incidence by
 period and cluster. Numeric zero is retained, missing incidence remains `NA`,
 and no pooled or population-weighted cluster incidence is calculated.
+
+## Shiny proof of concept v0.1
+
+The optional package-owned Shiny application is a thin client of existing
+backend contracts. It uses the reviewed dynamic demographic typology, 2024
+map resource, live Regionaldatenbank and SurvStat adapters, reviewed geography
+resolution and Berlin replacement, period assignment, typology attachment,
+and median district-incidence summaries. `shiny` and `leaflet` remain suggested
+dependencies; base graphics provide charts and runtime mapping does not use
+`sf`.
+
+Live queries start only by explicit user action and are cached only in session
+memory. Map selection is display state and never triggers retrieval or fitting.
+The app persists neither credentials nor source responses. Dynamic display IDs
+remain neutral and fit-local; no automatic labels, pooled incidence, arbitrary
+indicator selection, or new analytical semantics are introduced.

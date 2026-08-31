@@ -292,5 +292,28 @@ never converted to zero by the production path.
 Frozen resources preserve the dissertation's three Influenza intervals and
 principal COVID `Welle2` intervals. The current reviewed RKI resource covers
 2017/18 through 2025/26, including wave-free 2020/21, the late low 2021/22
-wave, and both 2022/23 waves. Automatic wave detection, inferential tests,
-plots, and Shiny remain future blocks.
+wave, and both 2022/23 waves. Automatic wave detection and inferential tests
+remain future blocks.
+
+## Shiny proof of concept
+
+The package-owned application under `inst/shiny/regionalepi` is a thin client
+of the existing backend. `run_regionalepi_app()` locates the installed app and
+checks optional `shiny` and `leaflet` dependencies. Ordinary analytical use
+does not load either package. Profile and incidence charts use base graphics;
+the map consumes the browser-ready GeoJSON-compatible resource without `sf`.
+
+An explicit action button starts live work. A session-local environment caches
+the map, demographic sources and summary by reviewed reference period,
+typology by summary/specification/k, SurvStat results by pathogen/year scope,
+and epidemiological summaries by source scope/period/fit. Changing a map
+selection changes only display state. No response or credential is written to
+disk.
+
+The server orchestrates, but does not reproduce, Regionaldatenbank retrieval,
+indicator derivation and summarization, dynamic fitting, SurvStat retrieval,
+reviewed geography resolution, Berlin incidence replacement, period
+assignment, canonical-ID typology attachment, or median-incidence summary.
+The default 2022--2024 path has exact 400-unit map compatibility. The reviewed
+2017--2020 path retains its 401-unit fit and reports `16056` as the expected
+fit-only identifier while rendering the compatible 400 current map units.
