@@ -85,7 +85,9 @@ server <- function(input, output, session) {
         state$selected_geo_id <- "11000"
       }
     }, error = function(error) {
-      state$error <- app_format_error(error, "Die Live-Analyse")
+      state$error <- regionalepi:::.shiny_app_format_error(
+        error, "Die Live-Analyse"
+      )
     })
   })
 
@@ -99,7 +101,9 @@ server <- function(input, output, session) {
 
   output$district_map <- leaflet::renderLeaflet({
     req(state$result)
-    app_leaflet_map(cache$map, state$result$map_join$data)
+    regionalepi:::.shiny_app_leaflet_map(
+      cache$map, state$result$map_join$data
+    )
   })
 
   output$map_attribution <- renderUI({
@@ -123,7 +127,7 @@ server <- function(input, output, session) {
       matrix[profiles$indicator_id[[i]], profiles$display_cluster_id[[i]]] <-
         profiles$standardized_center[[i]]
     }
-    colours <- app_cluster_colours(clusters)
+    colours <- regionalepi:::.shiny_app_cluster_colours(clusters)
     graphics::matplot(seq_along(indicators), matrix, type = "b", pch = 19,
       lty = 1, col = colours, xaxt = "n", xlab = "", ylab = "Standardisiertes Zentrum")
     graphics::axis(1, at = seq_along(indicators), labels = c(
@@ -164,7 +168,7 @@ server <- function(input, output, session) {
     req(state$result)
     data <- state$result$epidemiology$summary$data
     clusters <- sort(unique(data$cluster_id))
-    colours <- app_cluster_colours(clusters)
+    colours <- regionalepi:::.shiny_app_cluster_colours(clusters)
     limits <- range(data$median_incidence, na.rm = TRUE)
     if (!all(is.finite(limits))) limits <- c(0, 1)
     graphics::plot(range(data$date), limits, type = "n", xlab = "Meldewoche",
@@ -221,7 +225,9 @@ server <- function(input, output, session) {
     req(state$result)
     result <- state$result
     period <- result$selected_period$row
-    source_status <- app_source_status(result$demographic$source)
+    source_status <- regionalepi:::.shiny_app_source_status(
+      result$demographic$source
+    )
     sizes <- result$fit$cluster_diagnostics
     size_text <- paste0(sizes$display_cluster_id, " = ", sizes$size,
                         collapse = ", ")
@@ -244,7 +250,7 @@ server <- function(input, output, session) {
         "; Z-Standardisierung mit Stichproben-SD (n−1)."),
       h4("Surveillance"), p("SurvStat@RKI; ", input$pathogen,
         "; source-provided Inzidenz; Kreisabfrage mit reviewtem separatem Berlin-Ersatz; Datenstand ",
-        paste(vapply(queries, `[[`, character(1L), "data_status"), collapse = ", "),
+        paste(regionalepi:::.shiny_app_query_status(queries), collapse = ", "),
         "; Queries ", query_text, "."),
       h4("Epidemiologischer Zeitraum"), p(period$label, "; ",
         period$period_set_id, " / ", period$definition_version,

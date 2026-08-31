@@ -1,3 +1,7 @@
+initial_period_choices <- regionalepi:::.shiny_period_choices(
+  "Influenza, saisonal"
+)
+
 ui <- fluidPage(
   tags$head(
     tags$title("regionalepi – interaktiver PoC"),
@@ -21,7 +25,11 @@ ui <- fluidPage(
           "Influenza" = "Influenza, saisonal", "COVID-19" = "COVID-19"
         )
       ),
-      selectInput("period_id", "Epidemiologischer Zeitraum", choices = NULL),
+      selectInput(
+        "period_id", "Epidemiologischer Zeitraum",
+        choices = initial_period_choices,
+        selected = unname(initial_period_choices[[length(initial_period_choices)]])
+      ),
       selectInput(
         "demographic_period", "Demographischer Referenzzeitraum",
         choices = c("2022–2024", "2017–2020"), selected = "2022–2024"
