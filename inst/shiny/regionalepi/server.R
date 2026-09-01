@@ -1,12 +1,14 @@
 server <- function(input, output, session) {
   cache <- new.env(parent = emptyenv())
   cache$map <- regionalepi::regionalepi_map_geometry()
+  cache$map_bounds <- regionalepi:::.shiny_app_map_bounds(cache$map)
+  cache$surveillance_index <- list()
   resources <- get(
     "regionalepi_geography_resources_2024",
     envir = asNamespace("regionalepi"), inherits = TRUE
   )
-  state <- reactiveValues(result = NULL, error = NULL, busy = FALSE,
-                          selected_geo_id = NULL)
+  state <- reactiveValues(result = NULL, error = NULL, technical_error = NULL,
+                          busy = FALSE, selected_geo_id = NULL)
 
   observeEvent(input$pathogen, {
     choices <- regionalepi:::.shiny_period_choices(input$pathogen)
@@ -20,71 +22,96 @@ server <- function(input, output, session) {
 
   observeEvent(input$load_analysis, {
     state$error <- NULL
+    state$technical_error <- NULL
     state$busy <- TRUE
     on.exit(state$busy <- FALSE, add = TRUE)
     tryCatch({
-      selected <- regionalepi:::.shiny_selected_period(
-        input$pathogen, input$period_id
-      )
-      demographic_years <- regionalepi:::.shiny_demographic_periods()[[
-        input$demographic_period
-      ]]
-      demographic_key <- regionalepi:::.shiny_demographic_cache_key(
-        input$demographic_period
-      )
-      if (!exists(demographic_key, cache, inherits = FALSE)) {
-        withProgress(message = "Regionaldatenbank wird abgefragt …", value = 0.2, {
+      withProgress(message = "Analyse wird vorbereitet …", value = 0, {
+        setProgress(0.03, detail = "Auswahl und Referenzzeiträume werden geprüft …")
+        selected <- regionalepi:::.shiny_selected_period(
+          input$pathogen, input$period_id
+        )
+        demographic_years <- regionalepi:::.shiny_demographic_periods()[[
+          input$demographic_period
+        ]]
+        demographic_key <- regionalepi:::.shiny_demographic_cache_key(
+          input$demographic_period
+        )
+        if (!exists(demographic_key, cache, inherits = FALSE)) {
+          setProgress(0.08, detail = "Demographische Regionaldaten werden geladen …")
           assign(demographic_key,
                  regionalepi:::.shiny_fetch_demography(demographic_years), cache)
-        })
-      }
-      demographic <- get(demographic_key, cache, inherits = FALSE)
-      typology_key <- regionalepi:::.shiny_typology_cache_key(
-        demographic$summary, as.integer(input$k)
-      )
-      if (!exists(typology_key, cache, inherits = FALSE)) {
-        assign(typology_key, regionalepi::fit_dynamic_typology(
-          demographic$summary, k = as.integer(input$k)
-        ), cache)
-      }
-      fit <- get(typology_key, cache, inherits = FALSE)
+        }
+        demographic <- get(demographic_key, cache, inherits = FALSE)
 
-      reporting_years <- regionalepi:::.shiny_reference_years(selected$row)
-      surveillance_key <- regionalepi:::.shiny_surveillance_cache_key(
-        input$pathogen, reporting_years
-      )
-      if (!exists(surveillance_key, cache, inherits = FALSE)) {
-        withProgress(message = "SurvStat@RKI wird abgefragt …", value = 0.55, {
+        setProgress(0.57, detail = "Demographische Typologie wird angepasst …")
+        typology_key <- regionalepi:::.shiny_typology_cache_key(
+          demographic$summary, as.integer(input$k)
+        )
+        if (!exists(typology_key, cache, inherits = FALSE)) {
+          assign(typology_key, regionalepi::fit_dynamic_typology(
+            demographic$summary, k = as.integer(input$k)
+          ), cache)
+        }
+        fit <- get(typology_key, cache, inherits = FALSE)
+
+        reporting_years <- regionalepi:::.shiny_reference_years(selected$row)
+        surveillance_key <- regionalepi:::.shiny_surveillance_cache_match(
+          cache$surveillance_index, input$pathogen, reporting_years
+        )
+        if (is.null(surveillance_key)) {
+          surveillance_key <- regionalepi:::.shiny_surveillance_cache_key(
+            input$pathogen, reporting_years
+          )
+          setProgress(0.62, detail = "SurvStat-Kreisdaten werden geladen …")
           assign(surveillance_key, regionalepi:::.shiny_fetch_surveillance(
             input$pathogen, reporting_years, resources
           ), cache)
-        })
-      }
-      surveillance <- get(surveillance_key, cache, inherits = FALSE)
-      summary_key <- regionalepi:::.shiny_summary_cache_key(
-        surveillance_key, input$period_id, fit$provenance$fit_id
-      )
-      if (!exists(summary_key, cache, inherits = FALSE)) {
-        assign(summary_key, regionalepi:::.shiny_analyse_period(
-          surveillance, selected, fit
-        ), cache)
-      }
-      epidemiology <- get(summary_key, cache, inherits = FALSE)
-      map_join <- regionalepi:::.shiny_map_assignments(cache$map, fit)
-      state$result <- list(
-        demographic = demographic, fit = fit, surveillance = surveillance,
-        epidemiology = epidemiology, selected_period = selected,
-        map_join = map_join, demographic_years = demographic_years,
-        cache_keys = list(demographic = demographic_key,
-                          typology = typology_key,
-                          surveillance = surveillance_key,
-                          epidemiology = summary_key)
-      )
-      if (is.null(state$selected_geo_id) ||
-          !state$selected_geo_id %in% map_join$data$geo_id) {
-        state$selected_geo_id <- "11000"
-      }
+          cache$surveillance_index[[surveillance_key]] <- list(
+            key = surveillance_key, pathogen = input$pathogen,
+            reporting_years = reporting_years
+          )
+        }
+        surveillance <- get(surveillance_key, cache, inherits = FALSE)
+
+        setProgress(0.78, detail = "Geographien und epidemiologischer Zeitraum werden verknüpft …")
+        summary_key <- regionalepi:::.shiny_summary_cache_key(
+          surveillance_key, input$period_id, fit$provenance$fit_id
+        )
+        if (!exists(summary_key, cache, inherits = FALSE)) {
+          assign(summary_key, regionalepi:::.shiny_analyse_period(
+            surveillance, selected, fit
+          ), cache)
+        }
+        epidemiology <- get(summary_key, cache, inherits = FALSE)
+        map_join <- regionalepi:::.shiny_map_assignments(cache$map, fit)
+
+        setProgress(0.9, detail = "Kartendarstellung wird vorbereitet …")
+        map_key <- paste0("map-widget:", fit$provenance$fit_id)
+        if (!exists(map_key, cache, inherits = FALSE)) {
+          geojson <- regionalepi:::.shiny_app_map_geojson(cache$map, map_join$data)
+          assign(map_key, regionalepi:::.shiny_app_leaflet_geojson(
+            geojson, cache$map_bounds
+          ), cache)
+        }
+        state$result <- list(
+          demographic = demographic, fit = fit, surveillance = surveillance,
+          epidemiology = epidemiology, selected_period = selected,
+          map_join = map_join, map_widget = get(map_key, cache, inherits = FALSE),
+          demographic_years = demographic_years,
+          cache_keys = list(demographic = demographic_key,
+                            typology = typology_key,
+                            surveillance = surveillance_key,
+                            epidemiology = summary_key, map = map_key)
+        )
+        if (is.null(state$selected_geo_id) ||
+            !state$selected_geo_id %in% map_join$data$geo_id) {
+          state$selected_geo_id <- "11000"
+        }
+        setProgress(1, detail = "Darstellung ist bereit.")
+      })
     }, error = function(error) {
+      state$technical_error <- conditionMessage(error)
       state$error <- regionalepi:::.shiny_app_format_error(
         error, "Die Live-Analyse"
       )
@@ -101,9 +128,7 @@ server <- function(input, output, session) {
 
   output$district_map <- leaflet::renderLeaflet({
     req(state$result)
-    regionalepi:::.shiny_app_leaflet_map(
-      cache$map, state$result$map_join$data
-    )
+    state$result$map_widget
   })
 
   output$map_attribution <- renderUI({
@@ -113,7 +138,7 @@ server <- function(input, output, session) {
         target = "_blank", rel = "noopener noreferrer"), " · ",
       a("BKG-Quelle", href = provenance$source_reference,
         target = "_blank", rel = "noopener noreferrer"), " · ",
-      provenance$change_notice)
+      "Durch regionalepi für die Kartendarstellung bearbeitet.")
   })
 
   output$profile_plot <- renderPlot({
@@ -121,6 +146,7 @@ server <- function(input, output, session) {
     profiles <- state$result$fit$profiles
     clusters <- sort(unique(profiles$display_cluster_id))
     indicators <- state$result$fit$matrix$indicator_order
+    display <- regionalepi:::.shiny_app_indicator_display()
     matrix <- matrix(NA_real_, nrow = length(indicators), ncol = length(clusters),
                      dimnames = list(indicators, clusters))
     for (i in seq_len(nrow(profiles))) {
@@ -129,11 +155,10 @@ server <- function(input, output, session) {
     }
     colours <- regionalepi:::.shiny_app_cluster_colours(clusters)
     graphics::matplot(seq_along(indicators), matrix, type = "b", pch = 19,
-      lty = 1, col = colours, xaxt = "n", xlab = "", ylab = "Standardisiertes Zentrum")
-    graphics::axis(1, at = seq_along(indicators), labels = c(
-      population_density = "Bevölkerungsdichte", mean_age = "Durchschnittsalter",
-      youth_dependency_ratio = "Jugendquotient"
-    )[indicators])
+      lty = 1, col = colours, xaxt = "n", xlab = "",
+      ylab = "Standardisiertes Clusterprofil")
+    graphics::axis(1, at = seq_along(indicators),
+      labels = display$label[match(indicators, display$indicator_id)])
     graphics::abline(h = 0, col = "grey70", lty = 2)
     graphics::legend("topright", legend = clusters, col = colours,
                      pch = 19, lty = 1, bty = "n")
@@ -142,14 +167,13 @@ server <- function(input, output, session) {
   output$profile_table <- renderTable({
     req(state$result)
     profiles <- state$result$fit$profiles
-    profiles$Indikator <- c(
-      population_density = "Bevölkerungsdichte", mean_age = "Durchschnittsalter",
-      youth_dependency_ratio = "Jugendquotient"
-    )[profiles$indicator_id]
+    display <- regionalepi:::.shiny_app_indicator_display()
+    position <- match(profiles$indicator_id, display$indicator_id)
     data.frame(
       Cluster = profiles$display_cluster_id,
       N = profiles$cluster_size,
-      Indikator = profiles$Indikator,
+      Indikator = display$label[position],
+      Einheit = display$unit[position],
       Mittelwert = round(profiles$original_mean, 2),
       Median = round(profiles$original_median, 2), check.names = FALSE
     )
@@ -206,17 +230,16 @@ server <- function(input, output, session) {
     ]
     summary <- state$result$demographic$summary$data
     values <- summary[summary$geo_id == id, , drop = FALSE]
-    labels <- c(population_density = "Bevölkerungsdichte",
-                mean_age = "Durchschnittsalter",
-                youth_dependency_ratio = "Jugendquotient")
+    display <- regionalepi:::.shiny_app_indicator_display()
+    position <- match(values$indicator_id, display$indicator_id)
     tagList(
       h4(assignment$geo_name),
       p(strong("AGS: "), id),
       p(strong("Cluster: "), assignment$display_cluster_id),
       tags$ul(lapply(seq_len(nrow(values)), function(i) tags$li(
-        labels[[values$indicator_id[[i]]]], ": ",
+        display$label[[position[[i]]]], ": ",
         format(round(values$indicator_value[[i]], 2), trim = TRUE), " ",
-        values$indicator_unit[[i]]
+        display$unit[[position[[i]]]]
       )))
     )
   })
@@ -256,7 +279,8 @@ server <- function(input, output, session) {
         period$period_set_id, " / ", period$definition_version,
         "; ", period$source_reference),
       h4("Karte"), p("BKG VG2500, Gebietsstand 2024-12-31; ",
-        cache$map$provenance$attribution),
+        cache$map$provenance$attribution, " ",
+        cache$map$provenance$change_notice),
       h4("Paket"), p("regionalepi ", as.character(utils::packageVersion("regionalepi"))),
       if (length(result$map_join$typology_only_geo_ids)) p(class = "app-note",
         "Der Fit basiert auf 401 Einheiten. Nicht auf der 2024-Karte dargestellt: ",

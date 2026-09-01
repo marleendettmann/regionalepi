@@ -34,6 +34,19 @@ test_that("Shiny cache keys respect reactive source boundaries", {
   first <- regionalepi:::.shiny_summary_cache_key(surveillance, "wave-1", "fit-a")
   second <- regionalepi:::.shiny_summary_cache_key(surveillance, "wave-2", "fit-a")
   expect_false(identical(first, second))
+
+  index <- list(
+    broad = list(key = "broad", pathogen = "COVID-19",
+                 reporting_years = 2020:2022),
+    narrow = list(key = "narrow", pathogen = "COVID-19",
+                  reporting_years = 2021:2022)
+  )
+  expect_identical(regionalepi:::.shiny_surveillance_cache_match(
+    index, "COVID-19", 2021
+  ), "narrow")
+  expect_null(regionalepi:::.shiny_surveillance_cache_match(
+    index, "Influenza, saisonal", 2021
+  ))
 })
 
 test_that("map join is identifier-only and handles reviewed historical difference", {
@@ -106,10 +119,32 @@ test_that("server error callback resolves its formatter from the package namespa
     )
     session$flushReact()
     status <- paste(as.character(output$load_status), collapse = "")
-    expect_match(status, "Die Live-Analyse konnte nicht geladen werden", fixed = TRUE)
-    expect_match(status, "synthetic Regionaldatenbank failure", fixed = TRUE)
+    expect_match(status, "demographischen Daten konnten nicht geladen werden",
+                 fixed = TRUE)
+    expect_false(grepl("synthetic Regionaldatenbank failure", status, fixed = TRUE))
     expect_false(grepl("app_format_error", status, fixed = TRUE))
+    expect_false(state$busy)
+    expect_match(state$technical_error, "synthetic Regionaldatenbank failure",
+                 fixed = TRUE)
   })
+})
+
+test_that("Shiny user errors hide authentication and source internals", {
+  missing <- simpleError(paste(
+    "Regionaldatenbank retrieval failed: Invalid Regionaldatenbank",
+    "authentication: required environment variables are missing or empty"
+  ))
+  text <- regionalepi:::.shiny_app_format_error(missing, "Die Live-Analyse")
+  expect_match(text, "fehlen die Zugangsdaten", fixed = TRUE)
+  expect_false(grepl("environment|authentication", text, ignore.case = TRUE))
+
+  survstat <- regionalepi:::.shiny_app_format_error(
+    simpleError("SurvStat@RKI retrieval failed: <SOAP secret>"),
+    "Die Live-Analyse"
+  )
+  expect_match(survstat, "SurvStat-Daten konnten nicht geladen werden",
+               fixed = TRUE)
+  expect_false(grepl("SOAP secret", survstat, fixed = TRUE))
 })
 
 test_that("installed app files do not rely on unqualified app helpers", {
@@ -154,6 +189,56 @@ test_that("map and fitting provenance required by the PoC are complete", {
   expect_identical(indicator_set$indicator_set_id, "demographic_structure_v1")
   expect_identical(fitting$fitting_specification_id, "dynamic_kmeans_v1")
   expect_identical(fitting$seed, 20241231L)
+
+  bounds <- regionalepi:::.shiny_app_map_bounds(map)
+  expect_named(bounds, c("lng1", "lat1", "lng2", "lat2"))
+  expect_true(all(is.finite(bounds)))
+  expect_lt(bounds[["lng1"]], bounds[["lng2"]])
+  expect_lt(bounds[["lat1"]], bounds[["lat2"]])
+
+  assignments <- data.frame(
+    geo_id = map$features$geo_id,
+    display_cluster_id = rep("C01", nrow(map$features)),
+    stringsAsFactors = FALSE
+  )
+  widget <- regionalepi:::.shiny_app_leaflet_map(map, assignments)
+  calls <- vapply(widget$x$calls, `[[`, character(1L), "method")
+  expect_false("addProviderTiles" %in% calls)
+  expect_length(widget$x$fitBounds, 5L)
+  expect_equal(unlist(widget$x$fitBounds[1:4]),
+    unname(bounds[c("lat1", "lng1", "lat2", "lng2")]))
+})
+
+test_that("Shiny indicator presentation uses German labels and units", {
+  display <- regionalepi:::.shiny_app_indicator_display()
+  expect_identical(display$indicator_id, c(
+    "population_density", "mean_age", "youth_dependency_ratio"
+  ))
+  expect_identical(display$label, c(
+    "Bevölkerungsdichte", "Durchschnittsalter", "Jugendquotient"
+  ))
+  expect_identical(display$unit, c(
+    "Einwohner je km²", "Jahre",
+    "Unter-20-Jährige je 100 Personen im Alter 20–64"
+  ))
+})
+
+test_that("Shiny app exposes staged progress and caches fitted map widgets", {
+  app <- regionalepi:::.shiny_app_dir()
+  server_text <- paste(readLines(file.path(app, "server.R"), warn = FALSE),
+                       collapse = "\n")
+  ui_text <- paste(readLines(file.path(app, "ui.R"), warn = FALSE),
+                   collapse = "\n")
+  expect_match(server_text, "Demographische Regionaldaten werden geladen",
+               fixed = TRUE)
+  expect_match(server_text, "SurvStat-Kreisdaten werden geladen", fixed = TRUE)
+  expect_match(server_text, "Kartendarstellung wird vorbereitet", fixed = TRUE)
+  expect_match(server_text, "map-widget:", fixed = TRUE)
+  expect_match(server_text, ".shiny_surveillance_cache_match", fixed = TRUE)
+  expect_match(ui_text, "Erweiterte Einstellungen", fixed = TRUE)
+  expect_match(ui_text,
+    "Regionale Infektionsepidemiologie im demographischen Kontext",
+    fixed = TRUE)
 })
 
 test_that("Shiny period orchestration removes explicitly unassigned rows", {

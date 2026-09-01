@@ -61,6 +61,20 @@
   paste("incidence-summary", surveillance_key, period_id, fit_id, sep = ":")
 }
 
+.shiny_surveillance_cache_match <- function(index, pathogen, reporting_years) {
+  if (!length(index)) return(NULL)
+  required <- sort(unique(as.integer(reporting_years)))
+  compatible <- vapply(index, function(entry) {
+    identical(entry$pathogen, pathogen) &&
+      all(required %in% entry$reporting_years)
+  }, logical(1L))
+  if (!any(compatible)) return(NULL)
+  candidates <- index[compatible]
+  sizes <- vapply(candidates, function(entry) length(entry$reporting_years),
+                  integer(1L))
+  candidates[[which.min(sizes)]]$key
+}
+
 .shiny_app_cluster_colours <- function(ids) {
   palette <- c("#3B6FB6", "#D17C28", "#3F8F6B", "#8A64A8", "#B64E5A")
   levels <- sort(unique(ids))
@@ -88,12 +102,22 @@
   )
 }
 
-.shiny_app_leaflet_map <- function(map, assignments) {
-  geojson <- .shiny_app_map_geojson(map, assignments)
+.shiny_app_map_bounds <- function(map) {
+  coordinates <- unlist(lapply(map$features$geometry, `[[`, "coordinates"),
+                        recursive = TRUE, use.names = FALSE)
+  if (!length(coordinates) || length(coordinates) %% 2L != 0L ||
+      !is.numeric(coordinates) || any(!is.finite(coordinates))) {
+    stop("Map geometry does not provide finite coordinate pairs.", call. = FALSE)
+  }
+  positions <- matrix(coordinates, ncol = 2L, byrow = TRUE)
+  c(lng1 = min(positions[, 1L]), lat1 = min(positions[, 2L]),
+    lng2 = max(positions[, 1L]), lat2 = max(positions[, 2L]))
+}
+
+.shiny_app_leaflet_geojson <- function(geojson, bounds) {
   widget <- leaflet::leaflet(options = leaflet::leafletOptions(minZoom = 4))
-  widget <- leaflet::addProviderTiles(widget, "CartoDB.Positron")
   widget <- leaflet::addGeoJSON(widget, geojson)
-  htmlwidgets::onRender(widget, "
+  widget <- htmlwidgets::onRender(widget, "
     function(el, x) {
       var map = this;
       map.eachLayer(function(layer) {
@@ -108,8 +132,28 @@
                               {priority:'event'});
         });
       });
-      map.fitBounds([[47.2, 5.5], [55.2, 15.5]]);
     }")
+  leaflet::fitBounds(widget, bounds[["lng1"]], bounds[["lat1"]],
+                     bounds[["lng2"]], bounds[["lat2"]])
+}
+
+.shiny_app_leaflet_map <- function(map, assignments) {
+  .shiny_app_leaflet_geojson(
+    .shiny_app_map_geojson(map, assignments),
+    .shiny_app_map_bounds(map)
+  )
+}
+
+.shiny_app_indicator_display <- function() {
+  data.frame(
+    indicator_id = c("population_density", "mean_age",
+                     "youth_dependency_ratio"),
+    label = c("Bev\u00f6lkerungsdichte", "Durchschnittsalter",
+              "Jugendquotient"),
+    unit = c("Einwohner je km\u00b2", "Jahre",
+             "Unter-20-J\u00e4hrige je 100 Personen im Alter 20\u201364"),
+    stringsAsFactors = FALSE
+  )
 }
 
 .shiny_app_source_status <- function(source) {
@@ -126,8 +170,28 @@
 }
 
 .shiny_app_format_error <- function(error, source) {
-  paste0(source, " konnte nicht geladen werden. ", conditionMessage(error),
-         " Bitte Einstellungen und Dienstverf\u00fcgbarkeit pr\u00fcfen und erneut laden.")
+  message <- conditionMessage(error)
+  if (grepl("Regionaldatenbank", message, fixed = TRUE) &&
+      grepl("authentication|required environment variables|missing or empty",
+            message, ignore.case = TRUE)) {
+    return(paste(
+      "F\u00fcr die Live-Abfrage der Regionaldatenbank fehlen die Zugangsdaten.",
+      "Bitte konfigurieren Sie die Zugangsdaten und laden Sie die Analyse erneut."
+    ))
+  }
+  if (grepl("Regionaldatenbank", message, fixed = TRUE)) {
+    return(paste(
+      "Die demographischen Daten konnten nicht geladen werden.",
+      "Bitte Zugang und Dienstverf\u00fcgbarkeit pr\u00fcfen und erneut versuchen."
+    ))
+  }
+  if (grepl("SurvStat", message, fixed = TRUE)) {
+    return(paste(
+      "Die SurvStat-Daten konnten nicht geladen werden.",
+      "Bitte Dienstverf\u00fcgbarkeit pr\u00fcfen und erneut versuchen."
+    ))
+  }
+  paste0(source, " konnte nicht geladen werden. Bitte erneut versuchen.")
 }
 
 .shiny_reference_years <- function(period_row) {

@@ -4,7 +4,7 @@ initial_period_choices <- regionalepi:::.shiny_period_choices(
 
 ui <- fluidPage(
   tags$head(
-    tags$title("regionalepi – interaktiver PoC"),
+    tags$title("regionalepi – Regionale Infektionsepidemiologie im demographischen Kontext"),
     tags$style(HTML("
       body { font-size: 15px; }
       .app-note { color:#4b5563; font-size:0.92rem; }
@@ -13,11 +13,12 @@ ui <- fluidPage(
       .panel-card { border:1px solid #d7dde5; border-radius:6px;
                     padding:14px; margin-bottom:14px; background:#fff; }
       .leaflet { min-height:520px; }
+      .leaflet-container { background:#f3f5f7; }
       .small-table table { font-size:12px; }
       @media (max-width: 900px) { .leaflet { min-height:420px; } }
     "))
   ),
-  titlePanel("regionalepi – regionalepidemiologischer Proof of Concept"),
+  titlePanel("regionalepi – Regionale Infektionsepidemiologie im demographischen Kontext"),
   sidebarLayout(
     sidebarPanel(
       selectInput(
@@ -38,12 +39,15 @@ ui <- fluidPage(
         "typology_mode", "Typologie", choices =
           c("Dynamische demographische Typologie" = "dynamic")
       ),
-      selectInput(
-        "k", "Anzahl Cluster (explorativ)", choices = 2:5, selected = 3
+      tags$details(
+        tags$summary("Erweiterte Einstellungen"),
+        selectInput(
+          "k", "Anzahl Cluster (explorativ)", choices = 2:5, selected = 3
+        ),
+        p(class = "app-note",
+          "Eine Änderung von k erzeugt eine neue explorative Partition. ",
+          "C01, C02 usw. sind fit-spezifisch und keine dauerhaft festgelegten Sachkategorien.")
       ),
-      p(class = "app-note",
-        "Eine Änderung von k erzeugt eine neue explorative Partition. ",
-        "C01, C02 usw. sind fit-spezifisch und keine dauerhaft festgelegten Sachkategorien."),
       actionButton("load_analysis", "Analyse laden / aktualisieren",
                    class = "btn-primary"),
       br(), br(),
