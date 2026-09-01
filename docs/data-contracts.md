@@ -322,3 +322,17 @@ fitting specification and `k` for typology, and surveillance scope, reviewed
 period and fit ID for the final summary. Map joins use canonical `geo_id`
 exclusively. The 2017--2020 map difference is retained explicitly as typology-
 only `16056`; it is neither renamed nor silently treated as a 2024 feature.
+
+## Demographic snapshot
+
+`demographic_snapshot` contains normalized `mean_age`, `youth_dependency`,
+`population`, and `area` source components plus dataset-level provenance and
+diagnostics. Components require duplicate-free five-character IDs and exact
+ID/name equality for every date. V1 retains 401 units in 2017--2020 and 400 in
+2022--2024 without harmonization or inferred `geo_vintage`.
+
+Regionaldatenbank reports response-generation times separately for sequential
+table requests. V1 therefore preserves all four statuses and requires one
+calendar date with at most a 15-minute reviewed build window; a different date
+or wider interval fails. The deterministic checksum covers normalized values
+and stable source provenance while excluding volatile retrieval/build times.

@@ -20,7 +20,8 @@ EPSG:4326 without simplification. Canonical names come from the reviewed
 regionalepi geography register after exact AGS-set validation.
 }
 \details{
-The object is an ordinary list with \code{features}, dataset-level \code{provenance},
+The object is an ordinary list with \code{features}, a byte-identical
+browser-ready \code{browser_geojson} serialization, dataset-level \code{provenance},
 and the three reviewed VG2500/canonical name \code{discrepancies}. Geometry is
 stored as GeoJSON-compatible R lists and does not require \code{sf} at runtime.
 It must not be used to calculate population density or other areas.

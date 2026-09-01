@@ -35,3 +35,17 @@ applicability.
 VG-Hist documentation defines `BEG` and `END` as inclusive validity dates but
 does not explicitly define `9999-12-31` as an open-ended sentinel. The builder
 therefore preserves that source value rather than normalizing it to `NA`.
+
+## Reviewed demographic snapshot
+
+Run `Rscript data-raw/build-demographic-snapshot.R` from the package root with
+the external Regionaldatenbank credential environment configured. The builder
+uses the existing narrow adapters, retrieves the contiguous 2017--2024 range
+required by the API, and stores only reviewed years 2017--2020 and 2022--2024.
+It validates component contracts, exact annual geography, the reviewed
+source-status window, and the deterministic checksum. Raw envelopes and
+credentials are never written.
+
+Only `data/regionalepi_demographic_snapshot_v1.rda` is installed. A refresh is
+a reviewed development/release build of a new immutable version; Shiny live
+retrieval never updates this resource.

@@ -37,10 +37,13 @@
   list(resource = resource, row = row)
 }
 
-.shiny_demographic_cache_key <- function(period_label) {
+.shiny_demographic_cache_key <- function(period_label, source_mode = "snapshot") {
   years <- .shiny_demographic_periods()[[period_label]]
   if (is.null(years)) stop("Unsupported demographic reference period.", call. = FALSE)
-  paste0("demography:", paste(years, collapse = "-"))
+  if (!source_mode %in% c("snapshot", "live")) {
+    stop("Unsupported demographic source mode.", call. = FALSE)
+  }
+  paste0("demography:", source_mode, ":", paste(years, collapse = "-"))
 }
 
 .shiny_surveillance_cache_key <- function(pathogen, reporting_years) {
@@ -114,15 +117,25 @@
     lng2 = max(positions[, 1L]), lat2 = max(positions[, 2L]))
 }
 
-.shiny_app_leaflet_geojson <- function(geojson, bounds) {
+.shiny_app_leaflet_geojson <- function(geojson, bounds, assignments = NULL) {
   widget <- leaflet::leaflet(options = leaflet::leafletOptions(minZoom = 4))
   widget <- leaflet::addGeoJSON(widget, geojson)
+  display <- if (is.null(assignments)) NULL else list(
+    clusters = stats::setNames(as.list(assignments$display_cluster_id),
+                               assignments$geo_id),
+    colours = as.list(.shiny_app_cluster_colours(
+      assignments$display_cluster_id))
+  )
   widget <- htmlwidgets::onRender(widget, "
-    function(el, x) {
+    function(el, x, display) {
       var map = this;
       map.eachLayer(function(layer) {
         if (!layer.feature || !layer.feature.properties) return;
         var p = layer.feature.properties;
+        if (display && display.clusters) {
+          p.cluster = display.clusters[p.geo_id];
+          p.fillColor = display.colours[p.cluster];
+        }
         layer.setStyle({color:'#ffffff', weight:0.7, fillColor:p.fillColor,
                         fillOpacity:0.82});
         layer.bindTooltip('<strong>' + p.geo_name + '</strong><br>' +
@@ -132,15 +145,16 @@
                               {priority:'event'});
         });
       });
-    }")
+    }", data = display)
   leaflet::fitBounds(widget, bounds[["lng1"]], bounds[["lat1"]],
                      bounds[["lng2"]], bounds[["lat2"]])
 }
 
 .shiny_app_leaflet_map <- function(map, assignments) {
   .shiny_app_leaflet_geojson(
-    .shiny_app_map_geojson(map, assignments),
-    .shiny_app_map_bounds(map)
+    if (!is.null(map$browser_geojson)) map$browser_geojson else
+      .shiny_app_map_geojson(map, assignments),
+    .shiny_app_map_bounds(map), assignments
   )
 }
 
@@ -258,8 +272,25 @@
   list(
     annual = annual, summary = summary,
     source = list(population = population, area = area,
-                  mean_age = mean_age, youth_dependency = youth)
+                  mean_age = mean_age, youth_dependency = youth),
+    source_mode = "live", snapshot_provenance = NULL
   )
+}
+
+.shiny_fetch_snapshot_demography <- function(years) {
+  snapshot <- regionalepi_demographic_snapshot()
+  .demographic_snapshot_period(snapshot, years)
+}
+
+.shiny_demography_status <- function(demographic) {
+  if (identical(demographic$source_mode, "snapshot")) {
+    return(paste0(
+      "Gepr\u00fcfter Snapshot \u2013 Datenstand ",
+      demographic$snapshot_provenance$source_status_display_date
+    ))
+  }
+  statuses <- .shiny_app_source_status(demographic$source)
+  paste0("Live-Abruf \u2013 Datenstand ", paste(statuses, collapse = ", "))
 }
 
 .shiny_resolve_survstat <- function(result, resources, aliases,

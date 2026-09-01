@@ -104,3 +104,13 @@ background jobs, automatic cluster naming, pooled incidence, arbitrary
 indicator selection, export workflow, deployment infrastructure, or frozen
 dissertation reference mode. BKG attribution is rendered from the map-resource
 provenance immediately below the map.
+
+### Reviewed demographic snapshot
+
+Ordinary Shiny use defaults to the immutable reviewed Regionaldatenbank
+snapshot returned by `regionalepi_demographic_snapshot()`. It covers
+2017--2020 and 2022--2024 and stores source-provided mean age and youth
+dependency plus population and area. Density, period summaries, and typologies
+remain reproducible ordinary derivations. The default therefore needs no
+Regionaldatenbank credentials; explicit live mode remains available under the
+advanced settings and never mutates the bundled snapshot. SurvStat stays live.

@@ -53,11 +53,31 @@ test_that("reviewed 2024 map resource has exact package integrity", {
   expect_identical(resource$provenance$output_vertex_count, 60707L)
   expect_identical(resource$provenance$simplification, "none")
   expect_identical(resource$provenance$output_crs, "EPSG:4326")
+  expect_identical(nchar(resource$browser_geojson, type = "bytes"),
+                   resource$provenance$browser_geojson_bytes)
+  expect_identical(
+    regionalepi:::.map_browser_geojson_md5(resource$browser_geojson),
+    resource$provenance$browser_geojson_md5
+  )
   expect_identical(resource$discrepancies$geo_id, c("03403", "10046", "12071"))
   expect_identical(sum(resource$features$geo_id == "11000"), 1L)
   expect_identical(sum(resource$features$geo_id == "02000"), 1L)
   expect_false("16056" %in% resource$features$geo_id)
   expect_false(any(grepl("^survstat:", resource$features$geo_id)))
+})
+
+test_that("browser-ready map avoids runtime geometry serialization", {
+  resource <- regionalepi_map_geometry()
+  assignments <- data.frame(
+    geo_id = resource$features$geo_id,
+    display_cluster_id = "C01", stringsAsFactors = FALSE
+  )
+  testthat::local_mocked_bindings(
+    .shiny_app_map_geojson = function(...) stop("runtime serialization used"),
+    .package = "regionalepi"
+  )
+  widget <- regionalepi:::.shiny_app_leaflet_map(resource, assignments)
+  expect_s3_class(widget, "leaflet")
 })
 
 test_that("map accessor rejects unsupported vintages", {

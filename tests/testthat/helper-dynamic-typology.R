@@ -42,6 +42,15 @@ map_resource_example <- function(ids = c("01001", "02000")) {
     source_feature_id = paste0("source-", ids), stringsAsFactors = FALSE
   )
   features$geometry <- I(lapply(ids, map_geometry_example))
+  browser_geojson <- jsonlite::toJSON(list(
+    type = "FeatureCollection",
+    features = lapply(seq_along(ids), function(index) list(
+      type = "Feature", id = ids[[index]],
+      properties = list(geo_id = ids[[index]],
+                        geo_name = features$geo_name[[index]]),
+      geometry = features$geometry[[index]]
+    ))
+  ), auto_unbox = TRUE, null = "null", digits = 10)
   provenance <- list(
     resource_id = "synthetic-map", resource_version = "v1",
     source_organization = "synthetic", source_product = "synthetic",
@@ -53,13 +62,16 @@ map_resource_example <- function(ids = c("01001", "02000")) {
     output_feature_count = as.integer(length(ids)),
     source_vertex_count = as.integer(4L * length(ids)),
     output_vertex_count = as.integer(4L * length(ids)),
+    browser_geojson_bytes = as.integer(nchar(browser_geojson, type = "bytes")),
+    browser_geojson_md5 = regionalepi:::.map_browser_geojson_md5(browser_geojson),
     acquisition_provenance = "synthetic", source_sha256 = "synthetic",
     builder = "synthetic", license = "synthetic", license_url = "https://example.test",
     attribution = "synthetic", source_reference = "https://example.test",
     change_notice = "synthetic", package_version = "0.0.0.9000"
   )
   list(
-    features = features, provenance = provenance,
+    features = features, browser_geojson = browser_geojson,
+    provenance = provenance,
     discrepancies = data.frame(
       geo_id = ids[[1L]], source_geo_name = "Source",
       canonical_geo_name = features$geo_name[[1L]], reason = "reviewed",
@@ -67,4 +79,3 @@ map_resource_example <- function(ids = c("01001", "02000")) {
     )
   )
 }
-

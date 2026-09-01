@@ -16,11 +16,13 @@ test_that("Shiny PoC defaults and reviewed period choices are stable", {
 
 test_that("Shiny cache keys respect reactive source boundaries", {
   demographic <- regionalepi:::.shiny_demographic_cache_key("2022–2024")
-  expect_identical(demographic, "demography:2022-2023-2024")
+  expect_identical(demographic, "demography:snapshot:2022-2023-2024")
   expect_identical(
     regionalepi:::.shiny_demographic_cache_key("2022–2024"), demographic
   )
   expect_false(grepl("Influenza|COVID|k", demographic))
+  expect_false(identical(demographic,
+    regionalepi:::.shiny_demographic_cache_key("2022–2024", "live")))
 
   surveillance <- regionalepi:::.shiny_surveillance_cache_key(
     "Influenza, saisonal", c(2023, 2022)
@@ -114,7 +116,8 @@ test_that("server error callback resolves its formatter from the package namespa
     session$setInputs(
       pathogen = "Influenza, saisonal",
       period_id = "influenza_2023_24_1",
-      demographic_period = "2022–2024", typology_mode = "dynamic",
+      demographic_period = "2022–2024", demographic_source = "live",
+      typology_mode = "dynamic",
       k = "3", load_analysis = 1
     )
     session$flushReact()
@@ -229,7 +232,7 @@ test_that("Shiny app exposes staged progress and caches fitted map widgets", {
                        collapse = "\n")
   ui_text <- paste(readLines(file.path(app, "ui.R"), warn = FALSE),
                    collapse = "\n")
-  expect_match(server_text, "Demographische Regionaldaten werden geladen",
+  expect_match(server_text, "Demographische Regionaldaten werden live geladen",
                fixed = TRUE)
   expect_match(server_text, "SurvStat-Kreisdaten werden geladen", fixed = TRUE)
   expect_match(server_text, "Kartendarstellung wird vorbereitet", fixed = TRUE)
@@ -239,6 +242,28 @@ test_that("Shiny app exposes staged progress and caches fitted map widgets", {
   expect_match(ui_text,
     "Regionale Infektionsepidemiologie im demographischen Kontext",
     fixed = TRUE)
+})
+
+test_that("Shiny demographic snapshot is default and live mode is explicit", {
+  app <- regionalepi:::.shiny_app_dir()
+  ui_environment <- new.env(parent = asNamespace("shiny"))
+  sys.source(file.path(app, "ui.R"), envir = ui_environment)
+  html <- as.character(ui_environment$ui)
+  expect_match(html, 'value="snapshot" selected', fixed = TRUE)
+  expect_match(html, "Live-Abruf Regionaldatenbank", fixed = TRUE)
+
+  testthat::local_mocked_bindings(
+    .shiny_fetch_demography = function(...) stop("live retrieval used"),
+    .package = "regionalepi"
+  )
+  current <- regionalepi:::.shiny_fetch_snapshot_demography(2022:2024)
+  historical <- regionalepi:::.shiny_fetch_snapshot_demography(2017:2020)
+  expect_identical(current$source_mode, "snapshot")
+  expect_identical(historical$source_mode, "snapshot")
+  expect_match(regionalepi:::.shiny_demography_status(current),
+               "Geprüfter Snapshot", fixed = TRUE)
+  expect_identical(nrow(current$summary$data), 1200L)
+  expect_identical(nrow(historical$summary$data), 1203L)
 })
 
 test_that("Shiny period orchestration removes explicitly unassigned rows", {

@@ -114,6 +114,24 @@ features <- data.frame(
 )
 features$geometry <- I(geometry)
 
+browser_features <- lapply(seq_len(nrow(features)), function(index) list(
+  type = "Feature", id = features$geo_id[[index]],
+  properties = list(
+    geo_id = features$geo_id[[index]], geo_name = features$geo_name[[index]]
+  ),
+  geometry = geometry[[index]]
+))
+browser_geojson <- jsonlite::toJSON(
+  list(type = "FeatureCollection", features = browser_features),
+  auto_unbox = TRUE, null = "null", digits = 10
+)
+browser_geojson_md5 <- function(value) {
+  path <- tempfile(fileext = ".geojson")
+  on.exit(unlink(path), add = TRUE)
+  writeBin(charToRaw(value), path)
+  unname(tools::md5sum(path))
+}
+
 provenance <- list(
   resource_id = "regionalepi_map_geometry_2024",
   resource_version = "vg2500-2024.12.31-map-v1",
@@ -133,6 +151,8 @@ provenance <- list(
   output_feature_count = as.integer(nrow(output)),
   source_vertex_count = as.integer(source_vertex_count),
   output_vertex_count = as.integer(output_vertex_count),
+  browser_geojson_bytes = as.integer(nchar(browser_geojson, type = "bytes")),
+  browser_geojson_md5 = browser_geojson_md5(browser_geojson),
   acquisition_provenance = paste(
     "Official BKG delivery supplied locally for reviewed development;",
     "source file modification metadata dates the delivery to 2025;",
@@ -157,6 +177,7 @@ provenance <- list(
 
 regionalepi_map_geometry_2024 <- list(
   features = features,
+  browser_geojson = browser_geojson,
   provenance = provenance,
   discrepancies = discrepancies
 )
@@ -184,4 +205,3 @@ save(
   file = "data/regionalepi_map_geometry_2024.rda",
   compress = "xz", version = 3L
 )
-

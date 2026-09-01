@@ -181,14 +181,19 @@ and no pooled or population-weighted cluster incidence is calculated.
 
 The optional package-owned Shiny application is a thin client of existing
 backend contracts. It uses the reviewed dynamic demographic typology, 2024
-map resource, live Regionaldatenbank and SurvStat adapters, reviewed geography
+map resource, reviewed demographic snapshot by default, optional live
+Regionaldatenbank retrieval, live SurvStat adapters, reviewed geography
 resolution and Berlin replacement, period assignment, typology attachment,
 and median district-incidence summaries. `shiny` and `leaflet` remain suggested
 dependencies; base graphics provide charts and runtime mapping does not use
 `sf`.
 
-Live queries start only by explicit user action and are cached only in session
-memory. Map selection is display state and never triggers retrieval or fitting.
+The reviewed demographic snapshot preserves normalized 2017--2020 and
+2022--2024 source components, component statuses/provenance, and a deterministic
+checksum; density and downstream indicators remain ordinary derivations. A
+snapshot refresh is a reviewed development/release build and never an in-app
+mutation. Live queries start only by explicit user action and are cached only
+in session memory. Map selection is display state and never triggers retrieval or fitting.
 The app persists neither credentials nor source responses. Dynamic display IDs
 remain neutral and fit-local; no automatic labels, pooled incidence, arbitrary
 indicator selection, or new analytical semantics are introduced.

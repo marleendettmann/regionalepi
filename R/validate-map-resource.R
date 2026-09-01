@@ -8,10 +8,18 @@
   "source_product", "source_vintage", "source_file", "source_layer",
   "source_crs", "output_crs", "simplification", "transformation",
   "source_feature_count", "output_feature_count", "source_vertex_count",
-  "output_vertex_count", "acquisition_provenance", "source_sha256",
+  "output_vertex_count", "browser_geojson_bytes", "browser_geojson_md5",
+  "acquisition_provenance", "source_sha256",
   "builder", "license", "license_url", "attribution", "source_reference",
   "change_notice", "package_version"
 )
+
+.map_browser_geojson_md5 <- function(value) {
+  path <- tempfile("regionalepi-map-", fileext = ".geojson")
+  on.exit(unlink(path), add = TRUE)
+  writeBin(charToRaw(value), path)
+  unname(tools::md5sum(path))
+}
 
 #' Validate a map-geometry resource
 #'
@@ -26,7 +34,9 @@
 #' @export
 validate_map_geometry_resource <- function(x) {
   contract <- "map_geometry_resource"
-  .require_named_list(x, c("features", "provenance", "discrepancies"), contract)
+  .require_named_list(x, c(
+    "features", "browser_geojson", "provenance", "discrepancies"
+  ), contract)
   features <- x$features
   .require_data_frame(features, paste(contract, "features"))
   .require_columns(features, .map_feature_fields, paste(contract, "features"))
@@ -53,8 +63,19 @@ validate_map_geometry_resource <- function(x) {
     .stop_contract(contract, "`geometry` must be one GeoJSON-compatible list per feature")
   }
   invisible(lapply(features$geometry, .validate_map_multipolygon, contract = contract))
+  .check_scalar_nonempty_character(x$browser_geojson,
+                                   "browser_geojson", contract)
+  if (!startsWith(x$browser_geojson, "{\"type\":\"FeatureCollection\"") ||
+      nchar(x$browser_geojson, type = "bytes") !=
+        x$provenance$browser_geojson_bytes) {
+    .stop_contract(contract, "browser GeoJSON is malformed or has wrong size")
+  }
   .validate_map_discrepancies(x$discrepancies, features$geo_id, contract)
   .validate_map_provenance(x$provenance, nrow(features), contract)
+  if (!identical(.map_browser_geojson_md5(x$browser_geojson),
+                 x$provenance$browser_geojson_md5)) {
+    .stop_contract(contract, "browser GeoJSON checksum does not match")
+  }
   invisible(x)
 }
 
@@ -112,7 +133,7 @@ validate_map_geometry_resource <- function(x) {
   }
   numeric_fields <- c(
     "source_feature_count", "output_feature_count", "source_vertex_count",
-    "output_vertex_count"
+    "output_vertex_count", "browser_geojson_bytes"
   )
   character_fields <- setdiff(.map_provenance_fields, c("source_vintage", numeric_fields))
   for (field in character_fields) .check_scalar_nonempty_character(x[[field]], field, contract)
@@ -132,6 +153,9 @@ validate_map_geometry_resource <- function(x) {
   }
   if (!identical(x$output_crs, "EPSG:4326")) {
     .stop_contract(contract, "map output CRS must be EPSG:4326")
+  }
+  if (!grepl("^[0-9a-f]{32}$", x$browser_geojson_md5)) {
+    .stop_contract(contract, "browser GeoJSON checksum is malformed")
   }
   invisible(x)
 }

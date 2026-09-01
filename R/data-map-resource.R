@@ -5,7 +5,8 @@
 #' EPSG:4326 without simplification. Canonical names come from the reviewed
 #' regionalepi geography register after exact AGS-set validation.
 #'
-#' The object is an ordinary list with `features`, dataset-level `provenance`,
+#' The object is an ordinary list with `features`, a byte-identical
+#' browser-ready `browser_geojson` serialization, dataset-level `provenance`,
 #' and the three reviewed VG2500/canonical name `discrepancies`. Geometry is
 #' stored as GeoJSON-compatible R lists and does not require `sf` at runtime.
 #' It must not be used to calculate population density or other areas.
@@ -16,4 +17,3 @@
 #' @format A validated map-geometry resource containing 400 district features.
 #' @source Bundesamt für Kartographie und Geodäsie (BKG), VG2500.
 "regionalepi_map_geometry_2024"
-

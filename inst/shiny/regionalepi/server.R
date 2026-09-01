@@ -35,12 +35,21 @@ server <- function(input, output, session) {
           input$demographic_period
         ]]
         demographic_key <- regionalepi:::.shiny_demographic_cache_key(
-          input$demographic_period
+          input$demographic_period, input$demographic_source
         )
         if (!exists(demographic_key, cache, inherits = FALSE)) {
-          setProgress(0.08, detail = "Demographische Regionaldaten werden geladen …")
-          assign(demographic_key,
-                 regionalepi:::.shiny_fetch_demography(demographic_years), cache)
+          if (identical(input$demographic_source, "snapshot")) {
+            setProgress(0.08, detail = "Geprüfter Demographie-Snapshot wird geladen …")
+            demographic <- regionalepi:::.shiny_fetch_snapshot_demography(
+              demographic_years
+            )
+          } else {
+            setProgress(0.08, detail = "Demographische Regionaldaten werden live geladen …")
+            demographic <- regionalepi:::.shiny_fetch_demography(
+              demographic_years
+            )
+          }
+          assign(demographic_key, demographic, cache)
         }
         demographic <- get(demographic_key, cache, inherits = FALSE)
 
@@ -89,9 +98,8 @@ server <- function(input, output, session) {
         setProgress(0.9, detail = "Kartendarstellung wird vorbereitet …")
         map_key <- paste0("map-widget:", fit$provenance$fit_id)
         if (!exists(map_key, cache, inherits = FALSE)) {
-          geojson <- regionalepi:::.shiny_app_map_geojson(cache$map, map_join$data)
           assign(map_key, regionalepi:::.shiny_app_leaflet_geojson(
-            geojson, cache$map_bounds
+            cache$map$browser_geojson, cache$map_bounds, map_join$data
           ), cache)
         }
         state$result <- list(
@@ -124,6 +132,12 @@ server <- function(input, output, session) {
     if (is.null(state$result)) return(p("Noch keine Analyse geladen."))
     p(class = "status-ok", "Analyse geladen: ",
       state$result$fit$provenance$fit_id)
+  })
+
+  output$demography_status <- renderUI({
+    if (is.null(state$result)) return(NULL)
+    p(class = "app-note", "Demographie: ",
+      regionalepi:::.shiny_demography_status(state$result$demographic))
   })
 
   output$district_map <- leaflet::renderLeaflet({
@@ -259,11 +273,24 @@ server <- function(input, output, session) {
       query$query_id, " [", paste(query$reporting_years, collapse = "–"), "]"
     ), character(1L)), collapse = "; ")
     tagList(
-      h4("Demographie"), p("Regionaldatenbank Deutschland; Referenzjahre ",
+      h4("Demographie"), p(
+        regionalepi:::.shiny_demography_status(result$demographic), "; ",
+        "Regionaldatenbank Deutschland; Referenzjahre ",
         paste(result$demographic_years, collapse = ", "), "; ",
         result$fit$indicator_set$indicator_set_id, " / ",
         result$fit$indicator_set$definition_version,
-        if (length(source_status)) paste0("; Datenstand ", paste(source_status, collapse = ", "))),
+        if (identical(result$demographic$source_mode, "snapshot")) paste0(
+          "; Snapshot-ID ", result$demographic$snapshot_provenance$snapshot_id,
+          "; Version ", result$demographic$snapshot_provenance$snapshot_version,
+          "; Build ", format(result$demographic$snapshot_provenance$created_at,
+                              tz = "UTC"),
+          "; Tabellen ", paste(result$demographic$snapshot_provenance$source_tables,
+                               collapse = ", "),
+          "; Bevölkerungsbasen ", paste(
+            result$demographic$snapshot_provenance$population_basis,
+            collapse = ", ")
+        ) else if (length(source_status)) paste0(
+          "; Komponentenstände ", paste(source_status, collapse = ", "))),
       h4("Typologie"), p(result$fit$fitting_specification$fitting_specification_id,
         " / ", result$fit$fitting_specification$definition_version,
         "; k = ", result$fit$diagnostics$k,

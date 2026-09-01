@@ -42,6 +42,16 @@ ui <- fluidPage(
       tags$details(
         tags$summary("Erweiterte Einstellungen"),
         selectInput(
+          "demographic_source", "Demographische Daten",
+          choices = c(
+            "Geprüfter Snapshot (empfohlen)" = "snapshot",
+            "Live-Abruf Regionaldatenbank" = "live"
+          ), selected = "snapshot"
+        ),
+        p(class = "app-note",
+          "Der Snapshot ist ein unveränderlicher, geprüfter Quellenstand. ",
+          "Ein Live-Abruf gilt nur für diese Sitzung und verändert den Snapshot nicht."),
+        selectInput(
           "k", "Anzahl Cluster (explorativ)", choices = 2:5, selected = 3
         ),
         p(class = "app-note",
@@ -52,6 +62,7 @@ ui <- fluidPage(
                    class = "btn-primary"),
       br(), br(),
       uiOutput("load_status"),
+      uiOutput("demography_status"),
       tags$hr(),
       p(class = "app-note",
         "Live-Daten werden erst nach Betätigung des Buttons abgerufen. ",

@@ -317,3 +317,19 @@ assignment, canonical-ID typology attachment, or median-incidence summary.
 The default 2022--2024 path has exact 400-unit map compatibility. The reviewed
 2017--2020 path retains its 401-unit fit and reports `16056` as the expected
 fit-only identifier while rendering the compatible 400 current map units.
+
+## Reviewed demographic snapshot
+
+The bundled demographic snapshot is an explicit immutable Regionaldatenbank
+source state, not an opaque or silently stale cache. Normalized components
+preserve values, table/measure provenance, component retrieval times, the
+reviewed source-status compatibility rule, population bases, and a
+deterministic checksum. It covers exactly 2017--2020 and 2022--2024.
+Population density, period summaries, and typologies are not stored: the
+snapshot is reconstructed into the existing validated source results and then
+uses the ordinary derivation pipeline.
+
+Shiny defaults to this snapshot without credentials. Explicit live mode uses
+the existing authenticated adapters only in session memory. A refresh means a
+reviewed development/release build of a new version; Shiny never overwrites
+package data. SurvStat retrieval remains live and separate.
