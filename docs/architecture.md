@@ -333,3 +333,25 @@ Shiny defaults to this snapshot without credentials. Explicit live mode uses
 the existing authenticated adapters only in session memory. A refresh means a
 reviewed development/release build of a new version; Shiny never overwrites
 package data. SurvStat retrieval remains live and separate.
+
+## Structured Shiny analysis interface
+
+The persistent analysis sidebar feeds four display sections; changing tabs or
+the selected map district does not enter any retrieval or fitting dependency.
+The default remains the reviewed 2022--2024 snapshot, dynamic k = 3 typology,
+and live SurvStat. Explicit dissertation mode instead uses the unchanged frozen
+2017--2020 fit, historical ClD/ClJ/ClA labels and core palette, and the reviewed
+401-to-current-400 compatibility with `16056` retained as fit-only provenance.
+
+COVID selection keeps frozen dissertation/RKI pandemic periods separate from
+`covid_rki_activity_waves_v1`, which contains only the reviewed post-pandemic
+2023/24 and 2024/25 RKI activity waves. Phase 8 is historical context only:
+its 2022-KW22 start is documented, but no unreviewed closing boundary is
+manufactured.
+
+Weekly contextualization displays the median and empirical Q1/Q3 of observed
+district incidences. This IQR is descriptive, not a confidence interval. The
+period distribution first calculates one unweighted weekly-incidence median
+per district; district-week observations are never pooled. The main interface
+contains no inferential tests. `ggplot2` is an optional Shiny visualization
+dependency and core analytical use remains independent of it.

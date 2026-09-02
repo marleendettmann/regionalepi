@@ -80,6 +80,8 @@ test_that("weekly medians preserve zero and omit NA explicitly", {
   a <- result$data[result$data$cluster_id == "A", ]
   b <- result$data[result$data$cluster_id == "B", ]
   expect_identical(a$median_incidence, 1)
+  expect_identical(a$q1_incidence, 0.5)
+  expect_identical(a$q3_incidence, 1.5)
   expect_identical(a$zero_count, 1L)
   expect_identical(a$observed_non_missing_count, 2L)
   expect_true(a$minimum_group_size_met)
@@ -87,7 +89,20 @@ test_that("weekly medians preserve zero and omit NA explicitly", {
   expect_identical(b$expected_district_count, 2L)
   expect_identical(b$observed_non_missing_count, 1L)
   expect_identical(b$missing_count, 1L)
+  expect_identical(b$completeness_proportion, 0.5)
   expect_false(b$minimum_group_size_met)
+})
+
+test_that("district period medians use one unweighted value per district", {
+  x <- attached_example(values = c(0, 2, NA, 4))
+  later <- x
+  later$date <- as.Date("2020-01-13")
+  later$incidence <- c(2, 6, 8, NA)
+  result <- summarize_period_incidence_by_district(rbind(x, later))
+  expect_identical(nrow(result$data), 4L)
+  expect_identical(result$data$median_period_incidence[match("00001", result$data$geo_id)], 1)
+  expect_identical(result$data$median_period_incidence[match("00002", result$data$geo_id)], 4)
+  expect_identical(result$diagnostics$weighting, "none")
 })
 
 test_that("median handles even, odd, and all-NA groups without pooling", {

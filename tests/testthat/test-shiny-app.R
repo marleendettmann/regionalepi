@@ -4,14 +4,16 @@ test_that("Shiny PoC defaults and reviewed period choices are stable", {
   expect_identical(periods[[1L]], 2022:2024)
 
   influenza <- regionalepi:::.shiny_period_choices("Influenza, saisonal")
-  expect_false(any(grepl("2020/21", names(influenza), fixed = TRUE)))
-  expect_identical(sum(grepl("2022/23", names(influenza), fixed = TRUE)), 2L)
-  expect_true(all(c("Welle 1", "Welle 2") %in%
-                    sub(".*– ", "", names(influenza)[grepl("2022/23", names(influenza))])))
+  expect_named(influenza, "RKI-geprüfte Influenzawellen")
+  influenza_flat <- influenza[[1L]]
+  expect_false(any(grepl("2020/21", names(influenza_flat), fixed = TRUE)))
+  expect_identical(sum(grepl("2022/23", names(influenza_flat), fixed = TRUE)), 2L)
 
   covid <- regionalepi:::.shiny_period_choices("COVID-19")
-  expect_identical(length(covid), 7L)
-  expect_true(all(grepl("covid_wave_", unname(covid), fixed = TRUE)))
+  expect_identical(names(covid), c(
+    "Dissertation / RKI-Pandemieperioden", "RKI-geprüfte Aktivitätswellen"))
+  expect_identical(length(covid[[1L]]), 7L)
+  expect_identical(length(covid[[2L]]), 2L)
 })
 
 test_that("Shiny cache keys respect reactive source boundaries", {
@@ -49,6 +51,32 @@ test_that("Shiny cache keys respect reactive source boundaries", {
   expect_null(regionalepi:::.shiny_surveillance_cache_match(
     index, "Influenza, saisonal", 2021
   ))
+})
+
+test_that("typology modes retain distinct identities and palettes", {
+  reference <- regionalepi:::.shiny_typology_config("dissertation")
+  expect_identical(reference$years, 2017:2020)
+  expect_identical(reference$k, 3L)
+  expect_identical(regionalepi:::.shiny_app_cluster_colours(
+    c("ClD", "ClJ", "ClA"), "dissertation"),
+    c(ClD = "#bc5e21", ClJ = "#748c61", ClA = "#274f66"))
+  dynamic <- regionalepi:::.shiny_app_cluster_colours(sprintf("C%02d", 1:5))
+  expect_identical(length(unique(dynamic)), 5L)
+  expect_false(any(dynamic %in% c("#bc5e21", "#748c61", "#274f66")))
+  expect_identical(regionalepi:::.shiny_typology_cache_key(
+    list(data = data.frame()), 3L, "dissertation"),
+    "typology:dissertation_v1:historical_reference")
+})
+
+test_that("navigation is display-only and absent from analytical cache keys", {
+  keys <- c(
+    regionalepi:::.shiny_demographic_cache_key("2022–2024"),
+    regionalepi:::.shiny_surveillance_cache_key("COVID-19", 2024),
+    regionalepi:::.shiny_summary_cache_key("source", "period", "fit")
+  )
+  expect_false(any(grepl("overview|typology|epidemiology|methods", keys)))
+  ui_text <- paste(readLines(file.path(regionalepi:::.shiny_app_dir(), "ui.R"), warn = FALSE), collapse = "\n")
+  expect_match(ui_text, 'id = "analysis_section"', fixed = TRUE)
 })
 
 test_that("map join is identifier-only and handles reviewed historical difference", {
@@ -91,9 +119,7 @@ test_that("launcher finds the packaged app and dependency failures are clear", {
   ui_environment <- new.env(parent = asNamespace("shiny"))
   sys.source(file.path(directory, "ui.R"), envir = ui_environment)
   expect_identical(
-    unname(ui_environment$initial_period_choices[[length(
-      ui_environment$initial_period_choices
-    )]]),
+    tail(ui_environment$initial_period_values, 1L),
     "influenza_2025_26_1"
   )
   expect_match(paste(deparse(body(run_regionalepi_app)), collapse = "\n"),
@@ -210,6 +236,9 @@ test_that("map and fitting provenance required by the PoC are complete", {
   expect_length(widget$x$fitBounds, 5L)
   expect_equal(unlist(widget$x$fitBounds[1:4]),
     unname(bounds[c("lat1", "lng1", "lat2", "lng2")]))
+  hook <- widget$jsHooks$render[[1L]]$code
+  expect_match(hook, "fillOpacity:0.82});", fixed = TRUE)
+  expect_match(hook, "layer.bindTooltip", fixed = TRUE)
 })
 
 test_that("Shiny indicator presentation uses German labels and units", {
@@ -283,7 +312,9 @@ test_that("Shiny period orchestration removes explicitly unassigned rows", {
     period_set_id = "test", period_id = "selected", pathogen = "Influenza, saisonal",
     season_id = "test", period_type = "influenza_wave", label = "Test",
     start_date = as.Date("2024-01-01"), end_date = as.Date("2024-01-07"),
-    definition_version = "test_v1", source_reference = "synthetic",
+    definition_version = "test_v1", variant_context = NA_character_,
+    historical_context = "synthetic", evidence_class = "REVIEWED_TEST_PERIOD",
+    source_reference = "synthetic",
     review_status = "reviewed", note = NA_character_, stringsAsFactors = FALSE
   )
   fit <- list(

@@ -136,7 +136,8 @@ attach_typology <- function(surveillance, typology, compatibility) {
 
 #' Summarize weekly source-provided incidence by typology
 #'
-#' Calculates only the median of district incidences. It never calculates a
+#' Calculates the median and empirical first and third quartiles of district
+#' incidences (R's default `quantile()` type 7). It never calculates a
 #' pooled or population-weighted rate. Numeric zero remains zero and missing
 #' incidence remains distinct.
 #'
@@ -185,10 +186,16 @@ summarize_incidence_by_typology <- function(
     )
     observed <- sum(!is.na(values))
     first$median_incidence <- if (observed) stats::median(values, na.rm = TRUE) else NA_real_
+    quartiles <- if (observed) stats::quantile(
+      values, probs = c(0.25, 0.75), na.rm = TRUE, names = FALSE, type = 7
+    ) else c(NA_real_, NA_real_)
+    first$q1_incidence <- quartiles[[1L]]
+    first$q3_incidence <- quartiles[[2L]]
     first$expected_district_count <- expected$expected_district_count[[epos]]
     first$observed_non_missing_count <- observed
     first$missing_count <- sum(is.na(values))
     first$zero_count <- sum(values == 0, na.rm = TRUE)
+    first$completeness_proportion <- observed / first$expected_district_count
     first$minimum_group_size_met <- observed >= minimum_group_size && observed > 0L
     first$query_ids <- paste(sort(unique(data$query_id[index])), collapse = "|")
     first
@@ -201,6 +208,69 @@ summarize_incidence_by_typology <- function(
       below_minimum_group_count = sum(!output$minimum_group_size_met),
       statistic = statistic, na_policy = na_policy,
       estimand = "median_of_district_source_provided_incidence"
+    ),
+    provenance = list(
+      query_ids = sort(unique(data$query_id)),
+      period_set_ids = sort(unique(data$period_set_id)),
+      typology_ids = sort(unique(data$typology_id))
+    )
+  )
+}
+
+#' Summarize selected-period incidence for each district
+#'
+#' Produces exactly one unweighted district-specific median of weekly
+#' source-provided incidence. District-week observations are not pooled across
+#' districts.
+#'
+#' @param data Period-assigned, typology-attached surveillance incidence.
+#' @param na_policy Only explicit `"omit"` is supported.
+#' @return A list with `data`, `diagnostics`, and `provenance`.
+#' @export
+summarize_period_incidence_by_district <- function(data, na_policy = "omit") {
+  contract <- "district period incidence summary"
+  if (!identical(na_policy, "omit")) {
+    .stop_contract(contract, "only explicit NA omission is supported")
+  }
+  validate_surveillance_incidence(data)
+  grouping <- c(
+    "pathogen", "period_set_id", "period_id", "typology_id",
+    "typology_definition_version", "cluster_id", "geo_id", "geo_name"
+  )
+  .require_columns(data, grouping, contract)
+  if (anyNA(data$period_id)) {
+    .stop_contract(contract, "unassigned observations must be removed explicitly")
+  }
+  observation_key <- paste(data$period_set_id, data$period_id, data$geo_id,
+                           data$date, sep = "\r")
+  if (anyDuplicated(observation_key)) {
+    .stop_contract(contract, "each district may occur only once per date")
+  }
+  keys <- interaction(data[grouping], drop = TRUE, lex.order = TRUE)
+  rows <- split(seq_len(nrow(data)), keys)
+  output <- do.call(rbind, lapply(rows, function(index) {
+    first <- data[index[[1L]], grouping, drop = FALSE]
+    values <- data$incidence[index]
+    observed <- sum(!is.na(values))
+    first$median_period_incidence <- if (observed) {
+      stats::median(values, na.rm = TRUE)
+    } else NA_real_
+    first$expected_week_count <- length(unique(data$date[index]))
+    first$observed_week_count <- observed
+    first$missing_week_count <- sum(is.na(values))
+    first$zero_week_count <- sum(values == 0, na.rm = TRUE)
+    first$completeness_proportion <- observed / first$expected_week_count
+    first
+  }))
+  rownames(output) <- NULL
+  list(
+    data = output,
+    diagnostics = list(
+      district_count = nrow(output),
+      all_missing_district_count = sum(is.na(output$median_period_incidence)),
+      na_policy = na_policy,
+      estimand = "district_median_of_weekly_source_provided_incidence",
+      weighting = "none"
     ),
     provenance = list(
       query_ids = sort(unique(data$query_id)),

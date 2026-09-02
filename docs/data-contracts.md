@@ -336,3 +336,17 @@ table requests. V1 therefore preserves all four statuses and requires one
 calendar date with at most a 15-minute reviewed build window; a different date
 or wider interval fails. The deterministic checksum covers normalized values
 and stable source provenance while excluding volatile retrieval/build times.
+
+## Period display and incidence-distribution additions
+
+Epidemiological period rows additionally carry optional `variant_context` and
+`historical_context` plus required `evidence_class`. These fields and the
+authoritative inclusive dates drive UI titles, ISO-week boundaries, evidence,
+and source display; the UI does not duplicate period labels.
+
+The weekly typology summary preserves its median estimand and now also reports
+empirical Q1 and Q3 using R quantile type 7 plus completeness proportion. The
+IQR is not estimation uncertainty. `summarize_period_incidence_by_district()`
+returns exactly one unweighted median of weekly source-provided incidence per
+district, with week completeness diagnostics. Neither contract pools or
+population-weights incidence.

@@ -12,8 +12,9 @@ server <- function(input, output, session) {
 
   observeEvent(input$pathogen, {
     choices <- regionalepi:::.shiny_period_choices(input$pathogen)
+    values <- unlist(choices, use.names = FALSE)
     updateSelectInput(session, "period_id", choices = choices,
-                      selected = unname(choices[[length(choices)]]))
+                      selected = tail(values, 1L))
   }, ignoreInit = FALSE)
 
   observeEvent(input$selected_geo_id, {
@@ -31,11 +32,12 @@ server <- function(input, output, session) {
         selected <- regionalepi:::.shiny_selected_period(
           input$pathogen, input$period_id
         )
-        demographic_years <- regionalepi:::.shiny_demographic_periods()[[
-          input$demographic_period
-        ]]
+        mode <- input$typology_mode
+        config <- regionalepi:::.shiny_typology_config(mode)
+        period_label <- if (identical(mode, "dissertation")) "2017–2020" else input$demographic_period
+        demographic_years <- regionalepi:::.shiny_demographic_periods()[[period_label]]
         demographic_key <- regionalepi:::.shiny_demographic_cache_key(
-          input$demographic_period, input$demographic_source
+          period_label, input$demographic_source
         )
         if (!exists(demographic_key, cache, inherits = FALSE)) {
           if (identical(input$demographic_source, "snapshot")) {
@@ -55,11 +57,12 @@ server <- function(input, output, session) {
 
         setProgress(0.57, detail = "Demographische Typologie wird angepasst …")
         typology_key <- regionalepi:::.shiny_typology_cache_key(
-          demographic$summary, as.integer(input$k)
+          demographic$summary, if (identical(mode, "dissertation")) 3L else as.integer(input$k), mode
         )
         if (!exists(typology_key, cache, inherits = FALSE)) {
-          assign(typology_key, regionalepi::fit_dynamic_typology(
-            demographic$summary, k = as.integer(input$k)
+          assign(typology_key, regionalepi:::.shiny_fit_typology(
+            demographic$summary, mode,
+            if (identical(mode, "dissertation")) 3L else as.integer(input$k)
           ), cache)
         }
         fit <- get(typology_key, cache, inherits = FALSE)
@@ -96,10 +99,11 @@ server <- function(input, output, session) {
         map_join <- regionalepi:::.shiny_map_assignments(cache$map, fit)
 
         setProgress(0.9, detail = "Kartendarstellung wird vorbereitet …")
-        map_key <- paste0("map-widget:", fit$provenance$fit_id)
+        map_key <- paste0("map-widget:", fit$provenance$fit_id, ":", mode)
         if (!exists(map_key, cache, inherits = FALSE)) {
           assign(map_key, regionalepi:::.shiny_app_leaflet_geojson(
             cache$map$browser_geojson, cache$map_bounds, map_join$data
+            , mode
           ), cache)
         }
         state$result <- list(
@@ -107,6 +111,7 @@ server <- function(input, output, session) {
           epidemiology = epidemiology, selected_period = selected,
           map_join = map_join, map_widget = get(map_key, cache, inherits = FALSE),
           demographic_years = demographic_years,
+          typology_mode = mode, typology_config = config,
           cache_keys = list(demographic = demographic_key,
                             typology = typology_key,
                             surveillance = surveillance_key,
@@ -155,6 +160,27 @@ server <- function(input, output, session) {
       "Durch regionalepi für die Kartendarstellung bearbeitet.")
   })
 
+  output$analysis_heading <- renderUI({
+    req(state$result)
+    formatted <- regionalepi::format_epidemiological_period(state$result$selected_period$row)
+    tagList(h3(formatted$title), p(class = "app-note", formatted$subtitle, " · ",
+      state$result$typology_config$label))
+  })
+
+  output$period_heading <- renderUI({
+    req(state$result)
+    formatted <- regionalepi::format_epidemiological_period(state$result$selected_period$row)
+    tagList(h3(formatted$title), p(class = "app-note", formatted$subtitle))
+  })
+
+  output$cluster_summary <- renderTable({
+    req(state$result)
+    x <- state$result$fit$cluster_diagnostics
+    labels <- if ("cluster_label" %in% names(x)) x$cluster_label else rep("", nrow(x))
+    data.frame(Cluster = x$display_cluster_id, Bezeichnung = labels,
+      `Anzahl Kreise` = x$size, check.names = FALSE)
+  }, striped = TRUE, rownames = FALSE)
+
   output$profile_plot <- renderPlot({
     req(state$result)
     profiles <- state$result$fit$profiles
@@ -167,7 +193,7 @@ server <- function(input, output, session) {
       matrix[profiles$indicator_id[[i]], profiles$display_cluster_id[[i]]] <-
         profiles$standardized_center[[i]]
     }
-    colours <- regionalepi:::.shiny_app_cluster_colours(clusters)
+    colours <- regionalepi:::.shiny_app_cluster_colours(clusters, state$result$typology_mode)
     graphics::matplot(seq_along(indicators), matrix, type = "b", pch = 19,
       lty = 1, col = colours, xaxt = "n", xlab = "",
       ylab = "Standardisiertes Clusterprofil")
@@ -196,6 +222,9 @@ server <- function(input, output, session) {
   output$cluster_warning <- renderUI({
     req(state$result)
     diagnostics <- state$result$fit$cluster_diagnostics
+    if (!"minimum_size_warning" %in% names(diagnostics)) {
+      return(p(class = "app-note", "Historische Referenzpartition; keine explorative Mindestgrößenregel."))
+    }
     flagged <- diagnostics$display_cluster_id[diagnostics$minimum_size_warning]
     if (!length(flagged)) return(p(class = "app-note", "Keine Mindestgrößenwarnung."))
     p(class = "status-error", "Mindestgrößenwarnung für: ",
@@ -205,22 +234,50 @@ server <- function(input, output, session) {
   output$incidence_plot <- renderPlot({
     req(state$result)
     data <- state$result$epidemiology$summary$data
-    clusters <- sort(unique(data$cluster_id))
-    colours <- regionalepi:::.shiny_app_cluster_colours(clusters)
-    limits <- range(data$median_incidence, na.rm = TRUE)
-    if (!all(is.finite(limits))) limits <- c(0, 1)
-    graphics::plot(range(data$date), limits, type = "n", xlab = "Meldewoche",
-      ylab = "Mediane source-provided Inzidenz",
-      main = paste(input$pathogen, state$result$selected_period$row$label))
-    for (cluster in clusters) {
-      rows <- data$cluster_id == cluster
-      values <- data[rows, , drop = FALSE]
-      values <- values[order(values$date), ]
-      graphics::lines(values$date, values$median_incidence,
-                      col = colours[[cluster]], lwd = 2)
-    }
-    graphics::legend("topright", legend = clusters, col = colours,
-                     lwd = 2, bty = "n")
+    colours <- regionalepi:::.shiny_app_cluster_colours(data$cluster_id, state$result$typology_mode)
+    print(ggplot2::ggplot(data, ggplot2::aes(date, median_incidence, colour = cluster_id,
+      fill = cluster_id, group = cluster_id)) +
+      ggplot2::geom_ribbon(ggplot2::aes(ymin = q1_incidence, ymax = q3_incidence),
+        alpha = .16, colour = NA) + ggplot2::geom_line(linewidth = .8) +
+      ggplot2::scale_colour_manual(values = colours) + ggplot2::scale_fill_manual(values = colours) +
+      ggplot2::scale_x_date(date_breaks = "1 month", date_labels = "%b\n%Y") +
+      ggplot2::labs(x = NULL, y = "Mediane source-provided Kreisinzidenz",
+        colour = "Cluster", fill = "Cluster",
+        caption = "Band: Interquartilsbereich der beobachteten Kreisinzidenzen") +
+      ggplot2::theme_minimal(base_size = 12) + ggplot2::theme(legend.position = "bottom"))
+  })
+
+  output$period_distribution_plot <- renderPlot({
+    req(state$result)
+    data <- state$result$epidemiology$district_period$data
+    colours <- regionalepi:::.shiny_app_cluster_colours(data$cluster_id, state$result$typology_mode)
+    print(ggplot2::ggplot(data, ggplot2::aes(cluster_id, median_period_incidence,
+      fill = cluster_id, colour = cluster_id)) +
+      ggplot2::geom_violin(alpha = .22, na.rm = TRUE, trim = FALSE) +
+      ggplot2::geom_boxplot(width = .16, outlier.shape = NA, alpha = .7, na.rm = TRUE) +
+      ggplot2::geom_jitter(width = .09, alpha = .32, size = .8, na.rm = TRUE) +
+      ggplot2::scale_colour_manual(values = colours) + ggplot2::scale_fill_manual(values = colours) +
+      ggplot2::labs(x = "Cluster", y = "Median der wöchentlichen Kreisinzidenz") +
+      ggplot2::theme_minimal(base_size = 12) + ggplot2::theme(legend.position = "none"))
+  })
+
+  output$demographic_distribution_plot <- renderPlot({
+    req(state$result)
+    data <- merge(state$result$demographic$summary$data,
+      state$result$fit$assignments[c("geo_id", "display_cluster_id")], by = "geo_id")
+    display <- regionalepi:::.shiny_app_indicator_display()
+    data$indicator_label <- display$label[match(data$indicator_id, display$indicator_id)]
+    colours <- regionalepi:::.shiny_app_cluster_colours(data$display_cluster_id,
+      state$result$typology_mode)
+    print(ggplot2::ggplot(data, ggplot2::aes(display_cluster_id, indicator_value,
+      fill = display_cluster_id, colour = display_cluster_id)) +
+      ggplot2::geom_violin(alpha = .22, trim = FALSE) +
+      ggplot2::geom_boxplot(width = .16, outlier.shape = NA, alpha = .7) +
+      ggplot2::geom_jitter(width = .09, alpha = .3, size = .7) +
+      ggplot2::facet_wrap(~indicator_label, scales = "free_y", ncol = 1) +
+      ggplot2::scale_colour_manual(values = colours) + ggplot2::scale_fill_manual(values = colours) +
+      ggplot2::labs(x = "Cluster", y = NULL) + ggplot2::theme_minimal(base_size = 11) +
+      ggplot2::theme(legend.position = "none"))
   })
 
   output$incidence_warning <- renderUI({
@@ -246,10 +303,15 @@ server <- function(input, output, session) {
     values <- summary[summary$geo_id == id, , drop = FALSE]
     display <- regionalepi:::.shiny_app_indicator_display()
     position <- match(values$indicator_id, display$indicator_id)
+    period_value <- state$result$epidemiology$district_period$data
+    period_value <- period_value$median_period_incidence[period_value$geo_id == id]
     tagList(
       h4(assignment$geo_name),
       p(strong("AGS: "), id),
       p(strong("Cluster: "), assignment$display_cluster_id),
+      p(strong("Typologie: "), state$result$typology_config$label),
+      if (length(period_value)) p(strong("Periodenmedian Inzidenz: "),
+        if (is.na(period_value)) "fehlend" else format(round(period_value, 2), trim = TRUE)),
       tags$ul(lapply(seq_len(nrow(values)), function(i) tags$li(
         display$label[[position[[i]]]], ": ",
         format(round(values$indicator_value[[i]], 2), trim = TRUE), " ",
@@ -291,12 +353,13 @@ server <- function(input, output, session) {
             collapse = ", ")
         ) else if (length(source_status)) paste0(
           "; Komponentenstände ", paste(source_status, collapse = ", "))),
-      h4("Typologie"), p(result$fit$fitting_specification$fitting_specification_id,
-        " / ", result$fit$fitting_specification$definition_version,
-        "; k = ", result$fit$diagnostics$k,
+      h4("Typologie"), p(result$typology_config$label, "; ",
+        if (!is.null(result$fit$fitting_specification$fitting_specification_id))
+          result$fit$fitting_specification$fitting_specification_id else "frozen dissertation_v1",
+        "; k = ", if (!is.null(result$fit$diagnostics$k)) result$fit$diagnostics$k else 3L,
         "; Fit-ID ", result$fit$provenance$fit_id,
         "; Clustergrößen ", size_text,
-        "; Seed ", result$fit$diagnostics$seed,
+        if (!is.null(result$fit$diagnostics$seed)) paste0("; Seed ", result$fit$diagnostics$seed) else "",
         "; Z-Standardisierung mit Stichproben-SD (n−1)."),
       h4("Surveillance"), p("SurvStat@RKI; ", input$pathogen,
         "; source-provided Inzidenz; Kreisabfrage mit reviewtem separatem Berlin-Ersatz; Datenstand ",
@@ -304,11 +367,14 @@ server <- function(input, output, session) {
         "; Queries ", query_text, "."),
       h4("Epidemiologischer Zeitraum"), p(period$label, "; ",
         period$period_set_id, " / ", period$definition_version,
-        "; ", period$source_reference),
+        "; Evidenzklasse ", period$evidence_class, "; ", period$source_reference),
+      if (identical(period$evidence_class, "REVIEWED_RKI_ACTIVITY_WAVE"))
+        p(class = "app-note", "COVID-19-Meldedaten nach 2023 sind aufgrund veränderter Test- und Meldebedingungen nicht ohne Weiteres auf derselben absoluten Skala wie frühe Pandemiephasen interpretierbar."),
       h4("Karte"), p("BKG VG2500, Gebietsstand 2024-12-31; ",
         cache$map$provenance$attribution, " ",
         cache$map$provenance$change_notice),
       h4("Paket"), p("regionalepi ", as.character(utils::packageVersion("regionalepi"))),
+      p(class = "app-note", "Die Hauptansicht zeigt keine inferenziellen Tests, keine gepoolte oder bevölkerungsgewichtete Inzidenz. Eine historische Peak-Wochen-Reproduktion bleibt zurückgestellt."),
       if (length(result$map_join$typology_only_geo_ids)) p(class = "app-note",
         "Der Fit basiert auf 401 Einheiten. Nicht auf der 2024-Karte dargestellt: ",
         paste(result$map_join$typology_only_geo_ids, collapse = ", "), ".")

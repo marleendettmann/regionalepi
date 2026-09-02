@@ -71,9 +71,11 @@ frozen dissertation labels or generate natural-language cluster names.
 Reviewed period resources represent RKI Influenza waves and frozen
 dissertation COVID waves as inclusive date intervals. Seasons may have zero,
 one, or multiple waves; boundaries are not inferred from SurvStat. Canonical-ID
-typology attachment validates reviewed geography differences, and weekly
-summaries calculate median district incidence only. Missing incidence remains
-distinct from zero; no pooled cluster incidence is calculated.
+typology attachment validates reviewed geography differences. Weekly summaries
+calculate median district incidence plus the empirical first and third
+quartiles (R quantile type 7). Missing incidence remains distinct from zero;
+the IQR describes observed district incidence and is not a confidence interval.
+No pooled cluster incidence is calculated.
 
 See `docs/architecture.md` and `docs/data-contracts.md` for the v0.1 design.
 
@@ -99,11 +101,26 @@ weekly median district incidence by cluster. Cluster IDs such as `C01` are
 fit-local neutral identifiers and must not be interpreted as stable categories
 across settings.
 
-This is a development PoC, not a production application. It has no disk cache,
-background jobs, automatic cluster naming, pooled incidence, arbitrary
-indicator selection, export workflow, deployment infrastructure, or frozen
-dissertation reference mode. BKG attribution is rendered from the map-resource
-provenance immediately below the map.
+The interface offers two explicitly distinct typology modes. Dynamic fits use
+neutral fit-local IDs and a neutral deterministic palette. Dissertation mode
+reproduces the frozen 2017--2020 fit without refitting and uses the historical
+ClD/ClJ/ClA labels and core palette. Its 401-to-current-400 surveillance
+compatibility remains explicit.
+
+COVID choices separate the frozen dissertation/RKI pandemic periods from the
+reviewed post-pandemic RKI activity waves 2023/24 and 2024/25. RKI phase 8 is
+not exposed as a closed interval because no sufficiently authoritative closing
+boundary was established. The epidemiological view displays weekly cluster
+medians with empirical IQR and an unweighted distribution of one period median
+per district. It performs no inference and does not pool district-week values.
+Post-2023 COVID reports require caution because testing and reporting conditions
+changed.
+
+This remains a development application, not a production service. It has no
+disk cache, background jobs, automatic cluster naming, pooled incidence,
+arbitrary indicator selection, export workflow, deployment infrastructure, or
+inferential main-UI tests. A historical peak-week reproduction is deferred.
+BKG attribution is rendered from map-resource provenance.
 
 ### Reviewed demographic snapshot
 

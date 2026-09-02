@@ -24,7 +24,8 @@ summarize_incidence_by_typology(
 A list with \code{data}, \code{diagnostics}, and \code{provenance}.
 }
 \description{
-Calculates only the median of district incidences. It never calculates a
+Calculates the median and empirical first and third quartiles of district
+incidences (R's default \code{quantile()} type 7). It never calculates a
 pooled or population-weighted rate. Numeric zero remains zero and missing
 incidence remains distinct.
 }

@@ -1,6 +1,7 @@
 .period_columns <- c(
   "period_set_id", "period_id", "pathogen", "season_id", "period_type",
   "label", "start_date", "end_date", "definition_version",
+  "variant_context", "historical_context", "evidence_class",
   "source_reference", "review_status", "note"
 )
 
@@ -22,6 +23,9 @@ validate_epidemiological_periods <- function(x) {
     "definition_version", "source_reference", "review_status"
   )) .check_character(x[[field]], field, contract)
   .check_character(x$season_id, "season_id", contract, allow_na = TRUE)
+  .check_character(x$variant_context, "variant_context", contract, allow_na = TRUE)
+  .check_character(x$historical_context, "historical_context", contract, allow_na = TRUE)
+  .check_character(x$evidence_class, "evidence_class", contract)
   .check_character(x$note, "note", contract, allow_na = TRUE)
   .check_date(x$start_date, "start_date", contract)
   .check_date(x$end_date, "end_date", contract)
@@ -75,12 +79,17 @@ validate_epidemiological_periods <- function(x) {
 }
 
 .period_frame <- function(set, id, pathogen, season, type, label, start, end,
-                          version, source, status = "reviewed", note = NA_character_) {
+                          version, source, status = "reviewed", note = NA_character_,
+                          variant_context = NA_character_,
+                          historical_context = NA_character_,
+                          evidence_class = "REVIEWED_EXTERNAL_PERIOD") {
   data.frame(
     period_set_id = set, period_id = id, pathogen = pathogen,
     season_id = season, period_type = type, label = label,
     start_date = as.Date(start), end_date = as.Date(end),
-    definition_version = version, source_reference = source,
+    definition_version = version, variant_context = variant_context,
+    historical_context = historical_context, evidence_class = evidence_class,
+    source_reference = source,
     review_status = status, note = note, stringsAsFactors = FALSE
   )
 }
@@ -125,7 +134,11 @@ dissertation_covid_welle2_periods <- function() {
   periods <- do.call(rbind, lapply(bounds, function(x) .period_frame(
     "dissertation_covid_welle2_v1", paste0("covid_wave_", x[[1L]]),
     "COVID-19", NA_character_, "covid_wave", x[[4L]], x[[2L]], x[[3L]],
-    "dissertation_v1", "03_Diss_SurvStat.Rmd; RKI retrospective phase classification"
+    "dissertation_v1", "03_Diss_SurvStat.Rmd; RKI retrospective phase classification",
+    variant_context = if (x[[1L]] %in% c("3", "4a", "4b", "5a", "5b"))
+      sub("^[^/]+/ ", "", x[[4L]]) else NA_character_,
+    historical_context = "Dissertation / RKI-Pandemieperioden",
+    evidence_class = "DISSERTATION_RKI_PANDEMIC_PERIOD"
   )))
   list(
     periods = periods,
@@ -134,6 +147,82 @@ dissertation_covid_welle2_periods <- function() {
       definition_version = "dissertation_v1",
       semantics = "principal_Welle2_not_broader_Phase"
     )
+  )
+}
+
+#' Reviewed post-pandemic RKI COVID-19 activity waves
+#'
+#' These reviewed activity waves are deliberately separate from the numbered
+#' pandemic-wave system. RKI phase 8 begins in ISO week 22 of 2022, but has no
+#' sufficiently authoritative reviewed closing boundary and is therefore not
+#' represented as a selectable closed interval.
+#'
+#' @return A reviewed period resource.
+#' @export
+rki_covid_activity_waves <- function() {
+  source <- paste(
+    "RKI Epidemiologisches Bulletin 35/2025:",
+    "Symptomprofile, Erkrankungsraten und Sequenzierung ... GrippeWeb-Plus 2023\u20132025"
+  )
+  periods <- rbind(
+    .period_frame(
+      "covid_rki_activity_waves_v1", "covid_activity_2023_24", "COVID-19",
+      "2023/24", "covid_activity_wave", "RKI-Aktivit\u00e4tswelle 2023/24",
+      "2023-10-02", "2024-01-28", "covid_rki_activity_waves_v1", source,
+      historical_context = "RKI-gepr\u00fcfte post-pandemische Aktivit\u00e4tswelle",
+      evidence_class = "REVIEWED_RKI_ACTIVITY_WAVE"
+    ),
+    .period_frame(
+      "covid_rki_activity_waves_v1", "covid_activity_2024_25", "COVID-19",
+      "2024/25", "covid_activity_wave", "RKI-Aktivit\u00e4tswelle 2024/25",
+      "2024-05-27", "2025-01-26", "covid_rki_activity_waves_v1", source,
+      historical_context = "RKI-gepr\u00fcfte post-pandemische Aktivit\u00e4tswelle",
+      evidence_class = "REVIEWED_RKI_ACTIVITY_WAVE"
+    )
+  )
+  list(periods = periods, provenance = list(
+    period_set_id = "covid_rki_activity_waves_v1",
+    definition_version = "covid_rki_activity_waves_v1",
+    evidence_class = "REVIEWED_RKI_ACTIVITY_WAVE",
+    source_reference = source,
+    phase_8_context = paste(
+      "RKI phase 8 / sixth COVID-19 wave / Omicron BA.5 begins in 2022-KW22;",
+      "no reviewed closing boundary is encoded."
+    )
+  ))
+}
+
+.iso_year_week <- function(date) {
+  data.frame(
+    year = as.integer(format(date, "%G")),
+    week = as.integer(format(date, "%V"))
+  )
+}
+
+#' Format an epidemiological period for display
+#'
+#' @param period One row from a validated epidemiological period table.
+#' @return A named list containing `title` and `subtitle` plus ISO boundaries.
+#' @export
+format_epidemiological_period <- function(period) {
+  validate_epidemiological_periods(period)
+  if (nrow(period) != 1L) stop("`period` must contain exactly one row.", call. = FALSE)
+  start <- .iso_year_week(period$start_date)
+  end <- .iso_year_week(period$end_date)
+  pathogen <- if (identical(period$pathogen, "Influenza, saisonal")) "Influenza" else period$pathogen
+  iso <- if (start$year == end$year) {
+    sprintf("%d-KW %02d\u2013%02d", start$year, start$week, end$week)
+  } else {
+    sprintf("%d-KW %02d\u2013%d-KW %02d", start$year, start$week, end$year, end$week)
+  }
+  list(
+    title = paste(pathogen, period$label, sep = " \u00b7 "),
+    subtitle = paste(
+      format(period$start_date, "%d.%m.%Y"),
+      format(period$end_date, "%d.%m.%Y"), sep = "\u2013"
+    ) |> paste(iso, sep = " \u00b7 "),
+    start_iso_year = start$year, start_iso_week = start$week,
+    end_iso_year = end$year, end_iso_week = end$week
   )
 }
 

@@ -3,7 +3,9 @@ period_row <- function(id = "wave-1", start = "2020-12-28", end = "2021-01-10") 
     period_set_id = "set-1", period_id = id, pathogen = "Disease",
     season_id = "2020/21", period_type = "influenza_wave", label = id,
     start_date = as.Date(start), end_date = as.Date(end),
-    definition_version = "v1", source_reference = "synthetic",
+    definition_version = "v1", variant_context = NA_character_,
+    historical_context = "synthetic", evidence_class = "REVIEWED_TEST_PERIOD",
+    source_reference = "synthetic",
     review_status = "reviewed", note = NA_character_, stringsAsFactors = FALSE
   )
 }
@@ -13,6 +15,21 @@ test_that("period contract accepts cross-year and week-53-compatible intervals",
   expect_invisible(validate_epidemiological_periods(x))
   expect_true(as.Date("2021-01-01") >= x$start_date)
   expect_true(as.Date("2021-01-01") <= x$end_date)
+})
+
+test_that("reviewed COVID activity waves and display metadata are exact", {
+  periods <- rki_covid_activity_waves()$periods
+  expect_identical(periods$period_set_id, rep("covid_rki_activity_waves_v1", 2L))
+  expect_identical(format(periods$start_date), c("2023-10-02", "2024-05-27"))
+  expect_identical(format(periods$end_date), c("2024-01-28", "2025-01-26"))
+  expect_identical(periods$evidence_class, rep("REVIEWED_RKI_ACTIVITY_WAVE", 2L))
+  expect_true(all(grepl("Bulletin 35/2025", periods$source_reference, fixed = TRUE)))
+  expect_false(any(grepl("Phase 8|Wave 6|Welle 6", periods$label)))
+  display <- format_epidemiological_period(periods[1, ])
+  expect_identical(display$title, "COVID-19 · RKI-Aktivitätswelle 2023/24")
+  expect_identical(display$subtitle, "02.10.2023–28.01.2024 · 2023-KW 40–2024-KW 04")
+  same_year <- format_epidemiological_period(period_row(start = "2020-03-02", end = "2020-05-17"))
+  expect_identical(same_year$subtitle, "02.03.2020–17.05.2020 · 2020-KW 10–20")
 })
 
 test_that("period contract rejects reversal, duplicate IDs, and overlap", {

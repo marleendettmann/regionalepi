@@ -5,36 +5,35 @@
   )
 }
 
-.shiny_period_resource <- function(pathogen) {
+.shiny_period_resources <- function(pathogen) {
   if (identical(pathogen, "Influenza, saisonal")) {
-    rki_influenza_periods_2017_2026()
+    stats::setNames(list(rki_influenza_periods_2017_2026()), "RKI-gepr\u00fcfte Influenzawellen")
   } else if (identical(pathogen, "COVID-19")) {
-    dissertation_covid_welle2_periods()
+    stats::setNames(
+      list(dissertation_covid_welle2_periods(), rki_covid_activity_waves()),
+      c("Dissertation / RKI-Pandemieperioden", "RKI-gepr\u00fcfte Aktivit\u00e4tswellen")
+    )
   } else {
     stop("Unsupported Shiny PoC pathogen.", call. = FALSE)
   }
 }
 
+.shiny_period_resource <- function(pathogen) .shiny_period_resources(pathogen)[[1L]]
+
 .shiny_period_choices <- function(pathogen) {
-  resource <- .shiny_period_resource(pathogen)
-  periods <- resource$periods
-  labels <- periods$label
-  duplicated_season <- !is.na(periods$season_id) &
-    duplicated(periods$season_id) | (!is.na(periods$season_id) &
-    duplicated(periods$season_id, fromLast = TRUE))
-  if (any(duplicated_season)) {
-    wave <- stats::ave(seq_len(nrow(periods)), periods$season_id, FUN = seq_along)
-    labels[duplicated_season] <- paste0(labels[duplicated_season], " \u2013 Welle ",
-                                        wave[duplicated_season])
-  }
-  stats::setNames(periods$period_id, labels)
+  lapply(.shiny_period_resources(pathogen), function(resource) {
+    stats::setNames(resource$periods$period_id, resource$periods$label)
+  })
 }
 
 .shiny_selected_period <- function(pathogen, period_id) {
-  resource <- .shiny_period_resource(pathogen)
-  row <- resource$periods[resource$periods$period_id == period_id, , drop = FALSE]
-  if (nrow(row) != 1L) stop("Unknown reviewed epidemiological period.", call. = FALSE)
-  list(resource = resource, row = row)
+  matches <- lapply(.shiny_period_resources(pathogen), function(resource) {
+    row <- resource$periods[resource$periods$period_id == period_id, , drop = FALSE]
+    if (nrow(row)) list(resource = resource, row = row) else NULL
+  })
+  matches <- Filter(Negate(is.null), matches)
+  if (length(matches) != 1L) stop("Unknown reviewed epidemiological period.", call. = FALSE)
+  matches[[1L]]
 }
 
 .shiny_demographic_cache_key <- function(period_label, source_mode = "snapshot") {
@@ -51,8 +50,11 @@
         paste(sort(unique(reporting_years)), collapse = "-"), sep = ":")
 }
 
-.shiny_typology_cache_key <- function(summary, k) {
+.shiny_typology_cache_key <- function(summary, k, mode = "dynamic") {
   data <- summary$data
+  if (identical(mode, "dissertation")) {
+    return("typology:dissertation_v1:historical_reference")
+  }
   paste(
     "typology", format(unique(data$period_start)), format(unique(data$period_end)),
     demographic_structure_spec()$indicator_set_id,
@@ -78,14 +80,21 @@
   candidates[[which.min(sizes)]]$key
 }
 
-.shiny_app_cluster_colours <- function(ids) {
+.shiny_app_cluster_colours <- function(ids, mode = "dynamic") {
+  if (identical(mode, "dissertation")) {
+    historical <- c(ClD = "#bc5e21", ClJ = "#748c61", ClA = "#274f66")
+    if (any(!unique(ids) %in% names(historical))) {
+      stop("Unknown dissertation cluster identity.", call. = FALSE)
+    }
+    return(historical[unique(ids)])
+  }
   palette <- c("#3B6FB6", "#D17C28", "#3F8F6B", "#8A64A8", "#B64E5A")
   levels <- sort(unique(ids))
   stats::setNames(palette[seq_along(levels)], levels)
 }
 
-.shiny_app_map_geojson <- function(map, assignments) {
-  colours <- .shiny_app_cluster_colours(assignments$display_cluster_id)
+.shiny_app_map_geojson <- function(map, assignments, mode = "dynamic") {
+  colours <- .shiny_app_cluster_colours(assignments$display_cluster_id, mode)
   position <- match(map$features$geo_id, assignments$geo_id)
   features <- lapply(seq_len(nrow(map$features)), function(index) {
     cluster <- assignments$display_cluster_id[position[[index]]]
@@ -117,14 +126,15 @@
     lng2 = max(positions[, 1L]), lat2 = max(positions[, 2L]))
 }
 
-.shiny_app_leaflet_geojson <- function(geojson, bounds, assignments = NULL) {
+.shiny_app_leaflet_geojson <- function(geojson, bounds, assignments = NULL,
+                                       mode = "dynamic") {
   widget <- leaflet::leaflet(options = leaflet::leafletOptions(minZoom = 4))
   widget <- leaflet::addGeoJSON(widget, geojson)
   display <- if (is.null(assignments)) NULL else list(
     clusters = stats::setNames(as.list(assignments$display_cluster_id),
                                assignments$geo_id),
     colours = as.list(.shiny_app_cluster_colours(
-      assignments$display_cluster_id))
+      assignments$display_cluster_id, mode))
   )
   widget <- htmlwidgets::onRender(widget, "
     function(el, x, display) {
@@ -150,12 +160,83 @@
                      bounds[["lng2"]], bounds[["lat2"]])
 }
 
-.shiny_app_leaflet_map <- function(map, assignments) {
+.shiny_app_leaflet_map <- function(map, assignments, mode = "dynamic") {
   .shiny_app_leaflet_geojson(
     if (!is.null(map$browser_geojson)) map$browser_geojson else
-      .shiny_app_map_geojson(map, assignments),
-    .shiny_app_map_bounds(map), assignments
+      .shiny_app_map_geojson(map, assignments, mode),
+    .shiny_app_map_bounds(map), assignments, mode
   )
+}
+
+.shiny_typology_config <- function(mode) {
+  if (identical(mode, "dissertation")) return(list(
+    mode = mode, label = "Dissertation-Referenz", years = 2017:2020,
+    k = 3L, note = "Historische Referenzreproduktion der Dissertation (2017\u20132020)"
+  ))
+  if (identical(mode, "dynamic")) return(list(
+    mode = mode, label = "Dynamische demographische Typologie",
+    years = NULL, k = NULL, note = "Fit-lokale neutrale Clusteridentit\u00e4ten"
+  ))
+  stop("Unsupported typology mode.", call. = FALSE)
+}
+
+.shiny_dissertation_fit <- function(summary) {
+  frozen <- fit_dissertation_typology(summary, label_mapping = "historical_reference")
+  assignments <- data.frame(
+    fit_id = "dissertation_v1_historical_reference",
+    geo_id = frozen$data$geo_id, raw_cluster = frozen$data$raw_cluster,
+    display_cluster_id = frozen$data$cluster_code,
+    cluster_label = frozen$data$cluster_label, stringsAsFactors = FALSE
+  )
+  joined <- merge(summary$data,
+    assignments[c("geo_id", "raw_cluster", "display_cluster_id")],
+    by = "geo_id", sort = FALSE
+  )
+  profile_groups <- split(seq_len(nrow(joined)), paste(
+    joined$display_cluster_id, joined$indicator_id, sep = "\r"
+  ))
+  profiles <- do.call(rbind, lapply(profile_groups, function(i) {
+    x <- joined[i, , drop = FALSE]
+    indicator_position <- match(x$indicator_id[[1L]], frozen$matrix$indicator_order)
+    center <- frozen$diagnostics$centers[
+      as.character(x$raw_cluster[[1L]]), indicator_position
+    ]
+    data.frame(
+      fit_id = "dissertation_v1_historical_reference",
+      display_cluster_id = x$display_cluster_id[[1L]],
+      raw_cluster = x$raw_cluster[[1L]], cluster_size = length(unique(x$geo_id)),
+      cluster_proportion = length(unique(x$geo_id)) / nrow(assignments),
+      indicator_id = x$indicator_id[[1L]],
+      definition_version = x$definition_version[[1L]],
+      indicator_unit = x$indicator_unit[[1L]],
+      original_mean = mean(x$indicator_value),
+      original_median = stats::median(x$indicator_value),
+      standardized_center = unname(center), stringsAsFactors = FALSE
+    )
+  }))
+  labels <- unique(assignments[c("display_cluster_id", "cluster_label")])
+  diagnostics <- unique(profiles[c(
+    "display_cluster_id", "raw_cluster", "cluster_size", "cluster_proportion"
+  )])
+  diagnostics <- merge(diagnostics, labels, by = "display_cluster_id", sort = FALSE)
+  names(diagnostics)[names(diagnostics) == "cluster_size"] <- "size"
+  frozen$assignments <- assignments
+  frozen$profiles <- profiles
+  frozen$cluster_diagnostics <- diagnostics
+  frozen$provenance$fit_id <- "dissertation_v1_historical_reference"
+  frozen$indicator_set <- list(
+    indicator_set_id = "dissertation_v1", definition_version = "dissertation_v1"
+  )
+  frozen$fitting_specification <- frozen$specification
+  frozen$mode <- "dissertation"
+  frozen
+}
+
+.shiny_fit_typology <- function(summary, mode = "dynamic", k = 3L) {
+  if (identical(mode, "dissertation")) return(.shiny_dissertation_fit(summary))
+  fit <- fit_dynamic_typology(summary, k = k)
+  fit$mode <- "dynamic"
+  fit
 }
 
 .shiny_app_indicator_display <- function() {
@@ -341,7 +422,9 @@
   selected_rows <- !is.na(assigned$data$period_id) &
     assigned$data$period_id == selected_period$row$period_id
   period_data <- assigned$data[selected_rows, , drop = FALSE]
-  compatibility <- .shiny_dynamic_compatibility(fit, period_data$geo_id)
+  compatibility <- if (identical(fit$mode, "dissertation")) {
+    dissertation_surveillance_compatibility()
+  } else .shiny_dynamic_compatibility(fit, period_data$geo_id)
   typology <- list(
     data = data.frame(
       geo_id = fit$assignments$geo_id,
@@ -352,8 +435,9 @@
   )
   attached <- attach_typology(period_data, typology, compatibility)
   summary <- summarize_incidence_by_typology(attached$data)
+  district_period <- summarize_period_incidence_by_district(attached$data)
   list(summary = summary, assigned = assigned, attached = attached,
-       compatibility = compatibility)
+       district_period = district_period, compatibility = compatibility)
 }
 
 .shiny_app_dir <- function() {
@@ -361,7 +445,7 @@
 }
 
 .shiny_missing_dependencies <- function(checker = requireNamespace) {
-  packages <- c("shiny", "leaflet")
+  packages <- c("shiny", "leaflet", "ggplot2")
   packages[!vapply(packages, checker, logical(1L), quietly = TRUE)]
 }
 
