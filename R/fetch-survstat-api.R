@@ -21,6 +21,16 @@
 .survstat_reference_dimension <- "[ReferenzDefinition]"
 .survstat_reference_hierarchy <- "[ReferenzDefinition].[ID]"
 .survstat_reporting_path <- "\u00dcber Gesundheitsamt und Landesstelle"
+.survstat_incidence_measure <- list(
+  request_value = "Incidence", source_id = "[Measures].[Inzidenz_71_Web]",
+  source_label = "Inzidenz 7.1s", measure = "incidence",
+  value_semantics = "non_additive"
+)
+.survstat_cases_measure <- list(
+  request_value = "Count", source_id = "[Measures].[FallCount_71_Web]",
+  source_label = "Anzahl.71s", measure = "cases",
+  value_semantics = "additive"
+)
 
 #' Fetch source-provided incidence from the official SurvStat service
 #'
@@ -53,6 +63,38 @@ fetch_survstat_incidence <- function(
     geography_filter = NULL, query_id,
     reference_definition = TRUE,
     reporting_path = .survstat_reporting_path) {
+  .fetch_survstat_measure(
+    pathogen, reporting_years, geography, geography_filter, query_id,
+    reference_definition, reporting_path, .survstat_incidence_measure
+  )
+}
+
+#' Fetch reported case counts from the official SurvStat service
+#'
+#' Retrieves the reviewed additive weekly count measure `Anzahl.71s`. It uses
+#' the same narrow pathogen, year, reference-definition, reporting-path and
+#' geography scope as [fetch_survstat_incidence()], but never calculates or
+#' replaces incidence. Source null cells remain `NA_real_` and numeric zero
+#' remains zero.
+#'
+#' @inheritParams fetch_survstat_incidence
+#' @return An ordinary list with validated additive surveillance `data`,
+#'   `diagnostics`, and query-level `provenance`.
+#' @export
+fetch_survstat_cases <- function(
+    pathogen, reporting_years, geography = c("kreis", "bundesland"),
+    geography_filter = NULL, query_id,
+    reference_definition = TRUE,
+    reporting_path = .survstat_reporting_path) {
+  .fetch_survstat_measure(
+    pathogen, reporting_years, geography, geography_filter, query_id,
+    reference_definition, reporting_path, .survstat_cases_measure
+  )
+}
+
+.fetch_survstat_measure <- function(
+    pathogen, reporting_years, geography, geography_filter, query_id,
+    reference_definition, reporting_path, measure_spec) {
   request <- .validate_survstat_api_request(
     pathogen, reporting_years, geography, geography_filter, query_id,
     reference_definition, reporting_path
@@ -76,7 +118,7 @@ fetch_survstat_incidence <- function(
   }
   retrieved_at <- as.POSIXct(Sys.time(), tz = "UTC")
   query <- .survstat_api_query_provenance(
-    request, cube$data_status, retrieved_at, disease, place
+    request, cube$data_status, retrieved_at, disease, place, measure_spec
   )
   pages <- lapply(request$reporting_years, function(year) {
     filters <- list(
@@ -101,9 +143,11 @@ fetch_survstat_incidence <- function(
         hierarchy = .survstat_state_hierarchy, members = place$id
       )
     }
-    envelope <- .survstat_olap_envelope(place_hierarchy, filters)
+    envelope <- .survstat_olap_envelope(
+      place_hierarchy, filters, measure_spec$request_value
+    )
     document <- .survstat_api_call("GetOlapData", envelope)
-    .parse_survstat_olap(document, year, request$geography, query)
+    .parse_survstat_olap(document, year, request$geography, query, measure_spec)
   })
   data <- do.call(rbind, pages)
   rownames(data) <- NULL
@@ -119,7 +163,9 @@ fetch_survstat_incidence <- function(
     method = "radix"
   ), , drop = FALSE]
   rownames(data) <- NULL
-  validate_surveillance_incidence(data)
+  if (identical(measure_spec$measure, "incidence")) {
+    validate_surveillance_incidence(data)
+  } else validate_surveillance(data)
   coverage <- lapply(request$reporting_years, function(year) {
     sort(unique(data$reporting_week[data$reporting_year == year]))
   })
@@ -135,8 +181,16 @@ fetch_survstat_incidence <- function(
       year_chunk_count = length(request$reporting_years),
       source_geography_count = length(unique(data$geo_name)),
       observation_count = nrow(data),
-      blank_incidence_cells = sum(is.na(data$incidence)),
-      numeric_zero_incidence_cells = sum(data$incidence == 0, na.rm = TRUE),
+      measure = measure_spec$measure,
+      source_measure_id = measure_spec$source_id,
+      source_measure_label = measure_spec$source_label,
+      value_semantics = measure_spec$value_semantics,
+      blank_value_cells = sum(is.na(data[[measure_spec$measure]])),
+      numeric_zero_value_cells = sum(data[[measure_spec$measure]] == 0, na.rm = TRUE),
+      blank_incidence_cells = if (identical(measure_spec$measure, "incidence"))
+        sum(is.na(data$incidence)) else NULL,
+      numeric_zero_incidence_cells = if (identical(measure_spec$measure, "incidence"))
+        sum(data$incidence == 0, na.rm = TRUE) else NULL,
       data_status = cube$data_status, geo_vintage_unresolved = TRUE,
       incidence_calculation_performed = FALSE,
       rate_summation_performed = FALSE, rate_averaging_performed = FALSE
@@ -187,17 +241,22 @@ fetch_survstat_incidence <- function(
 }
 
 .survstat_api_query_provenance <- function(
-    request, data_status, retrieved_at, disease, place) {
+    request, data_status, retrieved_at, disease, place,
+    measure_spec = .survstat_incidence_measure) {
   source_geography <- if (request$geography == "kreis") NULL else list(
     geo_id = NA_character_, geo_name = place$caption,
     geo_level = "survstat_bundesland"
   )
   query <- list(
     query_id = request$query_id,
-    query_role = if (request$geography == "kreis") "kreis_incidence" else
-      "bundesland_incidence",
+    query_role = paste0(if (request$geography == "kreis") "kreis_" else
+      "bundesland_", measure_spec$measure),
     source = "SurvStat@RKI", source_version = "SurvStat@RKI 2.0",
-    measure = "incidence", value_semantics = "non_additive",
+    measure = measure_spec$measure,
+    source_measure_id = measure_spec$source_id,
+    source_measure_label = measure_spec$source_label,
+    api_measure_request_value = measure_spec$request_value,
+    value_semantics = measure_spec$value_semantics,
     pathogen = request$pathogen,
     reporting_years = request$reporting_years,
     time_unit = "week",
@@ -291,7 +350,7 @@ fetch_survstat_incidence <- function(
 
 .survstat_olap_envelope <- function(column_hierarchy, filters,
                                      measure = "Incidence") {
-  if (!identical(measure, "Incidence")) {
+  if (!measure %in% c("Incidence", "Count")) {
     .stop_contract("SurvStat API request", "unsupported API measure in v0.1")
   }
   filter_xml <- paste(vapply(filters, function(filter) {
@@ -420,7 +479,8 @@ fetch_survstat_incidence <- function(
   if (inherits(value, "xml_missing")) "" else xml2::xml_text(value)
 }
 
-.parse_survstat_olap <- function(document, requested_year, geography, query) {
+.parse_survstat_olap <- function(document, requested_year, geography, query,
+                                 measure_spec = .survstat_incidence_measure) {
   contract <- "SurvStat API response"
   columns <- xml2::xml_find_all(document, "//*[local-name()='QueryResultColumn']")
   rows <- xml2::xml_find_all(document, "//*[local-name()='QueryResultRow']")
@@ -466,19 +526,55 @@ fetch_survstat_incidence <- function(
       !is.na(attribute) && identical(tolower(attribute), "true")
     }, logical(1L))
     text[nil] <- NA_character_
-    incidence <- .parse_survstat_incidence(text, "API incidence values", contract)
+    values_parsed <- if (identical(measure_spec$measure, "incidence")) {
+      .parse_survstat_incidence(text, "API incidence values", contract)
+    } else {
+      .parse_survstat_api_counts(text, "API count values", contract)
+    }
     retained <- retained + 1L
-    observations[[retained]] <- .new_survstat_incidence_data(
+    common <- list(
       rep(NA_character_, length(column_names)), column_names,
       rep(if (geography == "kreis") "survstat_kreis" else
         "survstat_bundesland", length(column_names)),
       as.Date(NA), rep(date, length(column_names)), query,
       rep(year, length(column_names)), rep(week, length(column_names)),
-      incidence
+      values_parsed
     )
+    observations[[retained]] <- if (identical(measure_spec$measure, "incidence")) {
+      do.call(.new_survstat_incidence_data, common)
+    } else do.call(.new_survstat_cases_data, common)
   }
   if (!retained) {
     .stop_contract(contract, "OLAP result contains no weekly observations")
   }
   do.call(rbind, observations[seq_len(retained)])
+}
+
+.parse_survstat_api_counts <- function(x, field, contract) {
+  values <- as.character(x)
+  missing <- is.na(values) | values == ""
+  if (any(grepl("^[[:space:]]*[<>=~*]", values[!missing]))) {
+    .stop_contract(contract, paste0(field, " contain a quality-marked value"))
+  }
+  parsed <- suppressWarnings(as.numeric(values))
+  if (any(!missing & is.na(parsed)) || any(!is.finite(parsed[!missing]))) {
+    .stop_contract(contract, paste0(field, " contain a malformed non-numeric value"))
+  }
+  if (any(parsed[!missing] < 0) || any(parsed[!missing] != floor(parsed[!missing]))) {
+    .stop_contract(contract, paste0(field, " must be non-negative whole-valued counts"))
+  }
+  parsed
+}
+
+.new_survstat_cases_data <- function(
+    geo_id, geo_name, geo_level, geo_vintage, date, query,
+    reporting_year, reporting_week, cases) {
+  data.frame(
+    geo_id = geo_id, geo_name = geo_name, geo_level = geo_level,
+    geo_vintage = rep(geo_vintage, length(date)), date = date,
+    time_unit = "week", pathogen = query$pathogen, cases = cases,
+    source = query$source, source_version = query$source_version,
+    reporting_year = reporting_year, reporting_week = reporting_week,
+    query_id = query$query_id, stringsAsFactors = FALSE
+  )
 }

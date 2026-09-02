@@ -50,6 +50,12 @@
         paste(sort(unique(reporting_years)), collapse = "-"), sep = ":")
 }
 
+.shiny_surveillance_bundle_cache_key <- function(pathogen, reporting_years) {
+  paste("survstat-incidence-counts", pathogen,
+        paste(sort(unique(reporting_years)), collapse = "-"),
+        "reference-definition", .survstat_reporting_path, sep = ":")
+}
+
 .shiny_typology_cache_key <- function(summary, k, mode = "dynamic") {
   data <- summary$data
   if (identical(mode, "dissertation")) {
@@ -410,6 +416,35 @@
   assembled <- assemble_surveillance_incidence(
     base$data, berlin$data, base$provenance, berlin$provenance,
     resources$survstat_incidence_assembly_spec
+  )
+  assembled$resolution <- list(kreis = base$resolution, berlin = berlin$resolution)
+  assembled
+}
+
+.shiny_fetch_surveillance_counts <- function(pathogen, years, resources) {
+  token <- .stable_text_hash(c(pathogen, years, "cases"))
+  fetched <- tryCatch(list(
+    base = fetch_survstat_cases(
+      pathogen, years, "kreis", query_id = paste0("shiny-kreis-cases-", token)
+    ),
+    berlin = fetch_survstat_cases(
+      pathogen, years, "bundesland", geography_filter = "Berlin",
+      query_id = paste0("shiny-berlin-cases-", token)
+    )
+  ), error = function(error) {
+    stop("SurvStat@RKI count retrieval failed: ", conditionMessage(error),
+         call. = FALSE)
+  })
+  base <- .shiny_resolve_survstat(
+    fetched$base, resources, resources$survstat_aliases,
+    resources$survstat_spatial_units
+  )
+  berlin <- .shiny_resolve_survstat(
+    fetched$berlin, resources, resources$survstat_incidence_aliases
+  )
+  assembled <- assemble_surveillance_cases(
+    base$data, berlin$data, base$provenance, berlin$provenance,
+    resources$survstat_spatial_units$source_geo_id, "11000"
   )
   assembled$resolution <- list(kreis = base$resolution, berlin = berlin$resolution)
   assembled

@@ -122,6 +122,22 @@ arbitrary indicator selection, export workflow, deployment infrastructure, or
 inferential main-UI tests. A historical peak-week reproduction is deferred.
 BKG attribution is rendered from map-resource provenance.
 
+### SurvStat reported-case context
+
+`fetch_survstat_cases()` retrieves the reviewed web count member
+`[Measures].[FallCount_71_Web]` (`Anzahl.71s`) as additive weekly reported
+cases. It shares the narrow query semantics of the source-provided incidence
+adapter, but never calculates or replaces incidence. Source null cells remain
+missing and explicit numeric zero remains zero.
+
+`assemble_surveillance_cases()` applies the reviewed independent Berlin
+replacement after ordinary geography resolution. The sum of the twelve Berlin
+source units is retained only as a validation diagnostic. The final
+`combine_surveillance_incidence_counts()` operation requires exact canonical
+`geo_id`/date coverage and compatible query provenance, and preserves both
+source measures verbatim. Counts are contextual: cluster totals depend on
+cluster size and population and are not comparable as rates.
+
 ### Reviewed demographic snapshot
 
 Ordinary Shiny use defaults to the immutable reviewed Regionaldatenbank

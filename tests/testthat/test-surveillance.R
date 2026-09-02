@@ -27,7 +27,7 @@ test_that("surveillance counts are non-negative whole values", {
   x$cases <- 1.5
   expect_error(validate_surveillance(x), "whole-valued")
   x$cases <- NA_real_
-  expect_error(validate_surveillance(x), "must not contain NA")
+  expect_invisible(validate_surveillance(x))
   x$cases <- Inf
   expect_error(validate_surveillance(x), "finite")
 })

@@ -51,6 +51,10 @@ test_that("Shiny cache keys respect reactive source boundaries", {
   expect_null(regionalepi:::.shiny_surveillance_cache_match(
     index, "Influenza, saisonal", 2021
   ))
+  bundle <- regionalepi:::.shiny_surveillance_bundle_cache_key(
+    "Influenza, saisonal", 2025:2026)
+  expect_match(bundle, "survstat-incidence-counts", fixed = TRUE)
+  expect_match(bundle, "reference-definition", fixed = TRUE)
 })
 
 test_that("typology modes retain distinct identities and palettes", {
@@ -266,6 +270,7 @@ test_that("Shiny app exposes staged progress and caches fitted map widgets", {
   expect_match(server_text, "SurvStat-Kreisdaten werden geladen", fixed = TRUE)
   expect_match(server_text, "Kartendarstellung wird vorbereitet", fixed = TRUE)
   expect_match(server_text, "map-widget:", fixed = TRUE)
+  expect_false(grepl("fetch_survstat_cases", server_text, fixed = TRUE))
   expect_match(server_text, ".shiny_surveillance_cache_match", fixed = TRUE)
   expect_match(ui_text, "Erweiterte Einstellungen", fixed = TRUE)
   expect_match(ui_text,

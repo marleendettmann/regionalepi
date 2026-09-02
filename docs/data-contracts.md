@@ -350,3 +350,28 @@ IQR is not estimation uncertainty. `summarize_period_incidence_by_district()`
 returns exactly one unweighted median of weekly source-provided incidence per
 district, with week completeness diagnostics. Neither contract pools or
 population-weights incidence.
+
+## SurvStat reported cases and incidence compatibility
+
+API case observations use the existing `surveillance` fields with whole-valued
+non-negative `cases`; `NA_real_` is the explicit source-null exception and is
+not converted to zero. Query provenance identifies the exact member
+`[Measures].[FallCount_71_Web]`, label `Anzahl.71s`, request value `Count`, and
+`value_semantics = "additive"`.
+
+This API-null rule does not retroactively change the local case-file adapter's
+explicit `blank_is_zero` policy. That policy is an export-specific caller
+decision backed by its national-total reconciliation; it is not evidence that
+SOAP nulls are zero.
+
+The assembled case-count result has one canonical row per `geo_id` and date.
+The combined observation adds `cases` and `count_query_id` to unchanged
+source-provided incidence rows. Compatibility requires exact key sets, matching
+reporting year/week metadata, pathogen, requested years, reference definition,
+reporting path, source/version and cube status. Both query registries remain
+separate provenance; population and derived incidence are absent.
+
+Future district detail may show incidence, reported cases, ISO week, cluster,
+and observed/missing status. Period outlier detail may show the district period
+median, cumulative cases, and observed/expected weeks. Weekly cluster totals
+are optional context only because population and cluster size affect them.

@@ -17,7 +17,10 @@ validate_surveillance <- function(x) {
   contract <- "surveillance"
   .validate_surveillance_geography(x, contract)
   .require_columns(x, "cases", contract)
-  .check_numeric(x$cases, "cases", contract, non_negative = TRUE, whole = TRUE)
+  .check_numeric(
+    x$cases, "cases", contract, non_negative = TRUE, whole = TRUE,
+    allow_na = TRUE
+  )
   invisible(x)
 }
 

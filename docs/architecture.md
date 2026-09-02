@@ -355,3 +355,41 @@ period distribution first calculates one unweighted weekly-incidence median
 per district; district-week observations are never pooled. The main interface
 contains no inferential tests. `ggplot2` is an optional Shiny visualization
 dependency and core analytical use remains independent of it.
+
+## SurvStat additive count context
+
+The official count wrapper reuses the incidence adapter's SOAP transport,
+member resolution, one-year chunks, geography resolution and session-only
+principles. It exposes only `Anzahl.71s`, not arbitrary cube measures. Counts
+remain an additive surveillance contract and never enter incidence calculation.
+
+After resolution, the reviewed twelve Berlin source units are removed and the
+independent Bundesland Berlin count is appended, preserving the existing
+399-plus-one analytical geography. Their additive sum is diagnostic only.
+Incidence/count combination requires exact canonical ID/date keys, year/week,
+pathogen, reference definition, reporting path and cube data status. A cube
+status change between sequential requests fails explicitly rather than joining
+different source snapshots.
+
+The current Shiny server does not request counts. A future source bundle key
+includes pathogen, years and reviewed query semantics, so the existing default
+load has no count latency until count display is implemented.
+
+### Deferred observation windows and heatmaps
+
+A future Influenza observation window should default to KW40 through KW20 of
+the following year, with the reviewed RKI wave highlighted inside it; complete
+reporting years remain available when analytically necessary. COVID should use
+the neutral term observation window, provisionally KW20 through KW20 of the
+following year, never "official season". Reviewed activity waves are overlays,
+and recent data may remain visible without a completed official wave. Any later
+custom interval must be labelled user-defined rather than an RKI wave.
+
+The preferred primary weekly heatmap estimand is cluster median incidence minus
+the all-district median for the same week. Its diverging colours mean below or
+above the contemporaneous all-district level; differences remain stable when
+the national level is near zero, unlike ratios. Missing summaries remain
+missing. It supports k = 2--5 and suits dashboard and descriptive paper use.
+Secondary pairwise cluster-median differences suit detailed comparison; a
+district-by-week heatmap ordered by cluster is a drill-down, with missing cells
+explicit and counts available only as contextual hover information.

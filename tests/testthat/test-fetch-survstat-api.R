@@ -73,8 +73,39 @@ test_that("API request scope is strict", {
     "Disease", 2020, query_id = "q", reporting_path = "other"
   ), "reporting path")
   expect_error(regionalepi:::.survstat_olap_envelope(
-    "hierarchy", list(), measure = "Count"
+    "hierarchy", list(), measure = "Arbitrary"
   ), "unsupported API measure")
+})
+
+test_that("API cases select the reviewed additive count measure", {
+  response <- survstat_olap_response(
+    geography = "LK Alpha", weeks = c("2020-KW01", "2020-KW02"),
+    values = list("0", NA_character_)
+  )
+  transport <- survstat_api_transport(olap = response)
+  captured <- character()
+  recording <- function(operation, envelope) {
+    if (operation == "GetOlapData") captured <<- envelope
+    transport(operation, envelope)
+  }
+  result <- with_survstat_api_transport(recording,
+    fetch_survstat_cases("COVID-19", 2020, query_id = "cases"))
+  expect_identical(result$data$cases, c(0, NA_real_))
+  expect_identical(result$provenance$source_measure_id,
+    "[Measures].[FallCount_71_Web]")
+  expect_identical(result$provenance$source_measure_label, "Anzahl.71s")
+  expect_identical(result$provenance$value_semantics, "additive")
+  expect_match(captured, "<rki:Measures>Count</rki:Measures>", fixed = TRUE)
+})
+
+test_that("API cases reject malformed fractional and quality-marked counts", {
+  run <- function(value) with_survstat_api_transport(
+    survstat_api_transport(olap = survstat_olap_response(
+      geography = "LK Alpha", weeks = "2020-KW01", values = list(value))),
+    fetch_survstat_cases("COVID-19", 2020, query_id = "cases"))
+  expect_error(run("1.5"), "whole-valued")
+  expect_error(run("&lt;3"), "quality-marked")
+  expect_error(run("abc"), "malformed")
 })
 
 test_that("unknown exact pathogen and geography members fail", {
