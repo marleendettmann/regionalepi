@@ -11,6 +11,8 @@ A validated observation-window data frame.
 }
 \description{
 Influenza windows run inclusively from ISO week 40 through week 20 of the
-following year. COVID-19 windows run from week 20 through week 20 and are
-neutral regionalepi observation frames, not official RKI seasons or waves.
+following year. Ordinary COVID-19 windows run from week 20 through week 20.
+A neutral historical pandemic frame spans the complete reviewed dissertation
+period system from 2020 week 10 through 2022 week 21. These are regionalepi
+observation frames, not official RKI seasons or waves.
 }

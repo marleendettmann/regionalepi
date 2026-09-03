@@ -49,9 +49,20 @@
 
 .shiny_periods_in_window <- function(window) {
   resources <- .shiny_period_resources(window$pathogen)
-  periods <- do.call(rbind, lapply(resources, `[[`, "periods"))
+  periods <- do.call(rbind, Map(function(resource,system) {
+    x <- resource$periods; x$period_system <- system; x
+  },resources,names(resources)))
   periods[periods$start_date >= window$start_date &
             periods$end_date <= window$end_date, , drop = FALSE]
+}
+
+.shiny_period_choices_in_window <- function(window) {
+  periods <- .shiny_periods_in_window(window)
+  if (!nrow(periods)) return(list())
+  groups <- split(periods, factor(periods$period_system,
+    levels=names(.shiny_period_resources(window$pathogen))))
+  groups <- groups[vapply(groups,nrow,integer(1L))>0L]
+  lapply(groups,function(x)stats::setNames(x$period_id,x$label))
 }
 
 .shiny_period_choices <- function(pathogen) {
@@ -366,7 +377,7 @@
                                assignments$geo_id)
   )
   if (!is.null(state_geojson)) widget <- leaflet::addGeoJSON(widget, state_geojson,
-    options = leaflet::pathOptions(color = "#596674", weight = 1.32, opacity = .84,
+    options = leaflet::pathOptions(color = "#4F5B66", weight = 1.50, opacity = .88,
       fill = FALSE, interactive = FALSE), group = "Bundesl\u00e4nder")
   widget <- htmlwidgets::onRender(widget, "
     function(el, x, display) {
@@ -545,6 +556,26 @@
   start <- as.integer(format(period_row$start_date, "%Y"))
   end <- as.integer(format(period_row$end_date, "%Y"))
   seq.int(start, end)
+}
+
+.shiny_period_context <- function(pathogen, range, reviewed_period = NULL,
+                                  typology_mode = "dynamic",
+                                  demographic_years = NULL, k = NULL) {
+  title <- if (!is.null(reviewed_period) && nrow(reviewed_period))
+    paste(pathogen,reviewed_period$label,sep=" \u00b7 ") else
+    paste(pathogen,range$label,sep=" \u00b7 ")
+  start_iso <- .iso_week_label(range$start_date)
+  end_iso <- .iso_week_label(range$end_date)
+  same_year <- substr(start_iso,1L,4L)==substr(end_iso,1L,4L)
+  iso <- if(same_year) paste0(start_iso,"\u2013",sub("^[0-9]{4}-","",end_iso)) else
+    paste0(start_iso,"\u2013",end_iso)
+  subtitle <- paste0(format(range$start_date,"%d.%m.%Y"),"\u2013",
+    format(range$end_date,"%d.%m.%Y")," \u00b7 ",iso)
+  typology <- if(identical(typology_mode,"dissertation"))
+    "Typologie: Dissertation-Referenz (2017\u20132020)" else paste0(
+      "Typologie: Dynamisch \u00b7 Referenzzeitraum ",min(demographic_years),
+      "\u2013",max(demographic_years)," \u00b7 k=",as.integer(k))
+  list(title=title,subtitle=subtitle,typology=typology)
 }
 
 .shiny_dynamic_compatibility <- function(fit, surveillance_ids) {

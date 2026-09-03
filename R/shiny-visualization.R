@@ -402,3 +402,72 @@
   list(contingency=tab,source_proportions=prop.table(tab,1L),ari=unname(ari),
        center_distances=distances,transition=transition)
 }
+
+.shiny_typology_transition <- function(reference_fit, target_fit) {
+  if (anyDuplicated(reference_fit$assignments$geo_id) ||
+      anyDuplicated(target_fit$assignments$geo_id))
+    stop("Typology assignments must contain unique geo_id values.",call.=FALSE)
+  comparison <- .shiny_compare_partitions(reference_fit,target_fit)
+  table <- comparison$transition
+  names(table)[names(table)=="source_cluster"] <- "reference_cluster"
+  names(table)[names(table)=="target_cluster"] <- "target_cluster"
+  names(table)[names(table)=="source_fraction"] <- "reference_fraction"
+  names(table)[names(table)=="source_center_distance"] <-
+    "reference_center_distance"
+  reference_sizes <- table(reference_fit$assignments$display_cluster_id)
+  target_sizes <- table(target_fit$assignments$display_cluster_id)
+  table$reference_fit_id <- reference_fit$provenance$fit_id
+  table$target_fit_id <- target_fit$provenance$fit_id
+  table$reference_n <- as.integer(reference_sizes[table$reference_cluster])
+  table$target_n <- as.integer(target_sizes[table$target_cluster])
+  table$target_k <- length(target_sizes)
+  table <- table[c("reference_fit_id","reference_cluster","target_fit_id",
+    "target_cluster","n_shared","reference_n","target_n",
+    "reference_fraction","target_fraction","reference_center_distance",
+    "target_k")]
+  dominant <- stats::aggregate(n_shared~target_cluster,table,max)
+  list(data=table,ari=comparison$ari,
+    dominant_ancestry_districts=sum(dominant$n_shared),
+    target_sizes=target_sizes,reference_sizes=reference_sizes)
+}
+
+.shiny_stability_interpretation <- function(stability) {
+  comparison <- stability$comparisons
+  dominant <- function(k) {
+    x <- comparison[[as.character(k)]]$data
+    stats::aggregate(target_fraction ~ target_cluster, x, max)
+  }
+  k2 <- dominant(2L)
+  k4 <- dominant(4L)
+  k5 <- dominant(5L)
+  paste(
+    paste0("k=2 ist eine grobe Zweiteilung; die dominante k=3-Herkunft umfasst je Zielcluster ",
+      paste0(round(100*k2$target_fraction), "%", collapse = " und "), "."),
+    paste0("Bei k=4 liegen die dominanten Herkunftsanteile zwischen ",
+      round(100*min(k4$target_fraction)), "% und ",
+      round(100*max(k4$target_fraction)), "%; \u00dcberlappung bleibt das prim\u00e4re Kontinuit\u00e4tskriterium."),
+    paste0("k=5 zeigt Anteile zwischen ", round(100*min(k5$target_fraction)),
+      "% und ", round(100*max(k5$target_fraction)),
+      "% und ist daher als m\u00f6gliche Reorganisation, nicht als vorgegebene Hierarchie, zu lesen."),
+    sep = " "
+  )
+}
+
+.shiny_typology_stability <- function(fits) {
+  keys <- as.character(vapply(fits,function(fit)
+    length(unique(fit$assignments$display_cluster_id)),integer(1L)))
+  names(fits) <- keys
+  if (!all(c("2","3","4","5")%in%names(fits)))
+    stop("Typology stability requires fits for k = 2 through 5.",call.=FALSE)
+  comparisons <- lapply(c("2","4","5"),function(k)
+    .shiny_typology_transition(fits[["3"]],fits[[k]]))
+  names(comparisons)<-c("2","4","5")
+  summary <- do.call(rbind,lapply(names(comparisons),function(k){x<-comparisons[[k]]
+    data.frame(target_k=as.integer(k),ari=x$ari,
+      dominant_ancestry_districts=x$dominant_ancestry_districts,
+      target_cluster_sizes=paste(names(x$target_sizes),as.integer(x$target_sizes),
+        collapse="; "),stringsAsFactors=FALSE)}))
+  transitions <- do.call(rbind,lapply(comparisons,`[[`,"data"));rownames(transitions)<-NULL
+  list(reference_k=3L,summary=summary,transitions=transitions,
+       comparisons=comparisons)
+}

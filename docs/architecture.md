@@ -438,3 +438,12 @@ Changing pathogen or observation window invalidates only the currently
 displayed result before downstream widgets can combine the new date state with
 an older surveillance bundle. Session caches remain available for the next
 explicit analysis load.
+
+The reviewed historical pandemic observation frame is a neutral data and
+display context that makes all approved dissertation COVID periods selectable;
+it does not define a COVID season or alter any period boundary. Typology mode
+and epidemiological interval remain independent. Transition diagnostics compare
+actual canonical district memberships for dynamic k = 2, 4, and 5 against the
+k = 3 sensitivity reference. They support reproducibility and sensitivity
+analysis and may inform later supplementary material, but do not establish an
+optimal k, a hierarchy, or a substantive research result.

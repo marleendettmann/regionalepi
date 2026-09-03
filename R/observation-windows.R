@@ -65,8 +65,10 @@ validate_observation_windows <- function(x) {
 #' Reviewed regionalepi observation windows
 #'
 #' Influenza windows run inclusively from ISO week 40 through week 20 of the
-#' following year. COVID-19 windows run from week 20 through week 20 and are
-#' neutral regionalepi observation frames, not official RKI seasons or waves.
+#' following year. Ordinary COVID-19 windows run from week 20 through week 20.
+#' A neutral historical pandemic frame spans the complete reviewed dissertation
+#' period system from 2020 week 10 through 2022 week 21. These are regionalepi
+#' observation frames, not official RKI seasons or waves.
 #' @return A validated observation-window data frame.
 #' @export
 regionalepi_observation_windows <- function() {
@@ -90,6 +92,19 @@ regionalepi_observation_windows <- function() {
   }
   out <- rbind(
     make("Influenza, saisonal", 2017:2026, 40L, "influenza_season_window", "influenza"),
+    data.frame(
+      observation_window_id = "covid19_pandemic_2020_22",
+      pathogen = "COVID-19", label = "Pandemie-Beobachtungszeitraum 2020\u20132022",
+      start_date = .iso_week_monday(2020L, 10L),
+      end_date = .iso_week_monday(2022L, 21L) + 6L,
+      start_iso_year = 2020L, start_iso_week = 10L,
+      end_iso_year = 2022L, end_iso_week = 21L,
+      window_type = "covid_observation_window",
+      definition_version = "observation_windows_v1",
+      note = paste("neutral historical data/display frame covering the reviewed",
+        "dissertation pandemic periods; not an official RKI COVID-19 season or wave"),
+      stringsAsFactors = FALSE
+    ),
     make("COVID-19", 2020:2026, 20L, "covid_observation_window", "covid19")
   )
   validate_observation_windows(out)

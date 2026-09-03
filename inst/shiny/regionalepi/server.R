@@ -46,7 +46,7 @@ server <- function(input, output, session) {
   reviewed_periods <- reactive(selection()$periods)
   observe({
     window <- selected_window(); periods <- reviewed_periods()
-    choices <- if(nrow(periods)) stats::setNames(periods$period_id,periods$label) else character()
+    choices <- regionalepi:::.shiny_period_choices_in_window(window)
     modes <- c("Gesamter Beobachtungszeitraum"="window","Benutzerdefinierter Zeitraum"="custom")
     if(nrow(periods)) modes <- c("Gesamter Beobachtungszeitraum"="window","RKI-definierter/geprüfter Zeitraum"="reviewed","Benutzerdefinierter Zeitraum"="custom")
     selected_mode <- if(input$range_mode %in% unname(modes)) input$range_mode else "window"
@@ -62,6 +62,12 @@ server <- function(input, output, session) {
     x <- reviewed_periods(); if(!nrow(x)) return(NULL)
     x[x$period_id==input$reviewed_period_id,,drop=FALSE]
   })
+  observeEvent(input$reviewed_period_id,{
+    if(is.null(state$result)||!identical(input$range_mode,"reviewed"))return()
+    period<-reviewed_period();if(is.null(period)||!nrow(period))return()
+    required<-regionalepi:::.shiny_reference_years(period)
+    if(!all(required%in%state$result$reporting_years))state$result<-NULL
+  },ignoreInit=TRUE,priority=100)
   analysis_range <- reactive({
     custom <- if(!is.null(input$custom_range)) as.Date(input$custom_range) else NULL
     mode <- input$range_mode
@@ -91,7 +97,9 @@ server <- function(input, output, session) {
   observeEvent(input$load_analysis,{
     state$error<-NULL; state$technical_error<-NULL; state$busy<-TRUE; on.exit(state$busy<-FALSE,add=TRUE)
     tryCatch(withProgress(message="Analyse wird vorbereitet …",value=0,{
-      window <- selected_window(); years <- seq.int(window$start_iso_year,window$end_iso_year)
+      window <- selected_window();load_range<-analysis_range();years<-seq.int(
+        as.integer(format(load_range$start_date,"%Y")),
+        as.integer(format(load_range$end_date,"%Y")))
       mode <- input$typology_mode; period_label <- if(mode=="dissertation") "2017–2020" else input$demographic_period
       demographic_years <- regionalepi:::.shiny_demographic_periods()[[period_label]]
       dkey <- regionalepi:::.shiny_demographic_cache_key(period_label,input$demographic_source)
@@ -100,14 +108,29 @@ server <- function(input, output, session) {
       tkey <- regionalepi:::.shiny_typology_cache_key(demographic$summary,if(mode=="dissertation")3L else as.integer(input$k),mode)
       if(!exists(tkey,envir=cache,inherits=FALSE)) assign(tkey,regionalepi:::.shiny_fit_typology(demographic$summary,mode,if(mode=="dissertation")3L else as.integer(input$k)),envir=cache)
       fit <- get(tkey,envir=cache,inherits=FALSE)
+      reference_key <- "typology:dissertation_v1:historical_reference"
+      if(!exists(reference_key,envir=cache,inherits=FALSE)) assign(reference_key,
+        regionalepi:::.shiny_fit_typology(
+          regionalepi:::.shiny_fetch_snapshot_demography(2017:2020)$summary,
+          "dissertation",3L),envir=cache)
+      stability_fits <- lapply(2:5,function(stability_k) {
+        key <- regionalepi:::.shiny_typology_cache_key(
+          demographic$summary,stability_k,"dynamic")
+        if(!exists(key,envir=cache,inherits=FALSE)) assign(key,
+          regionalepi:::.shiny_fit_typology(demographic$summary,"dynamic",stability_k),
+          envir=cache)
+        get(key,envir=cache,inherits=FALSE)
+      })
+      stability <- regionalepi:::.shiny_typology_stability(stability_fits)
+      stability_policy <- regionalepi:::.shiny_dynamic_colour_policy(
+        stability_fits[[2L]],get(reference_key,envir=cache,inherits=FALSE),
+        stability_fits[[2L]])
+      stability_metadata <- regionalepi:::.shiny_cluster_display_metadata(
+        stability_fits[[2L]],"dynamic","profile_aligned",stability_policy,
+        regionalepi_map_geometry()$features$geo_id)
       palette_variant <- if(mode=="dynamic"&&as.integer(input$k)>=2L) "profile_aligned" else "neutral"
       palette_alignment <- NULL
       if(mode=="dynamic"&&as.integer(input$k)>=2L) {
-        reference_key <- "typology:dissertation_v1:historical_reference"
-        if(!exists(reference_key,envir=cache,inherits=FALSE)) assign(reference_key,
-          regionalepi:::.shiny_fit_typology(
-            regionalepi:::.shiny_fetch_snapshot_demography(2017:2020)$summary,
-            "dissertation",3L),envir=cache)
         anchor_key <- regionalepi:::.shiny_typology_cache_key(
           demographic$summary,3L,"dynamic")
         if(!exists(anchor_key,envir=cache,inherits=FALSE)) assign(anchor_key,
@@ -135,6 +158,8 @@ server <- function(input, output, session) {
         map_widget=get(mkey,envir=cache,inherits=FALSE),typology_mode=mode,typology_config=regionalepi:::.shiny_typology_config(mode),
         demographic_years=demographic_years,palette_variant=palette_variant,
         palette_alignment=palette_alignment,display_metadata=display_metadata,
+        stability=stability,stability_metadata=stability_metadata,
+        reporting_years=years,
         cache_keys=list(demographic=dkey,typology=tkey,surveillance=skey,map=mkey))
       if(is.null(state$selected_geo_id)||!state$selected_geo_id%in%map_join$data$geo_id) state$selected_geo_id<-"11000"
       state$selected_date <- analysis_range()$start_date; setProgress(1,detail="Darstellung ist bereit.")
@@ -155,12 +180,15 @@ server <- function(input, output, session) {
   output$map_attribution <- renderUI({p(class="app-note",cache$map$provenance$attribution," · Ländergrenzen: ",cache$states$provenance$source_layer," · ",a(cache$map$provenance$license,href=cache$map$provenance$license_url,target="_blank"))})
 
   output$analysis_heading <- renderUI({req(state$result);w<-state$result$window;if(state$result$typology_mode=="dissertation")context<-"Dissertation-Referenztypologie · 2017–2020 · ClD / ClJ / ClA" else context<-paste0("Referenzzeitraum ",format(min(state$result$demographic$summary$data$period_start),"%Y"),"–",format(max(state$result$demographic$summary$data$period_end),"%Y")," · ",length(unique(state$result$fit$assignments$display_cluster_id))," Cluster · ",nrow(state$result$map_join$data)," Kreise");tagList(h3("Demografische Regionaltypologie"),p(class="app-note",context),p(class="app-note","Epidemiologischer Beobachtungszeitraum: ",w$label))})
-  output$period_heading <- renderUI({req(state$result);r<-analysis_range();rp<-reviewed_period();tagList(h3(r$label),p(class="app-note",format(r$start_date,"%d.%m.%Y"),"–",format(r$end_date,"%d.%m.%Y")," · ",r$start_iso," bis ",r$end_iso),if(!is.null(rp)&&nrow(rp))p(class="app-note","Geprüfter Zeitraum im Beobachtungsfenster: ",rp$label," · ",format(rp$start_date,"%d.%m.%Y"),"–",format(rp$end_date,"%d.%m.%Y")," · ",regionalepi:::.iso_week_label(rp$start_date)," bis ",regionalepi:::.iso_week_label(rp$end_date)))})
+  output$period_heading <- renderUI({req(state$result);r<-analysis_range();rp<-reviewed_period();context<-regionalepi:::.shiny_period_context(input$pathogen,r,rp,state$result$typology_mode,state$result$demographic_years,length(unique(state$result$fit$assignments$display_cluster_id)));tagList(h3(context$title),p(class="app-note",context$subtitle),p(class="app-note",context$typology),p(class="app-note","Beobachtungskontext: ",state$result$window$label))})
   output$cluster_summary <- renderTable({req(state$result);x<-state$result$display_metadata;data.frame(Cluster=x$display_cluster_id,`Anzahl Kreise`=x$n_districts,`Demografisches Profil`=x$profile_description,check.names=FALSE)},striped=TRUE,rownames=FALSE)
 
   output$profile_plot <- plotly::renderPlotly({req(state$result);p<-display_data(state$result$fit$profiles,"display_cluster_id");d<-regionalepi:::.shiny_app_indicator_display();p$label<-d$label[match(p$indicator_id,d$indicator_id)];p$text<-sprintf("Cluster: %s<br>Indikator: %s<br>z: %.2f<br>Mittelwert: %.2f<br>Median: %.2f<br>Kreise: %d",p$display_cluster_id,p$label,p$standardized_center,p$original_mean,p$original_median,p$cluster_size);wide<-stats::xtabs(standardized_center~display_cluster_id+label,p);plotly::layout(plotly::plot_ly(x=colnames(wide),y=rownames(wide),z=wide,type="heatmap",zmid=0,colors=c("#2166AC","#F7F7F7","#B2182B"),text=matrix(p$text[match(paste(rep(rownames(wide),each=ncol(wide)),rep(colnames(wide),times=nrow(wide))),paste(p$display_cluster_id,p$label))],nrow=nrow(wide),byrow=TRUE),hoverinfo="text"),xaxis=list(title=""),yaxis=list(title="Cluster"))})
   output$profile_table <- renderTable({req(state$result);p<-display_data(state$result$fit$profiles,"display_cluster_id");p<-p[order(p$display_order),];d<-regionalepi:::.shiny_app_indicator_display();data.frame(Cluster=p$display_cluster_id,N=p$cluster_size,Indikator=d$label[match(p$indicator_id,d$indicator_id)],Einheit=d$unit[match(p$indicator_id,d$indicator_id)],Mittelwert=round(p$original_mean,2),Median=round(p$original_median,2),check.names=FALSE)},striped=TRUE,rownames=FALSE)
   output$cluster_warning <- renderUI({req(state$result);p(class="app-note",if(state$result$typology_mode=="dissertation")"Etablierte Dissertation-Bezeichnungen; keine dynamische Umbenennung."else"Beschreibungen sind reproduzierbare Profiltexte, keine Clusteridentitäten.")})
+  output$stability_summary <- renderTable({req(state$result);x<-state$result$stability$summary;data.frame(`k=3 Referenz`="k=3",Ziel=paste0("k=",x$target_k),`Ähnlichkeit der Partitionen (ARI)`=round(x$ari,3),`Dominante Herkunft (Kreise)`=x$dominant_ancestry_districts,`Größen der Zielcluster`=x$target_cluster_sizes,check.names=FALSE)},striped=TRUE,rownames=FALSE)
+  output$stability_plot <- plotly::renderPlotly({req(state$result);x<-state$result$stability$transitions;m<-state$result$stability_metadata;x$reference_cluster<-factor(x$reference_cluster,levels=m$display_cluster_id);x$target_label<-factor(paste0("k=",x$target_k," · ",x$target_cluster),levels=unique(paste0("k=",x$target_k," · ",x$target_cluster)));ari<-state$result$stability$summary$ari[match(x$target_k,state$result$stability$summary$target_k)];x$text<-sprintf("Referenzcluster: %s<br>Zielcluster: %s<br>Gemeinsame Kreise: %d<br>Anteil Referenzcluster: %.1f%%<br>Anteil Zielcluster: %.1f%%<br>ARI: %.3f",x$reference_cluster,x$target_cluster,x$n_shared,100*x$reference_fraction,100*x$target_fraction,ari);cols<-stats::setNames(m$display_colour,m$display_cluster_id);g<-ggplot2::ggplot(x,ggplot2::aes(target_label,target_fraction,fill=reference_cluster,text=text))+ggplot2::geom_col()+ggplot2::facet_grid(.~target_k,scales="free_x",space="free_x",labeller=ggplot2::label_both)+ggplot2::scale_fill_manual(values=cols)+ggplot2::scale_y_continuous(labels=function(v)paste0(round(100*v),"%"))+ggplot2::labs(x="Zielcluster",y="Zusammensetzung",fill="k=3 Referenz")+ggplot2::theme_minimal()+ggplot2::theme(legend.position="bottom");plotly::ggplotly(g,tooltip="text")})
+  output$stability_note <- renderUI({req(state$result);tagList(p(class="app-note","k=3 ist die Referenz für den Sensitivitätsvergleich, nicht ein optimales oder korrektes k. ARI 1 bedeutet identische Partitionen; niedrigere Werte zeigen stärkere Reorganisation."),p(class="app-note",regionalepi:::.shiny_stability_interpretation(state$result$stability)))})
 
   output$demographic_distribution_plot <- plotly::renderPlotly({req(state$result);x<-merge(state$result$demographic$summary$data,state$result$fit$assignments[c("geo_id","display_cluster_id")],by="geo_id");x<-display_data(x,"display_cluster_id");x$geo_name<-state$result$map_join$data$geo_name[match(x$geo_id,state$result$map_join$data$geo_id)];d<-regionalepi:::.shiny_app_indicator_display();x$indicator_label<-factor(d$label[match(x$indicator_id,d$indicator_id)],levels=d$label);x$unit<-d$unit[match(x$indicator_id,d$indicator_id)];x$text<-sprintf("%s<br>AGS: %s<br>Cluster: %s<br>%s: %.2f %s",x$geo_name,x$geo_id,x$display_cluster_id,x$indicator_label,x$indicator_value,x$unit);cols<-palette_colours(x$display_cluster_id);g<-ggplot2::ggplot(x,ggplot2::aes(display_cluster_id,indicator_value,fill=display_cluster_id,colour=display_cluster_id))+ggplot2::geom_violin(alpha=.2,trim=FALSE)+ggplot2::geom_boxplot(width=.15,outlier.shape=NA,alpha=.65)+suppressWarnings(ggplot2::geom_jitter(ggplot2::aes(key=geo_id,text=text),width=.09,alpha=.45,size=1))+ggplot2::facet_wrap(~indicator_label,scales="free_y",ncol=1)+ggplot2::scale_colour_manual(values=cols)+ggplot2::scale_fill_manual(values=cols)+ggplot2::labs(x="Cluster",y=NULL)+ggplot2::theme_minimal()+ggplot2::theme(legend.position="none",panel.spacing.y=grid::unit(1.25,"lines"),strip.text=ggplot2::element_text(face="bold",size=11));sel<-x[x$geo_id==state$selected_geo_id,,drop=FALSE];if(nrow(sel))g<-g+ggplot2::geom_point(data=sel,shape=21,fill="#FFFFFF",colour="#111111",size=3,stroke=1.1);plotly::ggplotly(g,tooltip="text",source="demography")})
 

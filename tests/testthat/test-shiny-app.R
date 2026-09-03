@@ -16,6 +16,46 @@ test_that("Shiny PoC defaults and reviewed period choices are stable", {
   expect_identical(length(covid[[2L]]), 2L)
 })
 
+test_that("historical pandemic frame exposes all reviewed dissertation periods", {
+  window <- regionalepi:::.shiny_selected_window(
+    "COVID-19", "covid19_pandemic_2020_22")
+  periods <- regionalepi:::.shiny_periods_in_window(window)
+  dissertation <- periods[periods$period_system ==
+    "Dissertation / RKI-Pandemieperioden", ]
+  expect_identical(nrow(dissertation), 7L)
+  expect_identical(dissertation$period_id, paste0("covid_wave_", c(
+    "1", "2", "3", "4a", "4b", "5a", "5b")))
+  expect_true(all(dissertation$start_date >= window$start_date))
+  expect_true(all(dissertation$end_date <= window$end_date))
+  choices <- regionalepi:::.shiny_period_choices_in_window(window)
+  expect_identical(names(choices), c(
+    "Dissertation / RKI-Pandemieperioden", "RKI-geprüfte Aktivitätswellen")[1L])
+  expect_identical(length(choices[[1L]]), 7L)
+  for (mode in c("dissertation", "dynamic")) {
+    expect_identical(regionalepi:::.shiny_periods_in_window(window)$period_id,
+      periods$period_id)
+  }
+})
+
+test_that("period context is metadata driven and makes typology explicit", {
+  window <- regionalepi:::.shiny_selected_window(
+    "COVID-19", "covid19_pandemic_2020_22")
+  period <- regionalepi:::.shiny_periods_in_window(window)
+  period <- period[period$period_id == "covid_wave_3", ]
+  range <- regionalepi:::.shiny_select_analysis_range(window, "reviewed", period)
+  dynamic <- regionalepi:::.shiny_period_context(
+    "COVID-19", range, period, "dynamic", 2017:2020, 4L)
+  expect_identical(dynamic$title, "COVID-19 · 3. Welle / Alpha")
+  expect_identical(dynamic$subtitle,
+    "01.03.2021–13.06.2021 · 2021-KW09–KW23")
+  expect_identical(dynamic$typology,
+    "Typologie: Dynamisch · Referenzzeitraum 2017–2020 · k=4")
+  reference <- regionalepi:::.shiny_period_context(
+    "COVID-19", range, period, "dissertation", 2017:2020, 3L)
+  expect_identical(reference$typology,
+    "Typologie: Dissertation-Referenz (2017–2020)")
+})
+
 test_that("Shiny cache keys respect reactive source boundaries", {
   demographic <- regionalepi:::.shiny_demographic_cache_key("2022–2024")
   expect_identical(demographic, "demography:snapshot:2022-2023-2024")
@@ -248,6 +288,49 @@ test_that("partition comparison reports ARI overlap and center distances", {
   expect_named(three_four$transition,c("source_k","source_cluster","target_k",
     "target_cluster","n_shared","source_fraction","target_fraction",
     "source_center_distance"))
+})
+
+test_that("typology stability contract uses membership and conserves fractions", {
+  summary <- regionalepi:::.shiny_fetch_snapshot_demography(2022:2024)$summary
+  fits <- lapply(2:5,function(k)
+    regionalepi:::.shiny_fit_typology(summary,"dynamic",k))
+  stability <- regionalepi:::.shiny_typology_stability(fits)
+  expect_identical(stability$reference_k,3L)
+  expect_identical(stability$summary$target_k,c(2L,4L,5L))
+  expect_equal(stability$summary$ari,
+    c(0.3879296,0.9391039,0.4334176),tolerance=1e-7)
+  required <- c("reference_fit_id","reference_cluster","target_fit_id",
+    "target_cluster","n_shared","reference_n","target_n",
+    "reference_fraction","target_fraction","reference_center_distance",
+    "target_k")
+  expect_named(stability$transitions,required)
+  for (target_k in c(2L,4L,5L)) {
+    x <- stability$transitions[stability$transitions$target_k==target_k,]
+    expect_equal(tapply(x$n_shared,x$reference_cluster,sum),
+      tapply(x$reference_n,x$reference_cluster,unique))
+    expect_equal(as.vector(tapply(x$reference_fraction,x$reference_cluster,sum)),
+      rep(1,3))
+    expect_equal(as.vector(tapply(x$target_fraction,x$target_cluster,sum)),
+      rep(1,target_k))
+  }
+  expect_match(regionalepi:::.shiny_stability_interpretation(stability),
+    "grobe Zweiteilung",fixed=TRUE)
+  broken <- fits[[2L]]
+  broken$assignments <- rbind(broken$assignments,broken$assignments[1L,])
+  expect_error(regionalepi:::.shiny_typology_transition(broken,fits[[1L]]),
+    "unique geo_id")
+})
+
+test_that("stability and pairwise sections use reviewed visual hierarchy", {
+  ui_text <- paste(readLines(file.path(regionalepi:::.shiny_app_dir(), "ui.R"),
+    warn=FALSE),collapse="\n")
+  expect_match(ui_text,"Stabilität und Aufspaltung der Typologie",fixed=TRUE)
+  expect_match(ui_text,"Erweiterte paarweise Vergleiche",fixed=TRUE)
+  expect_match(ui_text,"A − B zeigt die Differenz",fixed=TRUE)
+  body <- paste(deparse(body(regionalepi:::.shiny_app_leaflet_geojson)),collapse="\n")
+  expect_match(body,'color = "#4F5B66"',fixed=TRUE)
+  expect_match(body,"weight = 1.5",fixed=TRUE)
+  expect_match(body,"opacity = 0.88",fixed=TRUE)
 })
 
 test_that("canonical pair keys respect display order and remain unique for k2 to k5", {
