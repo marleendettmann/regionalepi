@@ -325,7 +325,7 @@ test_that("stability and pairwise sections use reviewed visual hierarchy", {
   ui_text <- paste(readLines(file.path(regionalepi:::.shiny_app_dir(), "ui.R"),
     warn=FALSE),collapse="\n")
   expect_match(ui_text,"Stabilität und Aufspaltung der Typologie",fixed=TRUE)
-  expect_match(ui_text,"Erweiterte paarweise Vergleiche",fixed=TRUE)
+  expect_match(ui_text,'tabPanel("Paarweise Vergleiche"',fixed=TRUE)
   expect_match(ui_text,"A − B zeigt die Differenz",fixed=TRUE)
   body <- paste(deparse(body(regionalepi:::.shiny_app_leaflet_geojson)),collapse="\n")
   expect_match(body,'color = "#4F5B66"',fixed=TRUE)
@@ -368,6 +368,41 @@ test_that("canonical pair keys respect display order and remain unique for k2 to
     hoverinfo="text",connectgaps=FALSE))
   expect_identical(length(widget$x$data[[1L]]$y),3L)
   expect_identical(dim(widget$x$data[[1L]]$z),c(3L,4L))
+})
+
+test_that("advanced pairwise UI and server retain a live Plotly output contract", {
+  skip_if_not_installed("plotly")
+  app <- regionalepi:::.shiny_app_dir()
+  ui_text <- paste(readLines(file.path(app,"ui.R"),warn=FALSE),collapse="\n")
+  server_text <- paste(readLines(file.path(app,"server.R"),warn=FALSE),collapse="\n")
+  expect_match(ui_text,'tabsetPanel(id="weekly_comparison_view"',fixed=TRUE)
+  expect_match(ui_text,'tabPanel("Relative Aktivität"',fixed=TRUE)
+  expect_match(ui_text,'tabPanel("Paarweise Vergleiche"',fixed=TRUE)
+  expect_false(grepl('tags$summary("Erweiterte paarweise Vergleiche")',
+    ui_text,fixed=TRUE))
+  expect_match(ui_text,'plotly::plotlyOutput("pairwise_heatmap"',fixed=TRUE)
+  expect_match(ui_text,"A − B zeigt die Differenz",fixed=TRUE)
+  expect_match(server_text,"output$pairwise_heatmap <- plotly::renderPlotly",fixed=TRUE)
+  expect_match(server_text,"length(metadata$display_cluster_id)>=2L",fixed=TRUE)
+  expect_false(grepl('outputOptions(output,"pairwise_heatmap"',server_text,
+    fixed=TRUE))
+
+  dates <- as.Date("2020-09-28") + 7L * 0:21
+  for (k in 2:5) {
+    ids <- if (k == 3L) c("ClD","ClJ","ClA") else sprintf("C%02d",seq_len(k))
+    weekly <- expand.grid(date=dates,cluster_id=ids,KEEP.OUT.ATTRS=FALSE,
+      stringsAsFactors=FALSE)
+    weekly$median_incidence <- seq_len(nrow(weekly))/10
+    pairwise <- regionalepi:::.shiny_pairwise_differences(weekly,ids)
+    metadata <- data.frame(display_cluster_id=ids,stringsAsFactors=FALSE)
+    widget <- regionalepi:::.shiny_pairwise_heatmap_widget(pairwise,metadata)
+    built <- plotly::plotly_build(widget)
+    expect_s3_class(widget,"plotly")
+    expect_identical(nrow(pairwise),as.integer(22L*choose(k,2L)))
+    expect_identical(anyDuplicated(paste(pairwise$date,pairwise$pair_key)),0L)
+    expect_identical(dim(built$x$data[[1L]]$z),c(as.integer(choose(k,2L)),22L))
+    expect_equal(pairwise$difference,pairwise$median_a-pairwise$median_b)
+  }
 })
 
 test_that("final weekly widget hides every IQR legend trace", {

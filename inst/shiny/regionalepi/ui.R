@@ -44,8 +44,10 @@ ui <- fluidPage(
         tabsetPanel(id="epidemiology_view",
           tabPanel("Zeitverlauf",plotly::plotlyOutput("incidence_plot",height="440px"),p(class="app-note","Ansicht eingrenzen: Im unteren Zeitbalken kann der sichtbare Ausschnitt verschoben oder vergrößert werden. Dies verändert nur die Darstellung, nicht den gewählten Analysezeitraum."),uiOutput("incidence_warning")),
           tabPanel("Verteilung der Kreise",plotly::plotlyOutput("period_distribution_plot",height="440px")),
-          tabPanel("Wöchentliche Clusterunterschiede",h4("Relative Aktivität gegenüber allen Kreisen"),plotly::plotlyOutput("relative_heatmap",height="330px"),
-            tags$details(tags$summary("Erweiterte paarweise Vergleiche"),p(class="app-note","A − B zeigt die Differenz der wöchentlichen medianen Kreisinzidenz zwischen beiden Clustern. Positive Werte bedeuten höhere Werte in A, negative Werte höhere Werte in B."),plotly::plotlyOutput("pairwise_heatmap",height="420px"))),
+          tabPanel("Wöchentliche Clusterunterschiede",
+            tabsetPanel(id="weekly_comparison_view",
+              tabPanel("Relative Aktivität",h4("Relative Aktivität gegenüber allen Kreisen"),plotly::plotlyOutput("relative_heatmap",height="330px")),
+              tabPanel("Paarweise Vergleiche",p(class="app-note","A − B zeigt die Differenz der wöchentlichen medianen Kreisinzidenz zwischen beiden Clustern. Positive Werte bedeuten höhere Werte in A, negative Werte höhere Werte in B."),plotly::plotlyOutput("pairwise_heatmap",height="420px")))),
           tabPanel("Kreis × Woche",p(class="app-note","Rohinzidenz; fehlende Werte sind grau und nicht null."),plotly::plotlyOutput("district_heatmap",height="760px")))),
       tabPanel("Methodik & Daten", value="methods",div(class="panel-card",uiOutput("provenance")))
     )))

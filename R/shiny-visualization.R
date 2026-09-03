@@ -171,6 +171,31 @@
        custom = custom_matrix)
 }
 
+.shiny_pairwise_heatmap_widget <- function(pairwise, display_metadata) {
+  ids <- display_metadata$display_cluster_id
+  pair_order <- apply(utils::combn(ids, 2L), 2L, paste, collapse = "\r")
+  pairwise$pair_key <- factor(pairwise$pair_key, levels = pair_order,
+                              ordered = TRUE)
+  pairwise <- pairwise[order(pairwise$pair_key, pairwise$date), ]
+  pairwise$hover <- sprintf(
+    "%s<br>%s<br>Median A: %.2f<br>Median B: %.2f<br>Differenz: %.2f",
+    pairwise$pair_label, .iso_week_label(pairwise$date), pairwise$median_a,
+    pairwise$median_b, pairwise$difference)
+  grid <- .shiny_heatmap_grid(
+    pairwise, "pair_key", "date", "difference", "hover")
+  labels <- unique(pairwise[c("pair_key", "pair_label")])
+  plotly::plot_ly(
+    x = grid$columns,
+    y = labels$pair_label[match(grid$rows, as.character(labels$pair_key))],
+    z = grid$z, type = "heatmap", zmid = 0,
+    colors = c("#2166AC", "#F7F7F7", "#B2182B"), text = grid$text,
+    hoverinfo = "text", source = "pairwise", connectgaps = FALSE
+  ) |>
+    plotly::layout(
+      xaxis = list(title = "", rangeslider = list(visible = TRUE)),
+      yaxis = list(title = ""))
+}
+
 .shiny_district_heatmap_layout <- function(data, selected_geo_id = NULL) {
   cluster_order <- if (is.factor(data$cluster_id)) levels(data$cluster_id) else
     sort(unique(data$cluster_id))
