@@ -74,7 +74,41 @@
   data
 }
 
-.shiny_exploration_summaries <- function(bundle, fit, range) {
+.shiny_pairwise_differences <- function(weekly, cluster_order) {
+  cluster_order <- as.character(cluster_order)
+  if (length(cluster_order) < 2L || anyDuplicated(cluster_order))
+    stop("Pairwise comparisons require a unique cluster display order.",call.=FALSE)
+  cell_key <- paste(weekly$date, as.character(weekly$cluster_id), sep="\r")
+  if (anyDuplicated(cell_key))
+    stop("Weekly cluster summaries must be unique by date and cluster.",call.=FALSE)
+  groups <- split(seq_len(nrow(weekly)), weekly$date)
+  rows <- lapply(groups,function(i) {
+    x <- weekly[i,,drop=FALSE]
+    if (!setequal(as.character(x$cluster_id),cluster_order))
+      stop("Weekly cluster summaries do not contain every displayed cluster.",call.=FALSE)
+    x <- x[match(cluster_order,as.character(x$cluster_id)),,drop=FALSE]
+    pairs <- utils::combn(seq_along(cluster_order),2L)
+    do.call(rbind,lapply(seq_len(ncol(pairs)),function(j) {
+      a <- x[pairs[1L,j],,drop=FALSE]; b <- x[pairs[2L,j],,drop=FALSE]
+      data.frame(date=a$date,cluster_a=as.character(a$cluster_id),
+        cluster_b=as.character(b$cluster_id),
+        pair_key=paste(a$cluster_id,b$cluster_id,sep="\r"),
+        pair_label=paste(a$cluster_id,"\u2212",b$cluster_id),
+        median_a=a$median_incidence,median_b=b$median_incidence,
+        difference=a$median_incidence-b$median_incidence,
+        stringsAsFactors=FALSE)
+    }))
+  })
+  result <- do.call(rbind,rows); rownames(result)<-NULL
+  key <- paste(result$date,result$pair_key,sep="\r")
+  expected <- length(groups)*choose(length(cluster_order),2L)
+  if(anyDuplicated(key)||nrow(result)!=expected)
+    stop("Pairwise date and canonical pair keys must be unique and complete.",call.=FALSE)
+  result
+}
+
+.shiny_exploration_summaries <- function(bundle, fit, range,
+                                         display_metadata = NULL) {
   data <- .shiny_attach_typology_range(bundle, fit, range)
   if (!nrow(data)) stop(
     "F\u00fcr den gew\u00e4hlten Zeitraum liegen keine darstellbaren Beobachtungen vor.",
@@ -109,17 +143,13 @@
       missing_week_count = sum(is.na(incidence)), observed_case_week_count = sum(!is.na(cases)),
       missing_case_week_count = sum(is.na(cases)), stringsAsFactors = FALSE)
   }))
-  pair_rows <- lapply(split(weekly, weekly$date), function(x) {
-    pairs <- utils::combn(sort(x$cluster_id), 2L)
-    do.call(rbind, lapply(seq_len(ncol(pairs)), function(j) {
-      a <- x[x$cluster_id == pairs[1L, j], ]; b <- x[x$cluster_id == pairs[2L, j], ]
-      data.frame(date = a$date, cluster_a = a$cluster_id, cluster_b = b$cluster_id,
-        comparison = paste(a$cluster_id, "\u2212", b$cluster_id), median_a = a$median_incidence,
-        median_b = b$median_incidence, difference = a$median_incidence - b$median_incidence)
-    }))
-  })
+  cluster_order <- if (is.null(display_metadata)) {
+    if (identical(fit$mode,"dissertation")) c("ClD","ClJ","ClA") else
+      sort(unique(weekly$cluster_id))
+  } else display_metadata$display_cluster_id
+  pairwise <- .shiny_pairwise_differences(weekly,cluster_order)
   list(data = data, weekly = weekly, district_period = districts,
-       pairwise = do.call(rbind, pair_rows), expected_dates = expected_dates)
+       pairwise = pairwise, expected_dates = expected_dates)
 }
 
 .shiny_heatmap_grid <- function(data, row, column, value, text = NULL,

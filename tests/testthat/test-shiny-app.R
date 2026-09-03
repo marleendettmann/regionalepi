@@ -250,6 +250,43 @@ test_that("partition comparison reports ARI overlap and center distances", {
     "source_center_distance"))
 })
 
+test_that("canonical pair keys respect display order and remain unique for k2 to k5", {
+  dates <- as.Date("2020-09-28") + 7*0:3
+  for (k in 2:5) {
+    ids <- sprintf("C%02d",seq_len(k))
+    weekly <- expand.grid(date=dates,cluster_id=ids,KEEP.OUT.ATTRS=FALSE,
+      stringsAsFactors=FALSE)
+    weekly$median_incidence <- seq_len(nrow(weekly))
+    pairs <- regionalepi:::.shiny_pairwise_differences(weekly,ids)
+    expect_equal(nrow(pairs),length(dates)*choose(k,2L))
+    expect_identical(anyDuplicated(paste(pairs$date,pairs$pair_key)),0L)
+    expect_true(all(table(pairs$date)==choose(k,2L)))
+    expect_equal(pairs$difference,pairs$median_a-pairs$median_b)
+  }
+
+  ids <- c("ClD","ClJ","ClA")
+  weekly <- expand.grid(date=dates,cluster_id=rev(ids),KEEP.OUT.ATTRS=FALSE,
+    stringsAsFactors=FALSE)
+  weekly$median_incidence <- match(weekly$cluster_id,ids)*10+
+    match(weekly$date,dates)
+  pairs <- regionalepi:::.shiny_pairwise_differences(weekly,ids)
+  expect_identical(unique(pairs$pair_label),
+    c("ClD \u2212 ClJ","ClD \u2212 ClA","ClJ \u2212 ClA"))
+  expect_identical(unique(pairs$pair_key),
+    c("ClD\rClJ","ClD\rClA","ClJ\rClA"))
+  expect_identical(nrow(pairs),12L)
+  expect_identical(anyDuplicated(paste(pairs$date,pairs$pair_key)),0L)
+  expect_true(all(pairs$difference==pairs$median_a-pairs$median_b))
+  grid <- regionalepi:::.shiny_heatmap_grid(
+    pairs,"pair_key","date","difference","pair_label")
+  widget <- plotly::plotly_build(plotly::plot_ly(x=grid$columns,
+    y=unique(pairs$pair_label),z=grid$z,type="heatmap",zmid=0,
+    colors=c("#2166AC","#F7F7F7","#B2182B"),text=grid$text,
+    hoverinfo="text",connectgaps=FALSE))
+  expect_identical(length(widget$x$data[[1L]]$y),3L)
+  expect_identical(dim(widget$x$data[[1L]]$z),c(3L,4L))
+})
+
 test_that("final weekly widget hides every IQR legend trace", {
   skip_if_not_installed("plotly");skip_if_not_installed("ggplot2")
   x<-data.frame(date=rep(as.Date("2025-01-06")+0:2,3),

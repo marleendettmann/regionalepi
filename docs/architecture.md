@@ -394,6 +394,11 @@ missing. It supports k = 2--5 and suits dashboard and descriptive paper use.
 Secondary pairwise cluster-median differences suit detailed comparison; a
 district-by-week heatmap ordered by cluster is a drill-down, with missing cells
 explicit and counts available only as contextual hover information.
+Pairwise comparisons use one canonical unordered pair key per authoritative
+display-order combination and a separate concise display label. Each complete
+week contains exactly `choose(k, 2)` unique pair keys. A displayed `A - B` cell
+always means the weekly median incidence in A minus that in B; cluster labels
+are never alphabetically reordered downstream.
 
 Pathogen and observation-window inputs are reconciled as one validated Shiny
 selection state. A pathogen change cannot expose the preceding pathogen's

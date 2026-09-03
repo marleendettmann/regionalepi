@@ -313,6 +313,11 @@ missing, and zero counts plus minimum-group-size status. Zero remains zero;
 `NA` is omitted only explicitly and an all-missing group has an `NA` median.
 No pooled or population-weighted cluster incidence is calculated.
 
+Internal pairwise Shiny summaries separate `pair_key` from `pair_label`.
+`pair_key` is the stable combination of two cluster IDs in authoritative
+display order; `pair_label` is the concise `A - B` axis text. There is exactly
+one row per date and pair key, and `difference` is `median_a - median_b`.
+
 ## Shiny orchestration boundaries
 
 The Shiny PoC introduces no analytical data contract. Its internal cache keys
