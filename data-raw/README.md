@@ -49,3 +49,8 @@ credentials are never written.
 Only `data/regionalepi_demographic_snapshot_v1.rda` is installed. A refresh is
 a reviewed development/release build of a new immutable version; Shiny live
 retrieval never updates this resource.
+
+`build-state-boundaries-2024.R` selects exactly 16 `GF = 9` features from the
+official local VG2500 `vg2500_lan` layer, transforms EPSG:25832 to EPSG:4326
+without simplification, and writes a display-only resource. The ignored source
+GeoPackage is never copied into the package.

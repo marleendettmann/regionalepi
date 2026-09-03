@@ -27,6 +27,7 @@ Suggests:
     ggplot2,
     htmlwidgets,
     leaflet,
+    plotly,
     RSQLite,
     sf,
     shiny,

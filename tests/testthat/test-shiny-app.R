@@ -72,6 +72,214 @@ test_that("typology modes retain distinct identities and palettes", {
     "typology:dissertation_v1:historical_reference")
 })
 
+test_that("profile-aligned k3 colours depend on profiles rather than C IDs", {
+  ids <- c("population_density", "mean_age", "youth_dependency_ratio")
+  reference <- data.frame(display_cluster_id=rep(c("ClD","ClJ","ClA"),each=3),
+    indicator_id=rep(ids,3),standardized_center=c(2,0,-1,-1,-1,2,0,2,-1))
+  dynamic <- data.frame(display_cluster_id=rep(c("C01","C02","C03"),each=3),
+    indicator_id=rep(ids,3),standardized_center=c(0,2,-1,2,0,-1,-1,-1,2))
+  alignment <- regionalepi:::.shiny_profile_palette_alignment(dynamic,reference)
+  expect_identical(alignment$mapping,c(C01="ClA",C02="ClD",C03="ClJ"))
+  expect_false(alignment$ambiguous)
+  expect_gt(alignment$margin,0)
+  expect_identical(regionalepi:::.shiny_app_cluster_colours(
+    c("C01","C02","C03"),"dynamic","profile_aligned",alignment),
+    c(C01="#274f66",C02="#bc5e21",C03="#748c61"))
+  ambiguous <- dynamic; ambiguous$standardized_center <- 0
+  expect_error(regionalepi:::.shiny_profile_palette_alignment(ambiguous,reference),
+    "ambiguous")
+})
+
+test_that("current dynamic colours follow profile continuity for k3 to k5", {
+  summary <- regionalepi:::.shiny_fetch_snapshot_demography(2022:2024)$summary
+  reference <- regionalepi:::.shiny_fit_typology(
+    regionalepi:::.shiny_fetch_snapshot_demography(2017:2020)$summary,
+    "dissertation",3L)
+  anchor <- regionalepi:::.shiny_fit_typology(summary,"dynamic",3L)
+  expected <- list(
+    `3`=c(C01="#274f66",C02="#748c61",C03="#bc5e21"),
+    `4`=c(C01="#274f66",C02="#748c61",C03="#7B61A8",C04="#bc5e21"),
+    `5`=c(C01="#7B61A8",C02="#274f66",C03="#748c61",
+          C04="#A94F74",C05="#bc5e21"))
+  for(k in 3:5) {
+    fit <- regionalepi:::.shiny_fit_typology(summary,"dynamic",k)
+    policy <- regionalepi:::.shiny_dynamic_colour_policy(fit,reference,anchor)
+    expect_identical(policy$colours,expected[[as.character(k)]])
+    expect_identical(length(unique(policy$colours)),k)
+  }
+})
+
+test_that("k2 assigns a dense anchor and an explicit mixed-profile colour", {
+  summary <- regionalepi:::.shiny_fetch_snapshot_demography(2022:2024)$summary
+  historical <- regionalepi:::.shiny_fetch_snapshot_demography(2017:2020)$summary
+  reference <- regionalepi:::.shiny_fit_typology(historical,"dissertation",3L)
+  anchor <- regionalepi:::.shiny_fit_typology(summary,"dynamic",3L)
+  fit <- regionalepi:::.shiny_fit_typology(summary,"dynamic",2L)
+  policy <- regionalepi:::.shiny_dynamic_colour_policy(fit,reference,anchor)
+  expect_identical(policy$continuation,c(C03="C02"))
+  expect_identical(policy$colours,c(C01="#7B61A8",C02="#bc5e21"))
+  expect_gt(policy$target_anchor_fraction["C03","C02"],.97)
+  expect_lt(policy$center_distances["C03","C02"],.06)
+  expect_lt(max(policy$target_anchor_fraction[,"C01"]),.8)
+  metadata <- regionalepi:::.shiny_cluster_display_metadata(
+    fit,"dynamic","profile_aligned",policy,
+    regionalepi_map_geometry()$features$geo_id)
+  expect_identical(metadata$profile_anchor,c(NA_character_,"dense"))
+  expect_identical(metadata$display_colour,c("#7B61A8","#bc5e21"))
+  expect_identical(length(unique(metadata$display_colour)),2L)
+})
+
+test_that("custom ranges handle exact boundaries one week and empty subsets", {
+  window <- regionalepi:::.shiny_selected_window("COVID-19","covid19_2020_21")
+  exact <- regionalepi:::.shiny_select_analysis_range(window,"custom",
+    custom_dates=as.Date(c("2020-05-11","2021-05-23")))
+  expect_identical(exact$start_date,window$start_date)
+  expect_identical(exact$end_date,window$end_date)
+  expect_identical(length(seq(exact$start_date,exact$end_date,by="week")),54L)
+  one_week <- regionalepi:::.shiny_select_analysis_range(window,"custom",
+    custom_dates=as.Date(c("2020-05-11","2020-05-11")))
+  expect_identical(one_week$start_date,one_week$end_date)
+  expect_error(regionalepi:::.shiny_select_analysis_range(window,"custom",
+    custom_dates=as.Date(c("2020-05-04","2020-05-11"))),"au\u00dferhalb")
+
+  fit <- list(assignments=data.frame(geo_id=c("00001","00002"),
+    display_cluster_id=c("C01","C02")),provenance=list(fit_id="fit"),
+    indicator_set=list(definition_version="v1"))
+  observations <- data.frame(geo_id=rep(c("00001","00002"),2),
+    geo_name=rep(c("A","B"),2),date=rep(as.Date(c("2020-05-11","2020-05-18")),each=2),
+    reporting_year=2020L,reporting_week=rep(c(20L,21L),each=2),
+    incidence=c(0,NA,2,3),cases=c(0,NA,2,3),stringsAsFactors=FALSE)
+  bundle <- list(data=observations)
+  attached <- regionalepi:::.shiny_attach_typology_range(bundle,fit,one_week)
+  expect_identical(nrow(attached),2L)
+  expect_identical(attached$incidence,c(0,NA_real_))
+  expect_no_error(regionalepi:::.shiny_exploration_summaries(bundle,fit,one_week))
+  empty_range <- list(start_date=as.Date("2020-06-01"),end_date=as.Date("2020-06-08"))
+  empty <- regionalepi:::.shiny_attach_typology_range(bundle,fit,empty_range)
+  expect_identical(nrow(empty),0L)
+  expect_true(all(c("cluster_id","typology_id","typology_definition_version")%in%names(empty)))
+  expect_error(regionalepi:::.shiny_exploration_summaries(bundle,fit,empty_range),
+    "keine darstellbaren Beobachtungen")
+})
+
+test_that("one display metadata contract fixes identity order labels and colours", {
+  current <- regionalepi:::.shiny_fetch_snapshot_demography(2022:2024)$summary
+  historical <- regionalepi:::.shiny_fetch_snapshot_demography(2017:2020)$summary
+  reference <- regionalepi:::.shiny_fit_typology(historical, "dissertation", 3L)
+  map_ids <- regionalepi_map_geometry()$features$geo_id
+  reference_metadata <- regionalepi:::.shiny_cluster_display_metadata(
+    reference, "dissertation", display_geo_ids = map_ids)
+  expect_identical(reference_metadata$display_cluster_id, c("ClD", "ClJ", "ClA"))
+  expect_identical(reference_metadata$display_colour,
+    c("#bc5e21", "#748c61", "#274f66"))
+  expect_identical(reference_metadata$display_label, c(
+    "ClD \u00b7 dichte Regionen", "ClJ \u00b7 familiengepr\u00e4gte Regionen",
+    "ClA \u00b7 \u00e4ltere, l\u00e4ndliche Regionen"))
+  expect_identical(sum(reference_metadata$n_districts), 400L)
+  map <- regionalepi_map_geometry()
+  joined <- regionalepi:::.shiny_map_assignments(map, reference)$data
+  widget <- regionalepi:::.shiny_app_leaflet_geojson(
+    map$browser_geojson, regionalepi:::.shiny_app_map_bounds(map), joined,
+    "dissertation", regionalepi_state_boundaries()$browser_geojson,
+    display_metadata = reference_metadata)
+  map_display <- widget$jsHooks$render[[1L]]$data
+  representatives <- c(ClD="01001",ClJ="01003",ClA="01004")
+  expect_identical(unlist(map_display$clusters[representatives],use.names=FALSE),
+    names(representatives))
+  expect_identical(unlist(map_display$colours[names(representatives)],use.names=FALSE),
+    c("#bc5e21", "#748c61", "#274f66"))
+
+  for (years_summary in list(current, historical)) {
+    anchor <- regionalepi:::.shiny_fit_typology(years_summary, "dynamic", 3L)
+    policy <- regionalepi:::.shiny_dynamic_colour_policy(anchor, reference, anchor)
+    metadata <- regionalepi:::.shiny_cluster_display_metadata(
+      anchor, "dynamic", "profile_aligned", policy, map_ids)
+    expect_identical(metadata$display_cluster_id, c("C01", "C02", "C03"))
+    expect_identical(metadata$profile_anchor,
+      c("older_low_density", "family_youth", "dense"))
+    expect_identical(metadata$display_colour,
+      c("#274f66", "#748c61", "#bc5e21"))
+    applied <- regionalepi:::.shiny_apply_display_metadata(
+      data.frame(cluster_id = rev(metadata$display_cluster_id)), metadata)
+    expect_identical(levels(applied$cluster_id), metadata$display_cluster_id)
+    expect_identical(as.character(applied$display_colour),
+      metadata$display_colour[match(as.character(applied$cluster_id),
+                                    metadata$display_cluster_id)])
+  }
+})
+
+test_that("dynamic profile descriptions lead with the strongest feature", {
+  summary <- regionalepi:::.shiny_fetch_snapshot_demography(2022:2024)$summary
+  display <- regionalepi:::.shiny_app_indicator_display()
+  for (k in 2:5) {
+    fit <- regionalepi:::.shiny_fit_typology(summary, "dynamic", k)
+    descriptions <- regionalepi:::.shiny_profile_descriptions(fit$profiles)
+    for (cluster in unique(fit$profiles$display_cluster_id)) {
+      profile <- fit$profiles[fit$profiles$display_cluster_id == cluster, ]
+      strongest <- profile$indicator_id[
+        order(-abs(profile$standardized_center),
+              match(profile$indicator_id, display$indicator_id))[[1L]]]
+      if (max(abs(profile$standardized_center)) >= 0.5) {
+        first_label <- display$label[match(strongest, display$indicator_id)]
+        description <- descriptions$profile_description[
+          descriptions$display_cluster_id == cluster]
+        expect_match(description, first_label, fixed = TRUE)
+        expect_lt(regexpr(first_label, description, fixed = TRUE)[[1L]],
+                  regexpr(",", paste0(description, ","), fixed = TRUE)[[1L]])
+      }
+    }
+  }
+  k3 <- regionalepi:::.shiny_fit_typology(summary, "dynamic", 3L)
+  k3_description <- regionalepi:::.shiny_profile_descriptions(k3$profiles)
+  expect_match(k3_description$profile_description[
+    k3_description$display_cluster_id == "C03"], "Bev\u00f6lkerungsdichte",
+    fixed = TRUE)
+})
+
+test_that("partition comparison reports ARI overlap and center distances", {
+  summary <- regionalepi:::.shiny_fetch_snapshot_demography(2022:2024)$summary
+  fits <- lapply(3:5,function(k)regionalepi:::.shiny_fit_typology(summary,"dynamic",k))
+  three_four <- regionalepi:::.shiny_compare_partitions(fits[[1L]],fits[[2L]])
+  four_five <- regionalepi:::.shiny_compare_partitions(fits[[2L]],fits[[3L]])
+  expect_equal(three_four$ari,0.9391039,tolerance=1e-7)
+  expect_equal(four_five$ari,0.4711732,tolerance=1e-7)
+  expect_identical(sum(three_four$contingency),400L)
+  expect_identical(dim(three_four$center_distances),c(3L,4L))
+  expect_named(three_four$transition,c("source_k","source_cluster","target_k",
+    "target_cluster","n_shared","source_fraction","target_fraction",
+    "source_center_distance"))
+})
+
+test_that("final weekly widget hides every IQR legend trace", {
+  skip_if_not_installed("plotly");skip_if_not_installed("ggplot2")
+  x<-data.frame(date=rep(as.Date("2025-01-06")+0:2,3),
+    cluster=rep(c("C01","C02","C03"),each=3),median=1:9,q1=0:8,q3=2:10)
+  graph<-ggplot2::ggplot(x,ggplot2::aes(date,median,colour=cluster,fill=cluster,
+    group=cluster))+ggplot2::geom_ribbon(ggplot2::aes(ymin=q1,ymax=q3),alpha=.15,
+      colour=NA,show.legend=FALSE)+ggplot2::geom_line()+ggplot2::geom_line(
+        data=x[x$cluster=="C01",],ggplot2::aes(date,median,group=1),
+        inherit.aes=FALSE,colour="#111111")
+  widget<-regionalepi:::.shiny_finalize_incidence_legend(plotly::ggplotly(graph))
+  ribbons<-vapply(widget$x$data,function(trace)identical(trace$fill,"toself"),logical(1L))
+  visible<-vapply(widget$x$data,function(trace)isTRUE(trace$showlegend),logical(1L))
+  expect_true(all(!visible[ribbons]))
+  expect_setequal(vapply(widget$x$data[visible],`[[`,character(1L),"name"),
+    c("C01","C02","C03","Ausgewählter Kreis"))
+})
+
+test_that("pathogen selection reconciliation never exposes a stale window", {
+  covid <- regionalepi:::.shiny_reconcile_selection(
+    "COVID-19","influenza_2025_26","reviewed")
+  expect_identical(covid$window_id,"covid19_2025_26")
+  expect_identical(covid$window$pathogen,"COVID-19")
+  expect_identical(covid$range_mode,"window")
+  expect_identical(nrow(covid$periods),0L)
+  influenza <- regionalepi:::.shiny_reconcile_selection(
+    "Influenza, saisonal",covid$window_id,"window")
+  expect_identical(influenza$window$pathogen,"Influenza, saisonal")
+  expect_true(influenza$window_id %in% unname(influenza$choices))
+})
+
 test_that("navigation is display-only and absent from analytical cache keys", {
   keys <- c(
     regionalepi:::.shiny_demographic_cache_key("2022–2024"),
@@ -80,7 +288,7 @@ test_that("navigation is display-only and absent from analytical cache keys", {
   )
   expect_false(any(grepl("overview|typology|epidemiology|methods", keys)))
   ui_text <- paste(readLines(file.path(regionalepi:::.shiny_app_dir(), "ui.R"), warn = FALSE), collapse = "\n")
-  expect_match(ui_text, 'id = "analysis_section"', fixed = TRUE)
+  expect_match(ui_text, 'id="analysis_section"', fixed = TRUE)
 })
 
 test_that("map join is identifier-only and handles reviewed historical difference", {
@@ -122,10 +330,8 @@ test_that("launcher finds the packaged app and dependency failures are clear", {
   expect_true(file.exists(file.path(directory, "app.R")))
   ui_environment <- new.env(parent = asNamespace("shiny"))
   sys.source(file.path(directory, "ui.R"), envir = ui_environment)
-  expect_identical(
-    tail(ui_environment$initial_period_values, 1L),
-    "influenza_2025_26_1"
-  )
+  expect_identical(tail(unname(ui_environment$initial_window_choices), 1L),
+                   "influenza_2025_26")
   expect_match(paste(deparse(body(run_regionalepi_app)), collapse = "\n"),
                "optional package")
 })
@@ -145,7 +351,8 @@ test_that("server error callback resolves its formatter from the package namespa
   shiny::testServer(server_environment$server, {
     session$setInputs(
       pathogen = "Influenza, saisonal",
-      period_id = "influenza_2023_24_1",
+      window_id = "influenza_2023_24", range_mode = "window",
+      custom_range = as.Date(c("2023-10-02", "2024-05-19")),
       demographic_period = "2022–2024", demographic_source = "live",
       typology_mode = "dynamic",
       k = "3", load_analysis = 1
@@ -243,6 +450,108 @@ test_that("map and fitting provenance required by the PoC are complete", {
   hook <- widget$jsHooks$render[[1L]]$code
   expect_match(hook, "fillOpacity:0.82});", fixed = TRUE)
   expect_match(hook, "layer.bindTooltip", fixed = TRUE)
+  expect_match(hook, "p.state_name", fixed = TRUE)
+})
+
+test_that("district heatmap grouping derives boundaries for every k", {
+  for(k in 2:5) {
+    x <- data.frame(geo_id=sprintf("%05d",1:(k*2)),geo_name=LETTERS[1:(k*2)],
+      cluster_id=rep(sprintf("C%02d",1:k),each=2),stringsAsFactors=FALSE)
+    layout <- regionalepi:::.shiny_district_heatmap_layout(x,"00003")
+    expect_identical(length(layout$boundaries),k-1L)
+    expect_identical(layout$selected_position,3L)
+    expect_identical(layout$rows$cluster_id,
+      rep(sprintf("C%02d",1:k),each=2))
+    source<-x[rep(seq_len(nrow(x)),each=2L),,drop=FALSE]
+    source$date<-rep(as.Date("2025-01-06")+c(0,7),times=nrow(x))
+    source$incidence<-seq_len(nrow(source));source$incidence[[2L]]<-NA_real_
+    source$row_position<-layout$rows$row_position[
+      match(source$geo_id,layout$rows$geo_id)]
+    grid<-regionalepi:::.shiny_heatmap_grid(source,"row_position","date","incidence")
+    expect_identical(as.integer(grid$rows),layout$rows$row_position)
+    expect_true(anyNA(grid$z))
+  }
+  expect_identical(regionalepi:::.shiny_format_number(9453),"9.453")
+  expect_identical(regionalepi:::.shiny_format_number(16.28,2L),"16,28")
+})
+
+test_that("final district-week traces preserve every synthetic cell coordinate", {
+  skip_if_not_installed("plotly")
+  ids <- sprintf("%05d", 1:5)
+  assignments <- data.frame(geo_id = ids, raw_cluster = c(1L,1L,2L,2L,2L),
+    display_cluster_id = c("C01","C01","C02","C02","C02"))
+  fit <- list(mode = "dynamic", provenance = list(fit_id = "synthetic"),
+    assignments = assignments,
+    profiles = data.frame(display_cluster_id=rep(c("C01","C02"),each=3),
+      indicator_id=rep(c("population_density","mean_age",
+        "youth_dependency_ratio"),2),standardized_center=c(-1,1,0,1,-1,0)))
+  metadata <- regionalepi:::.shiny_cluster_display_metadata(fit,"dynamic")
+  dates <- as.Date("2025-01-06") + 7*0:2
+  data <- expand.grid(geo_id=ids,date=dates,KEEP.OUT.ATTRS=FALSE,
+    stringsAsFactors=FALSE)
+  data$geo_name <- paste0("District ", data$geo_id)
+  data$cluster_id <- assignments$display_cluster_id[
+    match(data$geo_id, assignments$geo_id)]
+  data$incidence <- seq_len(nrow(data)); data$incidence[[6L]] <- 0
+  data$incidence[c(3L,12L)] <- NA_real_
+  data$cases <- 100 + seq_len(nrow(data)); data$cases[[12L]] <- NA_real_
+  data$reporting_year <- 2025L
+  data$reporting_week <- rep(1:3, each=length(ids))
+  audit <- regionalepi:::.shiny_district_heatmap_data(data,metadata,"00003")
+  widget <- plotly::plotly_build(
+    regionalepi:::.shiny_district_heatmap_widget(audit))
+  traces <- widget$x$data
+  expect_identical(vapply(traces, `[[`, character(1L), "type"),
+    c("scatter","heatmap","heatmap"))
+  expect_identical(dim(traces[[2L]]$z), c(5L,3L))
+  expect_equal(traces[[2L]]$z, audit$incidence, ignore_attr = TRUE)
+  expect_equal(traces[[2L]]$customdata, audit$customdata, ignore_attr = TRUE)
+  expect_identical(is.na(traces[[3L]]$z), !audit$missing)
+  expect_equal(unname(traces[[1L]]$marker$color),
+    audit$districts$display_colour, ignore_attr = TRUE)
+  for (i in seq_len(nrow(data))) {
+    row <- match(data$geo_id[[i]], audit$districts$geo_id)
+    column <- match(data$date[[i]], audit$weeks$date)
+    expect_equal(traces[[2L]]$z[row,column],data$incidence[[i]])
+    expect_equal(audit$cases[row,column],data$cases[[i]])
+    expect_identical(audit$missing[row,column],is.na(data$incidence[[i]]))
+    expect_identical(traces[[2L]]$customdata[row,column],
+      paste(data$geo_id[[i]],data$date[[i]],sep="|"))
+  }
+  expect_identical(audit$selected_position,3L)
+  expect_identical(audit$boundaries,2.5)
+  expect_true(all(audit$blocks$last_row-audit$blocks$first_row+1L==audit$blocks$n))
+})
+
+test_that("actual server path switches pathogens without an invalid window", {
+  skip_if_not_installed("shiny")
+  app <- regionalepi:::.shiny_app_dir()
+  env <- new.env(parent=asNamespace("shiny"))
+  sys.source(file.path(app,"server.R"),envir=env)
+  shiny::testServer(env$server, {
+    session$setInputs(pathogen="Influenza, saisonal",
+      window_id="influenza_2025_26",range_mode="reviewed")
+    session$flushReact()
+    expect_identical(selected_window()$pathogen,"Influenza, saisonal")
+    session$setInputs(pathogen="COVID-19")
+    session$flushReact()
+    expect_identical(selected_window()$pathogen,"COVID-19")
+    expect_identical(selected_window()$observation_window_id,"covid19_2025_26")
+    expect_identical(nrow(reviewed_periods()),0L)
+    expect_no_error(analysis_range())
+    expect_identical(analysis_range()$mode,"window")
+    session$setInputs(window_id="covid19_2024_25")
+    session$flushReact()
+    expect_identical(selected_window()$observation_window_id,"covid19_2024_25")
+    expect_gt(nrow(reviewed_periods()),0L)
+    session$setInputs(pathogen="Influenza, saisonal")
+    session$flushReact()
+    expect_identical(selected_window()$pathogen,"Influenza, saisonal")
+    expect_true(selected_window()$observation_window_id %in%
+      unname(regionalepi:::.shiny_window_choices("Influenza, saisonal")))
+    expect_null(state$error)
+    expect_identical(state$retrieval_count,0L)
+  })
 })
 
 test_that("Shiny indicator presentation uses German labels and units", {
@@ -265,16 +574,21 @@ test_that("Shiny app exposes staged progress and caches fitted map widgets", {
                        collapse = "\n")
   ui_text <- paste(readLines(file.path(app, "ui.R"), warn = FALSE),
                    collapse = "\n")
-  expect_match(server_text, "Demographische Regionaldaten werden live geladen",
-               fixed = TRUE)
-  expect_match(server_text, "SurvStat-Kreisdaten werden geladen", fixed = TRUE)
-  expect_match(server_text, "Kartendarstellung wird vorbereitet", fixed = TRUE)
-  expect_match(server_text, "map-widget:", fixed = TRUE)
-  expect_false(grepl("fetch_survstat_cases", server_text, fixed = TRUE))
+  expect_match(server_text, ".shiny_fetch_demography", fixed = TRUE)
+  expect_match(server_text, "SurvStat-Inzidenzen und gemeldete Fälle", fixed = TRUE)
+  expect_match(server_text, ".shiny_fetch_surveillance_bundle", fixed = TRUE)
+  expect_match(server_text, "mkey <- paste0(\"map:\"", fixed = TRUE)
+  expect_true(grepl("fetch_surveillance_bundle", server_text, fixed = TRUE))
   expect_match(server_text, ".shiny_surveillance_cache_match", fixed = TRUE)
   expect_match(ui_text, "Erweiterte Einstellungen", fixed = TRUE)
   expect_match(ui_text,
     "Regionale Infektionsepidemiologie im demographischen Kontext",
+    fixed = TRUE)
+  expect_match(server_text, "show.legend=FALSE", fixed = TRUE)
+  expect_match(ui_text, "Darstellung, nicht den gewählten Analysezeitraum",
+    fixed = TRUE)
+  expect_match(ui_text, "Demografische Typologie", fixed = TRUE)
+  expect_match(ui_text, "Standardisierte demografische Clusterprofile",
     fixed = TRUE)
 })
 
@@ -337,4 +651,53 @@ test_that("Shiny period orchestration removes explicitly unassigned rows", {
   expect_false(anyNA(result$attached$data$geo_id))
   expect_true(all(result$attached$data$period_id == "selected"))
   expect_identical(nrow(result$attached$data), 2L)
+})
+
+test_that("linked display state reuses one source bundle and one typology fit", {
+  skip_if_not_installed("shiny")
+  app <- regionalepi:::.shiny_app_dir()
+  server_environment <- new.env(parent = asNamespace("shiny"))
+  sys.source(file.path(app, "server.R"), envir = server_environment)
+  map <- regionalepi_map_geometry()
+  dates <- as.Date(c("2025-10-06", "2025-10-13"))
+  grid <- expand.grid(geo_id = map$features$geo_id, date = dates,
+                      stringsAsFactors = FALSE)
+  grid$geo_name <- map$features$geo_name[match(grid$geo_id, map$features$geo_id)]
+  grid$reporting_year <- 2025L
+  grid$reporting_week <- as.integer(format(grid$date, "%V"))
+  grid$incidence <- seq_len(nrow(grid)) / 100
+  grid$cases <- as.numeric(seq_len(nrow(grid)) %% 7L)
+  calls <- 0L
+  fake_bundle <- function(...) {
+    calls <<- calls + 1L
+    list(data = grid, diagnostics = list(exact_key_equality = TRUE),
+         provenance = list(incidence = list(), counts = list()), timings = numeric())
+  }
+  testthat::local_mocked_bindings(
+    .shiny_fetch_surveillance_bundle = fake_bundle,
+    .package = "regionalepi"
+  )
+  shiny::testServer(server_environment$server, {
+    session$setInputs(pathogen="Influenza, saisonal",window_id="influenza_2025_26",
+      range_mode="window",custom_range=as.Date(c("2025-09-29","2026-05-17")),
+      typology_mode="dynamic",demographic_period="2022–2024",demographic_source="snapshot",
+      k="3",district_overlay=TRUE,load_analysis=1)
+    session$flushReact()
+    expect_null(state$error)
+    expect_identical(calls, 1L)
+    fit_id <- state$result$fit$provenance$fit_id
+    state$selected_geo_id <- "01001"
+    session$setInputs(range_mode="custom",
+      custom_range=as.Date(c("2025-10-06","2025-10-13")),analysis_section="typology")
+    session$flushReact()
+    expect_identical(calls, 1L)
+    expect_identical(state$result$fit$provenance$fit_id, fit_id)
+    expect_identical(state$selected_geo_id, "01001")
+    expect_identical(nrow(exploration()$data), 800L)
+    session$setInputs(pathogen="COVID-19",window_id="covid19_2020_21",
+      range_mode="custom",custom_range=as.Date(c("2020-05-11","2021-05-23")))
+    session$flushReact()
+    expect_null(state$result)
+    expect_identical(calls,1L)
+  })
 })

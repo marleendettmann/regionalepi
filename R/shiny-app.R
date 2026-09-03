@@ -20,6 +20,40 @@
 
 .shiny_period_resource <- function(pathogen) .shiny_period_resources(pathogen)[[1L]]
 
+.shiny_window_choices <- function(pathogen) {
+  x <- regionalepi_observation_windows()
+  x <- x[x$pathogen == pathogen, , drop = FALSE]
+  stats::setNames(x$observation_window_id, x$label)
+}
+
+.shiny_selected_window <- function(pathogen, id) {
+  x <- regionalepi_observation_windows()
+  x <- x[x$pathogen == pathogen & x$observation_window_id == id, , drop = FALSE]
+  if (nrow(x) != 1L) stop("Unknown observation window.", call. = FALSE)
+  x
+}
+
+.shiny_reconcile_selection <- function(pathogen, window_id = NULL,
+                                       range_mode = "window") {
+  choices <- .shiny_window_choices(pathogen)
+  valid_ids <- unname(choices)
+  selected <- if (length(window_id) == 1L && !is.na(window_id) &&
+                  window_id %in% valid_ids) window_id else utils::tail(valid_ids, 1L)
+  window <- .shiny_selected_window(pathogen, selected)
+  periods <- .shiny_periods_in_window(window)
+  mode <- if (identical(range_mode, "reviewed") && !nrow(periods)) "window" else
+    range_mode
+  list(pathogen = pathogen, window_id = selected, window = window,
+       periods = periods, range_mode = mode, choices = choices)
+}
+
+.shiny_periods_in_window <- function(window) {
+  resources <- .shiny_period_resources(window$pathogen)
+  periods <- do.call(rbind, lapply(resources, `[[`, "periods"))
+  periods[periods$start_date >= window$start_date &
+            periods$end_date <= window$end_date, , drop = FALSE]
+}
+
 .shiny_period_choices <- function(pathogen) {
   lapply(.shiny_period_resources(pathogen), function(resource) {
     stats::setNames(resource$periods$period_id, resource$periods$label)
@@ -86,7 +120,165 @@
   candidates[[which.min(sizes)]]$key
 }
 
-.shiny_app_cluster_colours <- function(ids, mode = "dynamic") {
+.shiny_profile_palette_alignment <- function(profiles, reference_profiles,
+                                             tolerance = sqrt(.Machine$double.eps)) {
+  required <- c("display_cluster_id", "indicator_id", "standardized_center")
+  if (!all(required %in% names(profiles)) ||
+      !all(required %in% names(reference_profiles))) {
+    stop("Palette alignment requires complete profile centers.", call. = FALSE)
+  }
+  dynamic_ids <- sort(unique(profiles$display_cluster_id))
+  reference_ids <- c("ClD", "ClJ", "ClA")
+  indicators <- sort(unique(profiles$indicator_id))
+  if (length(dynamic_ids) != 3L ||
+      !setequal(unique(reference_profiles$display_cluster_id), reference_ids) ||
+      !setequal(indicators, unique(reference_profiles$indicator_id))) {
+    stop("Profile-aligned colours require compatible three-cluster profiles.",
+         call. = FALSE)
+  }
+  matrix_for <- function(x, ids) vapply(ids, function(id) {
+    rows <- x[x$display_cluster_id == id, , drop = FALSE]
+    rows$standardized_center[match(indicators, rows$indicator_id)]
+  }, numeric(length(indicators)))
+  dynamic <- matrix_for(profiles, dynamic_ids)
+  reference <- matrix_for(reference_profiles, reference_ids)
+  rownames(dynamic) <- rownames(reference) <- indicators
+  if (anyNA(dynamic) || anyNA(reference))
+    stop("Profile-aligned colours require complete indicator centers.",call.=FALSE)
+  defining_indicator <- c(ClD="population_density",ClJ="youth_dependency_ratio",
+                          ClA="mean_age")
+  if (!all(defining_indicator %in% rownames(dynamic)))
+    stop("Profile-aligned colours require the reviewed defining indicators.",call.=FALSE)
+  permutations <- rbind(c(1L,2L,3L),c(1L,3L,2L),c(2L,1L,3L),
+                        c(2L,3L,1L),c(3L,1L,2L),c(3L,2L,1L))
+  scores <- apply(permutations,1L,function(p)sum(vapply(seq_along(reference_ids),
+    function(i)dynamic[defining_indicator[[reference_ids[[i]]]],p[[i]]],numeric(1L))))
+  ordering <- order(-scores)
+  margin <- scores[ordering[[1L]]] - scores[ordering[[2L]]]
+  if (!is.finite(margin) || margin <= tolerance) {
+    stop("Profile-aligned dynamic colours are ambiguous.", call. = FALSE)
+  }
+  mapping <- stats::setNames(rep(NA_character_,length(dynamic_ids)),dynamic_ids)
+  mapping[dynamic_ids[permutations[ordering[[1L]],]]] <- reference_ids
+  list(method = paste("maximum one-to-one alignment on reviewed defining profile",
+                      "features: density, youth dependency, and mean age"),
+       mapping = mapping, best_score = scores[ordering[[1L]]],
+       second_best_score = scores[ordering[[2L]]], margin = margin,
+       ambiguous = FALSE)
+}
+
+.shiny_dynamic_colour_policy <- function(fit, reference_fit, anchor_fit = fit) {
+  anchor_alignment <- .shiny_profile_palette_alignment(
+    anchor_fit$profiles, reference_fit$profiles)
+  anchors <- c(ClD="#bc5e21",ClJ="#748c61",ClA="#274f66")
+  additions <- c("#7B61A8", "#A94F74")
+  target_ids <- sort(unique(fit$assignments$display_cluster_id))
+  anchor_ids <- sort(unique(anchor_fit$assignments$display_cluster_id))
+  if (length(target_ids) < 2L || length(target_ids) > 5L || length(anchor_ids) != 3L)
+    stop("Dynamic colour policy supports k = 2 to 5.", call. = FALSE)
+  if (length(target_ids) == 2L) {
+    common <- intersect(anchor_fit$assignments$geo_id, fit$assignments$geo_id)
+    source <- anchor_fit$assignments$display_cluster_id[
+      match(common, anchor_fit$assignments$geo_id)]
+    target <- fit$assignments$display_cluster_id[match(common, fit$assignments$geo_id)]
+    table_overlap <- table(source, target)
+    source_centers <- stats::xtabs(standardized_center~display_cluster_id+indicator_id,
+                                    anchor_fit$profiles)
+    target_centers <- stats::xtabs(standardized_center~display_cluster_id+indicator_id,
+                                    fit$profiles)
+    distances <- outer(seq_len(nrow(source_centers)),seq_len(nrow(target_centers)),
+      Vectorize(function(i,j)sqrt(sum((source_centers[i,]-target_centers[j,])^2))))
+    dimnames(distances) <- list(rownames(source_centers),rownames(target_centers))
+    target_fraction <- prop.table(table_overlap, 2L)
+    dominant <- apply(target_fraction, 2L, which.max)
+    nearest <- apply(distances, 2L, which.min)
+    clear <- colnames(table_overlap)[vapply(seq_along(target_ids), function(i)
+      max(target_fraction[,i]) >= .8 && dominant[[i]] == nearest[[i]] &&
+        distances[nearest[[i]],i] < .75, logical(1L))]
+    continuation <- stats::setNames(character(), character())
+    if (length(clear)) continuation <- stats::setNames(clear,
+      rownames(table_overlap)[dominant[match(clear,colnames(table_overlap))]])
+    colours <- stats::setNames(rep(additions[[1L]],length(target_ids)),target_ids)
+    for (source_id in names(continuation)) {
+      reference_id <- anchor_alignment$mapping[[source_id]]
+      colours[[continuation[[source_id]]]] <- anchors[[reference_id]]
+    }
+    remainder <- names(colours)[!names(colours)%in%unname(continuation)]
+    colours[remainder] <- additions[seq_along(remainder)]
+    return(list(colours=colours,anchor_alignment=anchor_alignment,
+      continuation=continuation,total_shared=if(length(clear))sum(table_overlap[
+        cbind(names(continuation),unname(continuation))]) else 0,
+      total_center_distance=if(length(clear))sum(distances[
+        cbind(names(continuation),unname(continuation))]) else 0,
+      target_anchor_fraction=target_fraction,center_distances=distances,
+      method=paste("k=2 clear anchor requires at least 80% target membership,",
+        "the same nearest standardized center, and distance below 0.75;",
+        "coarse mixtures use the existing additional purple")))
+  }
+  if (identical(fit$provenance$fit_id, anchor_fit$provenance$fit_id)) {
+    continuation <- stats::setNames(anchor_ids, anchor_ids)
+    overlap <- nrow(fit$assignments)
+    distance <- 0
+  } else {
+    common <- intersect(anchor_fit$assignments$geo_id, fit$assignments$geo_id)
+    source <- anchor_fit$assignments$display_cluster_id[
+      match(common, anchor_fit$assignments$geo_id)]
+    target <- fit$assignments$display_cluster_id[match(common, fit$assignments$geo_id)]
+    table_overlap <- table(source, target)
+    source_centers <- stats::xtabs(standardized_center~display_cluster_id+indicator_id,
+                            anchor_fit$profiles)
+    target_centers <- stats::xtabs(standardized_center~display_cluster_id+indicator_id,
+                            fit$profiles)
+    candidates <- expand.grid(rep(list(target_ids), length(anchor_ids)),
+                              stringsAsFactors=FALSE)
+    candidates <- candidates[apply(candidates,1L,function(x)length(unique(x))==length(x)),,drop=FALSE]
+    overlap_scores <- apply(candidates,1L,function(x)sum(table_overlap[
+      cbind(anchor_ids,x)]))
+    distance_scores <- apply(candidates,1L,function(x)sum(vapply(seq_along(x),
+      function(i)sqrt(sum((source_centers[anchor_ids[[i]],]-
+                            target_centers[x[[i]],])^2)),numeric(1L))))
+    ordering <- order(-overlap_scores,distance_scores,
+                      apply(candidates,1L,paste,collapse="\r"),method="radix")
+    best <- ordering[[1L]]
+    continuation <- stats::setNames(as.character(candidates[best,]),anchor_ids)
+    overlap <- overlap_scores[[best]]; distance <- distance_scores[[best]]
+  }
+  colours <- stats::setNames(rep(NA_character_,length(target_ids)),target_ids)
+  for (source_id in names(continuation)) {
+    reference_id <- anchor_alignment$mapping[[source_id]]
+    colours[[continuation[[source_id]]]] <- anchors[[reference_id]]
+  }
+  remainder <- names(colours)[is.na(colours)]
+  colours[remainder] <- additions[seq_along(remainder)]
+  list(colours=colours, anchor_alignment=anchor_alignment,
+       continuation=continuation, total_shared=overlap,
+       total_center_distance=distance,
+       method=paste("maximum one-to-one district overlap; minimum standardized",
+                    "center distance as tie-breaker; remaining profile-ordered colours"))
+}
+
+.shiny_finalize_incidence_legend <- function(widget) {
+  selected_seen <- FALSE
+  for (i in seq_along(widget$x$data)) {
+    trace <- widget$x$data[[i]]
+    if (identical(trace$fill, "toself")) {
+      widget$x$data[[i]]$showlegend <- FALSE
+    } else if (grepl("lines",if(is.null(trace$mode)) "" else trace$mode,
+                     fixed=TRUE) &&
+               (is.null(trace$name) || !nzchar(trace$name))) {
+      widget$x$data[[i]]$name <- "Ausgew\u00e4hlter Kreis"
+      widget$x$data[[i]]$showlegend <- !selected_seen
+      selected_seen <- TRUE
+    } else if (identical(trace$name, "Ausgew\u00e4hlter Kreis")) {
+      widget$x$data[[i]]$showlegend <- !selected_seen
+      selected_seen <- TRUE
+    }
+  }
+  widget
+}
+
+.shiny_app_cluster_colours <- function(ids, mode = "dynamic",
+                                       variant = "neutral", alignment = NULL) {
   if (identical(mode, "dissertation")) {
     historical <- c(ClD = "#bc5e21", ClJ = "#748c61", ClA = "#274f66")
     if (any(!unique(ids) %in% names(historical))) {
@@ -94,7 +286,25 @@
     }
     return(historical[unique(ids)])
   }
-  palette <- c("#3B6FB6", "#D17C28", "#3F8F6B", "#8A64A8", "#B64E5A")
+  if (identical(variant, "profile_aligned")) {
+    if (!is.null(alignment$colours)) {
+      levels <- sort(unique(ids))
+      if (!all(levels %in% names(alignment$colours)))
+        stop("Dynamic colour policy does not cover every cluster.",call.=FALSE)
+      return(alignment$colours[levels])
+    }
+    if (is.null(alignment) || isTRUE(alignment$ambiguous) ||
+        !all(unique(ids) %in% names(alignment$mapping))) {
+      stop("Profile-aligned colours require an unambiguous reviewed alignment.",
+           call. = FALSE)
+    }
+    historical <- c(ClD = "#bc5e21", ClJ = "#748c61", ClA = "#274f66")
+    levels <- sort(unique(ids))
+    return(stats::setNames(unname(historical[alignment$mapping[levels]]), levels))
+  }
+  if (!identical(variant, "neutral")) stop("Unknown dynamic colour variant.", call. = FALSE)
+  # Okabe-Ito categorical colours: colour-vision-friendly and non-sequential.
+  palette <- c("#0072B2", "#E69F00", "#009E73", "#CC79A7", "#D55E00")
   levels <- sort(unique(ids))
   stats::setNames(palette[seq_along(levels)], levels)
 }
@@ -133,37 +343,73 @@
 }
 
 .shiny_app_leaflet_geojson <- function(geojson, bounds, assignments = NULL,
-                                       mode = "dynamic") {
+                                       mode = "dynamic", state_geojson = NULL,
+                                       colour_variant = "neutral", alignment = NULL,
+                                       display_metadata = NULL) {
   widget <- leaflet::leaflet(options = leaflet::leafletOptions(minZoom = 4))
   widget <- leaflet::addGeoJSON(widget, geojson)
+  if (!is.null(assignments) && !"state_name" %in% names(assignments))
+    assignments$state_name <- NA_character_
+  if (!is.null(assignments) && !"profile_description" %in% names(assignments))
+    assignments$profile_description <- NA_character_
+  colours <- if (is.null(assignments)) NULL else if (is.null(display_metadata))
+    .shiny_app_cluster_colours(assignments$display_cluster_id, mode,
+                               colour_variant, alignment) else
+    stats::setNames(display_metadata$display_colour,
+                    display_metadata$display_cluster_id)
   display <- if (is.null(assignments)) NULL else list(
     clusters = stats::setNames(as.list(assignments$display_cluster_id),
                                assignments$geo_id),
-    colours = as.list(.shiny_app_cluster_colours(
-      assignments$display_cluster_id, mode))
+    colours = as.list(colours),
+    states = stats::setNames(as.list(assignments$state_name), assignments$geo_id),
+    profiles = stats::setNames(as.list(assignments$profile_description),
+                               assignments$geo_id)
   )
+  if (!is.null(state_geojson)) widget <- leaflet::addGeoJSON(widget, state_geojson,
+    options = leaflet::pathOptions(color = "#596674", weight = 1.32, opacity = .84,
+      fill = FALSE, interactive = FALSE), group = "Bundesl\u00e4nder")
   widget <- htmlwidgets::onRender(widget, "
     function(el, x, display) {
       var map = this;
       map.eachLayer(function(layer) {
         if (!layer.feature || !layer.feature.properties) return;
         var p = layer.feature.properties;
+        if (!p.geo_id || p.geo_id.length !== 5) return;
         if (display && display.clusters) {
           p.cluster = display.clusters[p.geo_id];
           p.fillColor = display.colours[p.cluster];
+          p.state_name = display.states[p.geo_id];
+          p.profile = display.profiles[p.geo_id];
         }
         layer.setStyle({color:'#ffffff', weight:0.7, fillColor:p.fillColor,
                         fillOpacity:0.82});
+        var profile = p.profile ? '<br>' + p.profile : '';
         layer.bindTooltip('<strong>' + p.geo_name + '</strong><br>' +
-                          p.geo_id + ' \\u00b7 ' + p.cluster);
+                          p.state_name + '<br>AGS ' + p.geo_id + ' \\u00b7 ' +
+                          p.cluster + profile);
         layer.on('click', function() {
           Shiny.setInputValue('selected_geo_id', p.geo_id,
                               {priority:'event'});
         });
       });
+      if (window.Shiny) Shiny.addCustomMessageHandler('regionalepi-select', function(id) {
+        map.eachLayer(function(layer) {
+          if (!layer.feature || !layer.feature.properties) return;
+          var p = layer.feature.properties;
+          if (!p.geo_id || p.geo_id.length !== 5) return;
+          layer.setStyle({color: p.geo_id === id ? '#111111' : '#ffffff',
+                          weight: p.geo_id === id ? 3 : 0.7,
+                          fillOpacity: p.geo_id === id ? 0.92 : 0.82});
+        });
+      });
     }", data = display)
+  widget <- leaflet::addEasyButton(widget, leaflet::easyButton(
+    icon = "fa-home", title = "Deutschland anzeigen",
+    onClick = htmlwidgets::JS(sprintf(
+      "function(btn,map){map.fitBounds([[%.8f,%.8f],[%.8f,%.8f]],{padding:[4,4]});}",
+      bounds[["lat1"]], bounds[["lng1"]], bounds[["lat2"]], bounds[["lng2"]]))))
   leaflet::fitBounds(widget, bounds[["lng1"]], bounds[["lat1"]],
-                     bounds[["lng2"]], bounds[["lat2"]])
+                     bounds[["lng2"]], bounds[["lat2"]], options = list(padding = c(4, 4)))
 }
 
 .shiny_app_leaflet_map <- function(map, assignments, mode = "dynamic") {
@@ -329,10 +575,22 @@
   missing <- features$geo_id[is.na(position)]
   extra <- setdiff(assignments$geo_id, features$geo_id)
   if (length(missing)) stop("Typology does not cover every reviewed map ID.", call. = FALSE)
+  states <- regionalepi_state_boundaries()$features
+  descriptions <- if (is.null(fit$profiles)) NULL else
+    .shiny_profile_descriptions(fit$profiles,
+      if (is.null(fit$mode)) "dynamic" else fit$mode)
+  profile <- if (is.null(descriptions)) rep(NA_character_, nrow(features)) else
+    descriptions$profile_description[match(
+      assignments$display_cluster_id[position], descriptions$display_cluster_id)]
+  state_id <- substr(features$geo_id, 1L, 2L)
+  state_position <- match(state_id, states$geo_id)
+  if (anyNA(state_position)) stop("Reviewed state context is incomplete.", call. = FALSE)
   data.frame(
     geo_id = features$geo_id,
     geo_name = features$geo_name,
+    state_name = states$geo_name[state_position],
     display_cluster_id = assignments$display_cluster_id[position],
+    profile_description = profile,
     stringsAsFactors = FALSE
   ) -> joined
   list(data = joined, map_only_geo_ids = missing, typology_only_geo_ids = extra)
@@ -450,6 +708,19 @@
   assembled
 }
 
+.shiny_fetch_surveillance_bundle <- function(pathogen, years, resources) {
+  incidence_time <- system.time(incidence <- .shiny_fetch_surveillance(
+    pathogen, years, resources))[['elapsed']]
+  count_time <- system.time(counts <- .shiny_fetch_surveillance_counts(
+    pathogen, years, resources))[['elapsed']]
+  combined_time <- system.time(combined <- combine_surveillance_incidence_counts(
+    incidence, counts))[['elapsed']]
+  combined$resolution <- incidence$resolution
+  combined$timings <- c(incidence_retrieval = incidence_time,
+    count_retrieval = count_time, compatibility = combined_time)
+  combined
+}
+
 .shiny_analyse_period <- function(surveillance, selected_period, fit) {
   assigned <- assign_epidemiological_periods(
     surveillance$data, selected_period$resource
@@ -480,7 +751,7 @@
 }
 
 .shiny_missing_dependencies <- function(checker = requireNamespace) {
-  packages <- c("shiny", "leaflet", "ggplot2")
+  packages <- c("shiny", "leaflet", "ggplot2", "plotly")
   packages[!vapply(packages, checker, logical(1L), quietly = TRUE)]
 }
 

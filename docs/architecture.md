@@ -371,13 +371,14 @@ pathogen, reference definition, reporting path and cube data status. A cube
 status change between sequential requests fails explicitly rather than joining
 different source snapshots.
 
-The current Shiny server does not request counts. A future source bundle key
-includes pathogen, years and reviewed query semantics, so the existing default
-load has no count latency until count display is implemented.
+The Shiny server retrieves incidence and reported counts once per pathogen and
+required source-year coverage and combines them with the validated exact-key
+operation. Broader cached coverage can satisfy a narrower window. Analysis
+range, zoom, tab and district/week selection do not cause source retrieval.
 
-### Deferred observation windows and heatmaps
+### Observation windows and linked heatmaps
 
-A future Influenza observation window should default to KW40 through KW20 of
+An Influenza observation window runs from KW40 through KW20 of
 the following year, with the reviewed RKI wave highlighted inside it; complete
 reporting years remain available when analytically necessary. COVID should use
 the neutral term observation window, provisionally KW20 through KW20 of the
@@ -393,3 +394,42 @@ missing. It supports k = 2--5 and suits dashboard and descriptive paper use.
 Secondary pairwise cluster-median differences suit detailed comparison; a
 district-by-week heatmap ordered by cluster is a drill-down, with missing cells
 explicit and counts available only as contextual hover information.
+
+Pathogen and observation-window inputs are reconciled as one validated Shiny
+selection state. A pathogen change cannot expose the preceding pathogen's
+window ID to range selection or retrieval. If the incoming window has no
+reviewed period, a reviewed-range selection safely falls back to the complete
+observation window.
+
+Dynamic cluster colours remain display metadata. For k = 2, a cluster receives
+an anchor colour only when at least 80 percent of its members come from the
+same k = 3 anchor, that anchor is also its nearest standardized center, and the
+distance is below 0.75. A coarse mixture uses the existing additional purple;
+this does not assert a historical identity. For k = 3 the three unchanged
+dissertation colours are aligned one-to-one through the reviewed defining
+features population density, youth dependency, and mean age. For k = 4 or 5,
+one-to-one maximum district overlap with the k = 3 anchors retains visual
+continuity; standardized center distance breaks overlap ties, and remaining
+clusters receive the additional purple and muted-rose colours. Every colour is
+unique within a fit. C01/C02/C03 alone never determine colour or dissertation
+semantics, and the procedure does not make k-means hierarchical.
+
+The Shiny client constructs one fit-local display-metadata table before any
+view is rendered. It is the sole source of cluster order, labels, profile
+descriptions, colours, and displayed district counts. Frozen dissertation
+display order is `ClD`, `ClJ`, `ClA`; dynamic display IDs remain fit-local.
+Display metadata never changes analytical assignments.
+
+The district-by-week view constructs explicit district and week registries and
+aligned incidence, case-count, and missingness matrices before Plotly
+conversion. Matrix cells are checked against the analytical `geo_id`-by-date
+observations. The categorical strip uses each registry row's exact display
+colour rather than a continuously interpolated heatmap colour scale.
+Valid ranges with no observations return a typed empty attachment and stop at
+the exploration boundary with a concise user-facing message; no rows are
+fabricated. Changing only dates remains downstream of retrieval and fitting
+caches.
+Changing pathogen or observation window invalidates only the currently
+displayed result before downstream widgets can combine the new date state with
+an older surveillance bundle. Session caches remain available for the next
+explicit analysis load.

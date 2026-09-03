@@ -375,3 +375,36 @@ Future district detail may show incidence, reported cases, ISO week, cluster,
 and observed/missing status. Period outlier detail may show the district period
 median, cumulative cases, and observed/expected weeks. Weekly cluster totals
 are optional context only because population and cluster size affect them.
+
+## Observation windows and display boundaries
+
+The `observation_window` contract is separate from epidemiological periods. It
+contains a stable ID, pathogen, label, inclusive dates with matching ISO
+year/week boundaries, window type, definition version, and note. V1 supports
+Influenza KW40--KW20 season windows and neutral COVID-19 KW20--KW20 observation
+windows. A window neither asserts nor infers an RKI wave.
+
+`regionalepi_state_boundaries_2024` contains exactly 16 browser-ready Länder
+outlines from BKG VG2500 `vg2500_lan`. They are display-only EPSG:4326 geometry
+with EPSG:25832 source provenance and no simplification.
+
+The Shiny client joins Bundesland names from this reviewed state context via
+canonical geographic identifiers. District-by-week ordering, categorical
+cluster strips, separators, fit-local profile-aligned colours, zoom controls,
+and selected-row
+highlights are presentation only. Missing incidence remains `NA` and is
+rendered separately from numeric zero.
+
+Internal Shiny display metadata contain one row per displayed cluster with fit
+ID, display and raw cluster IDs, optional profile anchor, display label,
+profile description, colour, order, displayed district count, and mode.
+Dissertation rows additionally carry their frozen historical code and label.
+All views consume this same session object; it is display metadata, not a new
+analytical or public package contract.
+
+For dynamic k = 2, clear continuation of a k = 3 profile anchor requires a
+dominant membership share, agreement with the nearest standardized center,
+and a bounded center distance. Otherwise the cluster is explicitly displayed
+with an existing additional category colour as a coarse mixture. Empty date
+subsets retain typed display columns and are rejected by the exploration
+boundary rather than receiving fabricated observations.
