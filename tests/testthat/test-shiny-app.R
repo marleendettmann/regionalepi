@@ -333,6 +333,34 @@ test_that("stability and pairwise sections use reviewed visual hierarchy", {
   expect_match(body,"opacity = 0.88",fixed=TRUE)
 })
 
+test_that("population-density scaling is display-only and log-safe", {
+  ui_text <- paste(readLines(file.path(regionalepi:::.shiny_app_dir(),"ui.R"),
+    warn=FALSE),collapse="\n")
+  server_text <- paste(readLines(file.path(regionalepi:::.shiny_app_dir(),
+    "server.R"),warn=FALSE),collapse="\n")
+  expect_match(ui_text,"Skalierung Bevölkerungsdichte",fixed=TRUE)
+  expect_match(ui_text,'c("Original"="original","Logarithmisch"="log10")',
+    fixed=TRUE)
+  expect_match(ui_text,paste("Die Skalierung betrifft ausschließlich die",
+    "Bevölkerungsdichte. Durchschnittsalter und Jugendquotient werden stets",
+    "auf der Originalskala dargestellt."),fixed=TRUE)
+  expect_match(server_text,"scale_y_log10",fixed=TRUE)
+  expect_match(server_text,"positive finite values",fixed=TRUE)
+  expect_match(server_text,"Darstellung: logarithmische Achse",fixed=TRUE)
+  expect_false(grepl("density_scale",paste(c(
+    deparse(body(regionalepi:::.shiny_demographic_cache_key)),
+    deparse(body(regionalepi:::.shiny_typology_cache_key)),
+    deparse(body(regionalepi:::.shiny_surveillance_cache_key))),collapse="\n")))
+  for(i in seq_along(list(2017:2020,2022:2024))) {
+    years<-list(2017:2020,2022:2024)[[i]]
+    x<-regionalepi:::.shiny_fetch_snapshot_demography(years)$summary$data
+    x<-x$indicator_value[x$indicator_id=="population_density"]
+    expect_length(x,c(401L,400L)[[i]])
+    expect_true(all(is.finite(x)))
+    expect_true(all(x>0))
+  }
+})
+
 test_that("canonical pair keys respect display order and remain unique for k2 to k5", {
   dates <- as.Date("2020-09-28") + 7*0:3
   for (k in 2:5) {
@@ -836,11 +864,18 @@ test_that("linked display state reuses one source bundle and one typology fit", 
     session$setInputs(pathogen="Influenza, saisonal",window_id="influenza_2025_26",
       range_mode="window",custom_range=as.Date(c("2025-09-29","2026-05-17")),
       typology_mode="dynamic",demographic_period="2022–2024",demographic_source="snapshot",
-      k="3",district_overlay=TRUE,load_analysis=1)
+      k="3",density_scale="original",district_overlay=TRUE,load_analysis=1)
     session$flushReact()
     expect_null(state$error)
     expect_identical(calls, 1L)
     fit_id <- state$result$fit$provenance$fit_id
+    original_distribution <- output$demographic_distribution_plot
+    session$setInputs(density_scale="log10")
+    session$flushReact()
+    expect_false(identical(output$demographic_distribution_plot,
+      original_distribution))
+    expect_identical(calls,1L)
+    expect_identical(state$result$fit$provenance$fit_id,fit_id)
     state$selected_geo_id <- "01001"
     session$setInputs(range_mode="custom",
       custom_range=as.Date(c("2025-10-06","2025-10-13")),analysis_section="typology")
