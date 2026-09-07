@@ -5,17 +5,51 @@
   )
 }
 
-.shiny_period_resources <- function(pathogen) {
-  if (identical(pathogen, "Influenza, saisonal")) {
-    stats::setNames(list(rki_influenza_periods_2017_2026()), "RKI-gepr\u00fcfte Influenzawellen")
-  } else if (identical(pathogen, "COVID-19")) {
-    stats::setNames(
-      list(dissertation_covid_welle2_periods(), rki_covid_activity_waves()),
-      c("Dissertation / RKI-Pandemieperioden", "RKI-gepr\u00fcfte Aktivit\u00e4tswellen")
+.shiny_pathogen_registry <- function() {
+  list(
+    "Influenza, saisonal" = list(
+      pathogen_id = "influenza", display_label = "Influenza",
+      survstat_member = "Influenza, saisonal",
+      period_factories = list("RKI-gepr\u00fcfte Influenzawellen" = rki_influenza_periods_2017_2026),
+      specification_version = "shiny_pathogens_v1",
+      temporal_context = "Seasonal observation windows with separately reviewed RKI waves"
+    ),
+    "COVID-19" = list(
+      pathogen_id = "covid19", display_label = "COVID-19",
+      survstat_member = "COVID-19",
+      period_factories = list(
+        "Dissertation / RKI-Pandemieperioden" = dissertation_covid_welle2_periods,
+        "RKI-gepr\u00fcfte Aktivit\u00e4tswellen" = rki_covid_activity_waves
+      ),
+      specification_version = "shiny_pathogens_v1",
+      temporal_context = "Neutral observation windows with separately reviewed periods"
+    ),
+    "Norovirus-Gastroenteritis" = list(
+      pathogen_id = "norovirus", display_label = "Norovirus",
+      survstat_member = "Norovirus-Gastroenteritis", period_factories = list(),
+      specification_version = "shiny_pathogens_v1",
+      temporal_context = paste(
+        "Year-round occurrence with a typical October-to-March peak;",
+        "ISO-week 27-to-26 comparison frame; no reviewed national wave catalogue"
+      )
     )
-  } else {
-    stop("Unsupported Shiny PoC pathogen.", call. = FALSE)
-  }
+  )
+}
+
+.shiny_pathogen_config <- function(pathogen) {
+  config <- .shiny_pathogen_registry()[[pathogen]]
+  if (is.null(config)) stop("Unsupported Shiny PoC pathogen.", call. = FALSE)
+  config
+}
+
+.shiny_pathogen_choices <- function() {
+  registry <- .shiny_pathogen_registry()
+  stats::setNames(names(registry), vapply(registry, `[[`, character(1L), "display_label"))
+}
+
+.shiny_period_resources <- function(pathogen) {
+  factories <- .shiny_pathogen_config(pathogen)$period_factories
+  lapply(factories, function(factory) factory())
 }
 
 .shiny_period_resource <- function(pathogen) .shiny_period_resources(pathogen)[[1L]]
@@ -41,14 +75,16 @@
                   window_id %in% valid_ids) window_id else utils::tail(valid_ids, 1L)
   window <- .shiny_selected_window(pathogen, selected)
   periods <- .shiny_periods_in_window(window)
-  mode <- if (identical(range_mode, "reviewed") && !nrow(periods)) "window" else
-    range_mode
+  if (length(range_mode) != 1L || is.na(range_mode) ||
+      !range_mode %in% c("window", "reviewed", "custom")) range_mode <- "window"
+  mode <- if (identical(range_mode, "reviewed") && !nrow(periods)) "window" else range_mode
   list(pathogen = pathogen, window_id = selected, window = window,
        periods = periods, range_mode = mode, choices = choices)
 }
 
 .shiny_periods_in_window <- function(window) {
   resources <- .shiny_period_resources(window$pathogen)
+  if (!length(resources)) return(.empty_epidemiological_periods())
   periods <- do.call(rbind, Map(function(resource,system) {
     x <- resource$periods; x$period_system <- system; x
   },resources,names(resources)))

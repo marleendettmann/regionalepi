@@ -5,6 +5,11 @@
   "source_reference", "review_status", "note"
 )
 
+.empty_epidemiological_periods <- function() {
+  template <- dissertation_influenza_periods()$periods
+  template[0, .period_columns, drop = FALSE]
+}
+
 #' Validate epidemiological periods
 #'
 #' Periods are reviewed external epidemiological metadata. Inclusive `Date`

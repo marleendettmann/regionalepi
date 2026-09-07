@@ -138,6 +138,30 @@ source units is retained only as a validation diagnostic. The final
 source measures verbatim. Counts are contextual: cluster totals depend on
 cluster size and population and are not comparable as rates.
 
+### Research-v0.1 generalization and freeze
+
+Norovirus-Gastroenteritis is the third supported Shiny pathogen and reuses the
+same strict SurvStat incidence/count, geography-resolution, Berlin-replacement,
+and visualization pipeline. Its reviewed observation frame runs inclusively
+from ISO week 27 of one reporting year through ISO week 26 of the next. This is
+a season-spanning comparison frame used in RKI reporting, not an encoded
+Norovirus wave; no reviewed national Norovirus wave catalogue is provided.
+
+Bundesland is an administrative comparison dimension over the unchanged
+national district typology. State composition reports shares of canonical
+districts, not population. The epidemiological state view compares one
+district-level median of source-provided weekly incidence per district for the
+same selected national cluster; it neither calculates a state incidence nor
+supports causal state-effect interpretation. State display changes never fetch
+data or refit the typology.
+
+Functional Research-v0.1 scope is frozen after this generalization. Rotavirus,
+vaccination coverage, further pathogens, AGI presets, arbitrary state groups,
+state-specific or regional typology fits, within-state cluster comparison, new
+demographic indicators, spatial-dependence models, advanced state-map
+interaction, and Professional/Explorer deployment functionality are explicitly
+deferred. This is a scope statement, not a package-version release.
+
 ### Reviewed demographic snapshot
 
 Ordinary Shiny use defaults to the immutable reviewed Regionaldatenbank

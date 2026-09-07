@@ -14,6 +14,15 @@ test_that("Shiny PoC defaults and reviewed period choices are stable", {
     "Dissertation / RKI-Pandemieperioden", "RKI-geprüfte Aktivitätswellen"))
   expect_identical(length(covid[[1L]]), 7L)
   expect_identical(length(covid[[2L]]), 2L)
+  registry <- regionalepi:::.shiny_pathogen_registry()
+  expect_identical(names(registry), c(
+    "Influenza, saisonal", "COVID-19", "Norovirus-Gastroenteritis"
+  ))
+  expect_identical(
+    registry[["Norovirus-Gastroenteritis"]]$survstat_member,
+    "Norovirus-Gastroenteritis"
+  )
+  expect_length(registry[["Norovirus-Gastroenteritis"]]$period_factories, 0L)
 })
 
 test_that("historical pandemic frame exposes all reviewed dissertation periods", {
@@ -727,6 +736,12 @@ test_that("actual server path switches pathogens without an invalid window", {
     session$flushReact()
     expect_identical(selected_window()$observation_window_id,"covid19_2024_25")
     expect_gt(nrow(reviewed_periods()),0L)
+    session$setInputs(pathogen="Norovirus-Gastroenteritis",range_mode="reviewed")
+    session$flushReact()
+    expect_identical(selected_window()$pathogen,"Norovirus-Gastroenteritis")
+    expect_identical(selected_window()$observation_window_id,"norovirus_2025_26")
+    expect_identical(nrow(reviewed_periods()),0L)
+    expect_identical(analysis_range()$mode,"window")
     session$setInputs(pathogen="Influenza, saisonal")
     session$flushReact()
     expect_identical(selected_window()$pathogen,"Influenza, saisonal")
@@ -765,7 +780,7 @@ test_that("Shiny app exposes staged progress and caches fitted map widgets", {
   expect_match(server_text, ".shiny_surveillance_cache_match", fixed = TRUE)
   expect_match(ui_text, "Erweiterte Einstellungen", fixed = TRUE)
   expect_match(ui_text,
-    "Regionale Infektionsepidemiologie im demographischen Kontext",
+    "Regionale Infektionsepidemiologie im demografischen Kontext",
     fixed = TRUE)
   expect_match(server_text, "show.legend=FALSE", fixed = TRUE)
   expect_match(ui_text, "Darstellung, nicht den gewählten Analysezeitraum",
@@ -773,6 +788,20 @@ test_that("Shiny app exposes staged progress and caches fitted map widgets", {
   expect_match(ui_text, "Demografische Typologie", fixed = TRUE)
   expect_match(ui_text, "Standardisierte demografische Clusterprofile",
     fixed = TRUE)
+  expect_identical(
+    unname(regionalepi:::.shiny_pathogen_choices()[["Norovirus"]]),
+    "Norovirus-Gastroenteritis"
+  )
+  expect_match(ui_text, "Clusterzusammensetzung nach Bundesland", fixed = TRUE)
+  expect_match(ui_text, "Bundeslandvergleich", fixed = TRUE)
+  expect_match(ui_text,
+    "Die Anteile beziehen sich auf Kreise, nicht auf Bevölkerung.", fixed = TRUE)
+  expect_match(ui_text, "dürfen nicht als kausale Landeseffekte", fixed = TRUE)
+  expect_match(server_text, "Nationaler Cluster", fixed = TRUE)
+  expect_match(server_text,
+    "Für Norovirus ist kein geprüfter nationaler Wellenzeitraum hinterlegt.",
+    fixed = TRUE)
+  expect_match(server_text, "summarize_state_cluster_incidence", fixed = TRUE)
 })
 
 test_that("Shiny demographic snapshot is default and live mode is explicit", {
@@ -884,6 +913,11 @@ test_that("linked display state reuses one source bundle and one typology fit", 
     expect_identical(state$result$fit$provenance$fit_id, fit_id)
     expect_identical(state$selected_geo_id, "01001")
     expect_identical(nrow(exploration()$data), 800L)
+    session$setInputs(state_cluster_id="C02")
+    session$flushReact()
+    expect_no_error(output$state_comparison_plot)
+    expect_identical(calls, 1L)
+    expect_identical(state$result$fit$provenance$fit_id, fit_id)
     session$setInputs(pathogen="COVID-19",window_id="covid19_2020_21",
       range_mode="custom",custom_range=as.Date(c("2020-05-11","2021-05-23")))
     session$flushReact()

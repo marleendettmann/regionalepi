@@ -1,4 +1,5 @@
 initial_window_choices <- regionalepi:::.shiny_window_choices("Influenza, saisonal")
+pathogen_choices <- regionalepi:::.shiny_pathogen_choices()
 ui <- fluidPage(
   tags$head(tags$title("regionalepi – Regionale Infektionsepidemiologie"), tags$style(HTML("
     body{font-size:15px;background:#f7f8fa}.app-note{color:#4b5563;font-size:.92rem}
@@ -8,13 +9,14 @@ ui <- fluidPage(
     .leaflet{min-height:570px}.leaflet-container{background:#f3f5f7}.small-table table{font-size:12px}
     @media(max-width:900px){.leaflet{min-height:430px}}
   "))),
-  titlePanel("regionalepi – Regionale Infektionsepidemiologie im demographischen Kontext"),
+  titlePanel("regionalepi – Regionale Infektionsepidemiologie im demografischen Kontext"),
   sidebarLayout(sidebarPanel(
-    selectInput("pathogen", "Erreger", c("Influenza"="Influenza, saisonal", "COVID-19"="COVID-19")),
+    selectInput("pathogen", "Erreger", pathogen_choices),
     selectInput("window_id", "Beobachtungszeitraum", initial_window_choices,
       selected=tail(unname(initial_window_choices),1L)),
     radioButtons("range_mode", "Analysezeitraum", c("Gesamter Beobachtungszeitraum"="window",
-      "RKI-definierter/geprüfter Zeitraum"="reviewed", "Benutzerdefinierter Zeitraum"="custom"), "window"),
+      "Geprüfter epidemiologischer Zeitraum"="reviewed", "Benutzerdefinierter Zeitraum"="custom"), "window"),
+    uiOutput("period_availability_note"),
     conditionalPanel("input.range_mode == 'reviewed'", selectInput("reviewed_period_id", "Geprüfter analytischer Zeitraum", character()), uiOutput("reviewed_period_note")),
     conditionalPanel("input.range_mode == 'custom'", dateRangeInput("custom_range", "Benutzerdefinierter Analysezeitraum")),
     selectInput("typology_mode", "Typologie", c("Dynamische demographische Typologie"="dynamic", "Dissertation-Referenz"="dissertation"), "dynamic"),
@@ -39,7 +41,8 @@ ui <- fluidPage(
         div(class="panel-card",h3("Standardisierte demografische Clusterprofile"),p(class="app-note","z < 0: unter dem Durchschnitt aller Kreise · z > 0: über dem Durchschnitt"),plotly::plotlyOutput("profile_plot",height="350px"),uiOutput("cluster_warning")),
         div(class="panel-card",h3("Profile auf Originalskala"),div(class="small-table",tableOutput("profile_table"))),
         div(class="panel-card",h3("Stabilität und Aufspaltung der Typologie"),p(class="app-note",strong("k=3: Referenz für Sensitivitätsvergleich")),plotly::plotlyOutput("stability_plot",height="390px"),div(class="small-table",tableOutput("stability_summary")),uiOutput("stability_note")),
-        div(class="panel-card",h3("Demografische Verteilungen"),p(class="app-note","Die drei Indikatoren werden auf getrennten Skalen dargestellt."),radioButtons("density_scale","Skalierung Bevölkerungsdichte",c("Original"="original","Logarithmisch"="log10"),"original",inline=TRUE),p(class="app-note","Die Skalierung betrifft ausschließlich die Bevölkerungsdichte. Durchschnittsalter und Jugendquotient werden stets auf der Originalskala dargestellt."),div(class="distribution-panel",plotly::plotlyOutput("demographic_distribution_plot",height="650px")))),
+        div(class="panel-card",h3("Demografische Verteilungen"),p(class="app-note","Die drei Indikatoren werden auf getrennten Skalen dargestellt."),radioButtons("density_scale","Skalierung Bevölkerungsdichte",c("Original"="original","Logarithmisch"="log10"),"original",inline=TRUE),p(class="app-note","Die Skalierung betrifft ausschließlich die Bevölkerungsdichte. Durchschnittsalter und Jugendquotient werden stets auf der Originalskala dargestellt."),div(class="distribution-panel",plotly::plotlyOutput("demographic_distribution_plot",height="650px"))),
+        div(class="panel-card",h3("Clusterzusammensetzung nach Bundesland"),p(class="app-note","Die Anteile beziehen sich auf Kreise, nicht auf Bevölkerung. Die Typologie bleibt national standardisiert und national gefittet."),plotly::plotlyOutput("state_composition_plot",height="520px"))),
       tabPanel("Infektionsgeschehen", value="epidemiology", div(class="panel-card",uiOutput("period_heading")),
         tabsetPanel(id="epidemiology_view",
           tabPanel("Zeitverlauf",plotly::plotlyOutput("incidence_plot",height="440px"),p(class="app-note","Ansicht eingrenzen: Im unteren Zeitbalken kann der sichtbare Ausschnitt verschoben oder vergrößert werden. Dies verändert nur die Darstellung, nicht den gewählten Analysezeitraum."),uiOutput("incidence_warning")),
@@ -48,7 +51,8 @@ ui <- fluidPage(
             tabsetPanel(id="weekly_comparison_view",
               tabPanel("Relative Aktivität",h4("Relative Aktivität gegenüber allen Kreisen"),plotly::plotlyOutput("relative_heatmap",height="330px")),
               tabPanel("Paarweise Vergleiche",p(class="app-note","A − B zeigt die Differenz der wöchentlichen medianen Kreisinzidenz zwischen beiden Clustern. Positive Werte bedeuten höhere Werte in A, negative Werte höhere Werte in B."),plotly::plotlyOutput("pairwise_heatmap",height="420px")))),
-          tabPanel("Kreis × Woche",p(class="app-note","Rohinzidenz; fehlende Werte sind grau und nicht null."),plotly::plotlyOutput("district_heatmap",height="760px")))),
+          tabPanel("Kreis × Woche",p(class="app-note","Rohinzidenz; fehlende Werte sind grau und nicht null."),plotly::plotlyOutput("district_heatmap",height="760px")),
+          tabPanel("Bundeslandvergleich",uiOutput("state_cluster_control"),p(class="app-note","Verglichen werden Kreismediane desselben nationalen Clusters. Die Darstellung ist deskriptiv; Unterschiede zwischen Ländern können Epidemiologie, Testung, Meldewesen, Versorgungszugang und weitere regionale Kontexte widerspiegeln und dürfen nicht als kausale Landeseffekte interpretiert werden."),plotly::plotlyOutput("state_comparison_plot",height="620px"),uiOutput("state_comparison_note")))),
       tabPanel("Methodik & Daten", value="methods",div(class="panel-card",uiOutput("provenance")))
     )))
 )

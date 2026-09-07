@@ -439,6 +439,32 @@ displayed result before downstream widgets can combine the new date state with
 an older surveillance bundle. Session caches remain available for the next
 explicit analysis load.
 
+### Norovirus and administrative state comparison
+
+The internal versioned Shiny pathogen registry adds the exact SurvStat member
+`Norovirus-Gastroenteritis` without pathogen-specific analytical calculations.
+Its observation windows span ISO week 27 of year N through ISO week 26 of year
+N+1, inclusively. They are comparison frames for a year-round pathogen with
+typical October--March activity, not inferred or encoded national waves; the
+reviewed-period collection is intentionally empty.
+
+The reviewed `district_state_2024_v1` contract maps each of the 400 unchanged
+canonical districts to exactly one of the 16 reviewed Länder. This crosswalk is
+only an administrative stratification. Demographic standardization, dynamic
+fits for k = 2--5, the frozen historical fit, display IDs, and colours remain
+national. State composition uses district counts. Epidemiological comparison
+uses one median of source-provided weekly incidence per district and selected
+period, grouped for display by state and one national cluster. It does not
+construct state incidence, perform inference, or imply causal state effects.
+Cluster selection is downstream display state and enters no retrieval or
+typology cache key.
+
+Functional Research-v0.1 scope is frozen. Rotavirus, vaccination coverage,
+additional pathogens, AGI presets, arbitrary state groups, state-specific or
+regional typology fitting, within-state cluster comparison, new demographic
+indicators, spatial-dependence models, advanced state-map interaction, and
+Professional/Explorer functionality remain deferred.
+
 The reviewed historical pandemic observation frame is a neutral data and
 display context that makes all approved dissertation COVID periods selectable;
 it does not define a COVID season or alter any period boundary. Typology mode

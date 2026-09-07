@@ -197,3 +197,17 @@ in session memory. Map selection is display state and never triggers retrieval o
 The app persists neither credentials nor source responses. Dynamic display IDs
 remain neutral and fit-local; no automatic labels, pooled incidence, arbitrary
 indicator selection, or new analytical semantics are introduced.
+
+Norovirus-Gastroenteritis is the third and final Research-v0.1 Shiny pathogen.
+Its inclusive KW27--KW26 windows are season-spanning analytical comparison
+frames; no reviewed national Norovirus wave is encoded. The reviewed 400-row
+district-to-state crosswalk supports composition by Land and descriptive
+comparison of district period-median source incidence for one national cluster.
+Bundesland never changes the national typology, creates a state incidence,
+enters retrieval/fitting cache keys, or supports causal state-effect claims.
+
+Functional Research-v0.1 scope is frozen. Rotavirus, vaccination coverage,
+additional pathogens, AGI presets, arbitrary state groups, state-specific or
+regional typology fitting, within-state cluster comparison, new demographic
+indicators, spatial-dependence models, advanced state-map interaction, and
+Professional/Explorer functionality are deferred.

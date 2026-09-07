@@ -43,7 +43,10 @@ validate_observation_windows <- function(x) {
       anyDuplicated(x$observation_window_id)) {
     .stop_contract(contract, "required fields must be complete and IDs unique")
   }
-  if (any(!x$window_type %in% c("influenza_season_window", "covid_observation_window")) ||
+  if (any(!x$window_type %in% c(
+        "influenza_season_window", "covid_observation_window",
+        "norovirus_comparison_window"
+      )) ||
       any(x$start_date > x$end_date) || any(x$start_iso_week > 53L) ||
       any(x$end_iso_week > 53L)) {
     .stop_contract(contract, "window type, interval, or ISO week is invalid")
@@ -56,7 +59,9 @@ validate_observation_windows <- function(x) {
   if (any((x$window_type == "influenza_season_window") !=
           (x$pathogen == "Influenza, saisonal")) ||
       any((x$window_type == "covid_observation_window") !=
-          (x$pathogen == "COVID-19"))) {
+          (x$pathogen == "COVID-19")) ||
+      any((x$window_type == "norovirus_comparison_window") !=
+          (x$pathogen == "Norovirus-Gastroenteritis"))) {
     .stop_contract(contract, "pathogen and window type are incompatible")
   }
   invisible(x)
@@ -72,7 +77,7 @@ validate_observation_windows <- function(x) {
 #' @return A validated observation-window data frame.
 #' @export
 regionalepi_observation_windows <- function() {
-  make <- function(pathogen, years, start_week, type, prefix) {
+  make <- function(pathogen, years, start_week, end_week, type, prefix, note) {
     starts <- years[-length(years)]
     ends <- years[-1L]
     data.frame(
@@ -80,18 +85,30 @@ regionalepi_observation_windows <- function() {
       pathogen = pathogen,
       label = paste0(starts, "/", substr(ends, 3L, 4L)),
       start_date = .iso_week_monday(starts, start_week),
-      end_date = .iso_week_monday(ends, 20L) + 6L,
+      end_date = .iso_week_monday(ends, end_week) + 6L,
       start_iso_year = as.integer(starts), start_iso_week = as.integer(start_week),
-      end_iso_year = as.integer(ends), end_iso_week = 20L,
+      end_iso_year = as.integer(ends), end_iso_week = as.integer(end_week),
       window_type = type, definition_version = "observation_windows_v1",
-      note = if (type == "covid_observation_window")
-        "regionalepi analytical observation window; not an official RKI COVID-19 season or wave" else
-        "ordinary seasonal Influenza observation window; reviewed RKI waves remain separate",
+      note = note,
       stringsAsFactors = FALSE
     )
   }
+  norovirus <- make(
+    "Norovirus-Gastroenteritis", 2017:2026, 27L, 26L,
+    "norovirus_comparison_window", "norovirus",
+    paste(
+      "Norovirus occurs year-round and typically peaks approximately October through March;",
+      "ISO weeks 27 through 26 are a season-spanning analytical comparison frame used in RKI reporting;",
+      "no reviewed national Norovirus wave catalogue is encoded"
+    )
+  )
+  norovirus$label <- paste0("Norovirus-Beobachtungszeitraum ", norovirus$label)
   out <- rbind(
-    make("Influenza, saisonal", 2017:2026, 40L, "influenza_season_window", "influenza"),
+    make(
+      "Influenza, saisonal", 2017:2026, 40L, 20L,
+      "influenza_season_window", "influenza",
+      "ordinary seasonal Influenza observation window; reviewed RKI waves remain separate"
+    ),
     data.frame(
       observation_window_id = "covid19_pandemic_2020_22",
       pathogen = "COVID-19", label = "Pandemie-Beobachtungszeitraum 2020\u20132022",
@@ -105,7 +122,12 @@ regionalepi_observation_windows <- function() {
         "dissertation pandemic periods; not an official RKI COVID-19 season or wave"),
       stringsAsFactors = FALSE
     ),
-    make("COVID-19", 2020:2026, 20L, "covid_observation_window", "covid19")
+    make(
+      "COVID-19", 2020:2026, 20L, 20L,
+      "covid_observation_window", "covid19",
+      "regionalepi analytical observation window; not an official RKI COVID-19 season or wave"
+    ),
+    norovirus
   )
   validate_observation_windows(out)
   out

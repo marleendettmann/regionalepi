@@ -152,6 +152,134 @@
        pairwise = pairwise, expected_dates = expected_dates)
 }
 
+.shiny_state_composition_widget <- function(composition, display_metadata) {
+  composition <- .shiny_apply_display_metadata(
+    composition, display_metadata, "cluster_id"
+  )
+  composition$state_name <- factor(
+    composition$state_name, levels = rev(sort(unique(composition$state_name)))
+  )
+  composition$hover <- sprintf(
+    paste0(
+      "%s<br>Nationaler Cluster: %s<br>Kreise im Cluster: %d",
+      "<br>Kreise im Land: %d<br>Anteil der Kreise: %.1f%%"
+    ),
+    composition$state_name, composition$cluster_id,
+    composition$n_districts, composition$state_total_districts,
+    100 * composition$district_fraction
+  )
+  colours <- stats::setNames(
+    display_metadata$display_colour, display_metadata$display_cluster_id
+  )
+  graph <- ggplot2::ggplot(
+    composition,
+    ggplot2::aes(
+      x = state_name, y = district_fraction, fill = cluster_id,
+      text = hover
+    )
+  ) +
+    ggplot2::geom_col(width = .78) +
+    ggplot2::coord_flip() +
+    ggplot2::scale_fill_manual(values = colours, drop = FALSE) +
+    ggplot2::scale_y_continuous(
+      labels = function(value) paste0(round(100 * value), "%"),
+      limits = c(0, 1), expand = c(0, 0)
+    ) +
+    ggplot2::labs(x = NULL, y = "Anteil der Kreise", fill = "Nationaler Cluster") +
+    ggplot2::theme_minimal() +
+    ggplot2::theme(legend.position = "bottom")
+  plotly::ggplotly(graph, tooltip = "text", source = "state-composition")
+}
+
+.shiny_state_comparison_display <- function(summary, selected_cluster,
+                                              crosswalk) {
+  .check_scalar_nonempty_character(
+    selected_cluster, "selected_cluster", "state comparison display"
+  )
+  validate_district_state_crosswalk(crosswalk)
+  selected <- summary[summary$cluster_id == selected_cluster, , drop = FALSE]
+  states <- unique(crosswalk[c("state_id", "state_name")])
+  counts <- table(factor(selected$state_id, levels = states$state_id))
+  groups <- data.frame(
+    state_id = states$state_id, state_name = states$state_name,
+    n_districts = as.integer(counts), stringsAsFactors = FALSE
+  )
+  groups$display_rule <- ifelse(
+    groups$n_districts == 0L, "unavailable",
+    ifelse(groups$n_districts == 1L, "point_only",
+      ifelse(groups$n_districts <= 4L, "points_and_median",
+             "points_and_boxplot"))
+  )
+  groups$state_display <- paste0(groups$state_name, " (n=", groups$n_districts, ")")
+  selected$state_display <- groups$state_display[match(selected$state_id, groups$state_id)]
+  list(data = selected, groups = groups)
+}
+
+.shiny_state_comparison_widget <- function(display, colour) {
+  states <- display$groups$state_display
+  data <- display$data
+  data$state_display <- factor(data$state_display, levels = rev(states))
+  data$hover <- sprintf(
+    paste0(
+      "%s<br>AGS: %s<br>Bundesland: %s<br>Nationaler Cluster: %s",
+      "<br>Median der w\u00f6chentlichen Kreisinzidenz: %s",
+      "<br>Gemeldete F\u00e4lle: %s<br>Beobachtete/erwartete Wochen: %d/%d"
+    ),
+    data$geo_name, data$geo_id, data$state_name, data$cluster_id,
+    ifelse(is.na(data$period_median_incidence), "fehlend",
+           sprintf("%.2f", data$period_median_incidence)),
+    ifelse(is.na(data$cumulative_reported_cases), "fehlend",
+           format(data$cumulative_reported_cases, scientific = FALSE, trim = TRUE)),
+    data$observed_weeks, data$expected_weeks
+  )
+  graph <- ggplot2::ggplot(
+    data,
+    ggplot2::aes(
+      x = period_median_incidence, y = state_display,
+      text = hover, key = geo_id
+    )
+  ) + ggplot2::labs(
+      x = "Median der w\u00f6chentlichen Kreisinzidenz", y = NULL
+    ) +
+    ggplot2::theme_minimal()
+  box_states <- display$groups$state_id[
+    display$groups$display_rule == "points_and_boxplot"
+  ]
+  box_data <- data[data$state_id %in% box_states, , drop = FALSE]
+  if (nrow(box_data)) graph <- graph + ggplot2::geom_boxplot(
+    data = box_data,
+    ggplot2::aes(
+      x = period_median_incidence, y = state_display, group = state_display
+    ),
+    inherit.aes = FALSE,
+    width = .34, outlier.shape = NA, fill = NA, colour = colour,
+    linewidth = .55, na.rm = TRUE
+  )
+  median_states <- display$groups$state_id[
+    display$groups$display_rule == "points_and_median"
+  ]
+  median_data <- data[data$state_id %in% median_states, , drop = FALSE]
+  if (nrow(median_data)) {
+    medians <- stats::aggregate(
+      median_data$period_median_incidence,
+      median_data[c("state_id", "state_display")],
+      function(value) if (all(is.na(value))) NA_real_ else stats::median(value, na.rm = TRUE)
+    )
+    names(medians)[[3L]] <- "period_median_incidence"
+    graph <- graph + ggplot2::geom_point(
+      data = medians,
+      ggplot2::aes(x = period_median_incidence, y = state_display),
+      inherit.aes = FALSE, shape = 23, size = 3, fill = "white",
+      colour = colour, stroke = 1, na.rm = TRUE
+    )
+  }
+  graph <- graph + suppressWarnings(ggplot2::geom_jitter(
+    height = .10, width = 0, colour = colour, alpha = .72, size = 1.8,
+    na.rm = TRUE
+  ))
+  plotly::ggplotly(graph, tooltip = "text", source = "state-comparison")
+}
+
 .shiny_heatmap_grid <- function(data, row, column, value, text = NULL,
                                 custom = NULL) {
   rows <- unique(as.character(data[[row]]))

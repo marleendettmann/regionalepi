@@ -8,6 +8,16 @@ test_that("observation windows have exact reviewed ISO boundaries", {
   expect_identical(covid$start_date, as.Date("2024-05-13"))
   expect_identical(covid$end_date, as.Date("2025-05-18"))
   expect_match(covid$note, "not an official RKI", fixed = TRUE)
+  norovirus <- x[x$observation_window_id == "norovirus_2025_26", ]
+  expect_identical(norovirus$pathogen, "Norovirus-Gastroenteritis")
+  expect_identical(norovirus$label,
+    "Norovirus-Beobachtungszeitraum 2025/26")
+  expect_identical(norovirus$start_date, as.Date("2025-06-30"))
+  expect_identical(norovirus$end_date, as.Date("2026-06-28"))
+  expect_identical(norovirus$start_iso_week, 27L)
+  expect_identical(norovirus$end_iso_week, 26L)
+  expect_match(norovirus$note, "occurs year-round", fixed = TRUE)
+  expect_match(norovirus$note, "no reviewed national Norovirus wave", fixed = TRUE)
 })
 
 test_that("observation-window validation rejects undocumented assumptions", {
@@ -40,6 +50,22 @@ test_that("COVID 2025/26 remains available without an invented reviewed wave", {
   window <- regionalepi:::.shiny_selected_window("COVID-19", "covid19_2025_26")
   expect_identical(nrow(regionalepi:::.shiny_periods_in_window(window)), 0L)
   expect_no_error(regionalepi:::.shiny_select_analysis_range(window, "window"))
+})
+
+test_that("Norovirus windows have no invented reviewed period", {
+  choices <- regionalepi:::.shiny_window_choices("Norovirus-Gastroenteritis")
+  expect_identical(length(choices), 9L)
+  expect_true("norovirus_2025_26" %in% unname(choices))
+  window <- regionalepi:::.shiny_selected_window(
+    "Norovirus-Gastroenteritis", "norovirus_2025_26"
+  )
+  expect_identical(nrow(regionalepi:::.shiny_periods_in_window(window)), 0L)
+  expect_length(regionalepi:::.shiny_period_choices("Norovirus-Gastroenteritis"), 0L)
+  reconciled <- regionalepi:::.shiny_reconcile_selection(
+    "Norovirus-Gastroenteritis", "influenza_2025_26", "reviewed"
+  )
+  expect_identical(reconciled$window_id, "norovirus_2025_26")
+  expect_identical(reconciled$range_mode, "window")
 })
 
 test_that("exploration summaries preserve missing counts and all-district estimand", {
