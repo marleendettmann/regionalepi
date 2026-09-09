@@ -228,6 +228,9 @@ incidence.
 
 ## Dissertation typology reproduction
 
+The methodological concept follows the demographic regional typology developed
+by [Dettmann (2026)](https://doi.org/10.17169/refubium-51449).
+
 `fit_dissertation_typology()` is deliberately not a generic clustering API. It
 accepts the complete `dissertation_v1` 2017--2020 period summary, requires the
 three authoritative indicator definitions and units, orders the columns from
@@ -464,6 +467,83 @@ additional pathogens, AGI presets, arbitrary state groups, state-specific or
 regional typology fitting, within-state cluster comparison, new demographic
 indicators, spatial-dependence models, advanced state-map interaction, and
 Professional/Explorer functionality remain deferred.
+
+The region-centred display layer offers three versioned descriptive levels:
+four Großregionen, 12 aggregated-Land groups, and the 16 unchanged canonical
+Länder. Districts first join their reviewed Land, then the selected comparison
+group; no district-to-group geography is maintained independently. The four
+combined units of the 12-group level are
+Brandenburg/Berlin, Niedersachsen/Bremen, Schleswig-Holstein/Hamburg, and
+Rheinland-Pfalz/Saarland. Their composition corresponds to the 12-region
+grouping documented by the RKI Arbeitsgemeinschaft Influenza
+(<https://influenza.rki.de/Glossar.aspx>), without attributing authorship or
+extending AGI epidemiological semantics to COVID-19 or Norovirus. Comparison
+level, focal region, comparison regions, and nested view remain downstream
+display state.
+
+The four Großregionen are Süden, Mitte (West), Norden (West), and Osten. Their
+composition corresponds to the four AGI-Großregionen documented by RKI/AGI,
+but regionalepi does not treat them as canonical administrative regions or as
+official COVID-19 or Norovirus regions. Regional composition is a share of
+canonical districts. Regional time courses are medians and empirical IQRs of
+observed source-provided district incidences, with expected, observed, and
+missing district counts retained. They are not official regional incidences.
+National standardization, fitting, cluster assignments, profiles, IDs, and
+colours remain unchanged by every regional control.
+
+The primary regional workflow is focal-region composition, weekly incidence by
+national demographic type, an overall focal/Germany/optional-region context,
+and district drill-down. Distribution geometry is selected independently per
+finite group: points only at one observation, points plus a descriptive median
+at two to four, boxplot plus points at five to nine, and a restrained violin
+behind boxplot and points from ten observations. The regional demographic view
+shows the unchanged same-cluster national median as a separate reference
+diamond. These layers are descriptive display devices and do not alter values
+or analytical summaries.
+
+The absolute focal-region cluster time course remains primary. A secondary
+signed relative-activity heatmap subtracts the contemporaneous weekly median
+across all observed focal-region districts from each national cluster's weekly
+median district incidence within that region. It retains cluster and regional-
+reference expected, observed, and missing counts plus completeness in hover.
+Missing incidence is excluded without imputation and observed zero remains
+zero. The display supports only descriptive statements about activity above or
+below the contemporaneous regional district median; it establishes no formal
+onset, lead/lag, transmission direction, causal interpretation, or significance
+test. The regional-context lines retain
+their existing estimand and use deterministic lightness plus line type to
+distinguish comparison regions without reusing the national cluster palette.
+National and regional weekly heatmaps share discrete rectangular week cells
+and neutral-grey missing backgrounds while retaining different scientific
+colour semantics. National and regional signed differences use zero-centred
+blue--neutral--red scales; weekly gaps are visible through 60 weeks and
+suppressed for longer displays. The regional reference set is always labelled
+explicitly and is never presented as an official regional incidence.
+
+At the four-Großregion level, users may select all three non-focal groups in
+addition to the automatic Germany reference. The 12- and 16-group levels remain
+limited to two optional comparison groups. This affects only derived in-memory
+display summaries. Functional Research-v0.1 is frozen after this temporal and
+regional-UX consolidation.
+
+The final Research-v0.1 Shiny information architecture is presentation-only.
+The five top-level destinations remain unchanged. Demographic typology uses
+nested profile, stability, and district-distribution views. Methodology and
+provenance use nested method, source, current-status, and reproducibility views,
+so ordinary analysis pages do not lead with technical identifiers. The map uses
+the existing reviewed VG2500 source for a district/Land/Germany boundary
+hierarchy; its German exterior outline is derived by the reviewed state-resource
+builder and has no analytical role.
+
+POST-v0.1 / future research / possible separate publication: demographic
+projections may examine movement through demographic profile space using
+projected age structure, youth dependency, population or density where
+appropriate, uncertainty, and harmonized geography. Projected demographic
+change is not a direct forecast of future infectious-disease incidence.
+
+POST-v0.1: a future high-activity district filter requires a reviewed estimand
+such as weekly incidence, period median, maximum, percentile, or relative
+activity. No definition is selected in v0.1.
 
 The reviewed historical pandemic observation frame is a neutral data and
 display context that makes all approved dissertation COVID periods selectable;

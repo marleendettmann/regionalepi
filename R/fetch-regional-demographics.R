@@ -26,7 +26,7 @@
 .regional_credentials <- function() {
   username <- Sys.getenv("REGIONALSTATISTIK_USER", unset = "")
   password <- Sys.getenv("REGIONALSTATISTIK_PASSWORD", unset = "")
-  if (!nzchar(username) || !nzchar(password)) {
+  if (!nzchar(trimws(username)) || !nzchar(trimws(password))) {
     .stop_contract("Regionaldatenbank authentication",
                    "required environment variables are missing or empty")
   }

@@ -16,6 +16,20 @@ geometry <- lapply(sf::st_geometry(y), function(feature) list(
   type = "MultiPolygon",
   coordinates = lapply(unclass(feature), function(poly) lapply(unclass(poly), positions))
 ))
+exterior <- sf::st_cast(sf::st_union(sf::st_geometry(y)), "MULTIPOLYGON")[[1L]]
+exterior_geometry <- list(
+  type = "MultiPolygon",
+  coordinates = lapply(unclass(exterior), function(poly)
+    lapply(unclass(poly), positions))
+)
+germany_exterior_outline_2024 <- jsonlite::toJSON(list(
+  type = "FeatureCollection",
+  features = list(list(
+    type = "Feature", id = "DE-exterior",
+    properties = list(role = "Germany exterior outline"),
+    geometry = exterior_geometry
+  ))
+), auto_unbox = TRUE, null = "null", digits = 10)
 features <- data.frame(geo_id = x$AGS, geo_name = x$GEN,
   source_feature_id = x$OBJID, stringsAsFactors = FALSE)
 features$geometry <- I(geometry)
@@ -46,3 +60,5 @@ for (file in sort(list.files("R", pattern = "[.]R$", full.names = TRUE)))
 validation_environment$validate_state_boundaries_resource(regionalepi_state_boundaries_2024)
 save(regionalepi_state_boundaries_2024,
   file = "data/regionalepi_state_boundaries_2024.rda", compress = "xz", version = 3L)
+save(germany_exterior_outline_2024,
+  file = "R/sysdata.rda", compress = "xz", version = 3L)

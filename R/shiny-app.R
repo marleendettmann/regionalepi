@@ -5,6 +5,15 @@
   )
 }
 
+.shiny_regional_credentials_available <- function(getenv = Sys.getenv) {
+  username <- getenv("REGIONALSTATISTIK_USER", unset = "")
+  password <- getenv("REGIONALSTATISTIK_PASSWORD", unset = "")
+  is.character(username) && length(username) == 1L && !is.na(username) &&
+    nzchar(trimws(username)) &&
+    is.character(password) && length(password) == 1L && !is.na(password) &&
+    nzchar(trimws(password))
+}
+
 .shiny_pathogen_registry <- function() {
   list(
     "Influenza, saisonal" = list(
@@ -324,6 +333,25 @@
   widget
 }
 
+.shiny_clean_named_legend <- function(widget, labels) {
+  labels <- unique(as.character(labels))
+  labels <- labels[order(nchar(labels),decreasing=TRUE)]
+  seen <- character()
+  for (i in seq_along(widget$x$data)) {
+    name <- widget$x$data[[i]]$name
+    if (is.null(name) || !nzchar(name)) next
+    hits <- labels[vapply(labels,function(label)
+      grepl(label,name,fixed=TRUE),logical(1L))]
+    if (!length(hits)) next
+    clean <- hits[[1L]]
+    widget$x$data[[i]]$name <- clean
+    widget$x$data[[i]]$legendgroup <- clean
+    widget$x$data[[i]]$showlegend <- !clean %in% seen
+    seen <- c(seen,clean)
+  }
+  widget
+}
+
 .shiny_app_cluster_colours <- function(ids, mode = "dynamic",
                                        variant = "neutral", alignment = NULL) {
   if (identical(mode, "dissertation")) {
@@ -391,6 +419,7 @@
 
 .shiny_app_leaflet_geojson <- function(geojson, bounds, assignments = NULL,
                                        mode = "dynamic", state_geojson = NULL,
+                                       exterior_geojson = NULL,
                                        colour_variant = "neutral", alignment = NULL,
                                        display_metadata = NULL) {
   widget <- leaflet::leaflet(options = leaflet::leafletOptions(minZoom = 4))
@@ -413,8 +442,13 @@
                                assignments$geo_id)
   )
   if (!is.null(state_geojson)) widget <- leaflet::addGeoJSON(widget, state_geojson,
-    options = leaflet::pathOptions(color = "#4F5B66", weight = 1.50, opacity = .88,
+    options = leaflet::pathOptions(color = "#F7F7F3", weight = 1.2, opacity = .98,
       fill = FALSE, interactive = FALSE), group = "Bundesl\u00e4nder")
+  if (!is.null(exterior_geojson)) widget <- leaflet::addGeoJSON(
+    widget, exterior_geojson,
+    options = leaflet::pathOptions(color = "#27313A", weight = 2.1,
+      opacity = .95, fill = FALSE, interactive = FALSE),
+    group = "Deutschland-Au\u00dfenlinie")
   widget <- htmlwidgets::onRender(widget, "
     function(el, x, display) {
       var map = this;
@@ -428,8 +462,8 @@
           p.state_name = display.states[p.geo_id];
           p.profile = display.profiles[p.geo_id];
         }
-        layer.setStyle({color:'#ffffff', weight:0.7, fillColor:p.fillColor,
-                        fillOpacity:0.82});
+        layer.setStyle({color:'#F4F4F0', weight:0.45, opacity:0.95,
+                        fillColor:p.fillColor, fillOpacity:0.88});
         var profile = p.profile ? '<br>' + p.profile : '';
         layer.bindTooltip('<strong>' + p.geo_name + '</strong><br>' +
                           p.state_name + '<br>AGS ' + p.geo_id + ' \\u00b7 ' +
@@ -444,9 +478,10 @@
           if (!layer.feature || !layer.feature.properties) return;
           var p = layer.feature.properties;
           if (!p.geo_id || p.geo_id.length !== 5) return;
-          layer.setStyle({color: p.geo_id === id ? '#111111' : '#ffffff',
-                          weight: p.geo_id === id ? 3 : 0.7,
-                          fillOpacity: p.geo_id === id ? 0.92 : 0.82});
+          layer.setStyle({color: p.geo_id === id ? '#111111' : '#F4F4F0',
+                          weight: p.geo_id === id ? 3.25 : 0.45,
+                          opacity: p.geo_id === id ? 1 : 0.95,
+                          fillOpacity: p.geo_id === id ? 0.94 : 0.88});
         });
       });
     }", data = display)
@@ -459,17 +494,22 @@
                      bounds[["lng2"]], bounds[["lat2"]], options = list(padding = c(4, 4)))
 }
 
+.shiny_germany_outline_geojson <- function() {
+  germany_exterior_outline_2024
+}
+
 .shiny_app_leaflet_map <- function(map, assignments, mode = "dynamic") {
   .shiny_app_leaflet_geojson(
     if (!is.null(map$browser_geojson)) map$browser_geojson else
       .shiny_app_map_geojson(map, assignments, mode),
-    .shiny_app_map_bounds(map), assignments, mode
+    .shiny_app_map_bounds(map), assignments, mode,
+    exterior_geojson = .shiny_germany_outline_geojson()
   )
 }
 
 .shiny_typology_config <- function(mode) {
   if (identical(mode, "dissertation")) return(list(
-    mode = mode, label = "Dissertation-Referenz", years = 2017:2020,
+    mode = mode, label = "Historische Referenztypologie (2017\u20132020)", years = 2017:2020,
     k = 3L, note = "Historische Referenzreproduktion der Dissertation (2017\u20132020)"
   ))
   if (identical(mode, "dynamic")) return(list(
@@ -608,7 +648,7 @@
   subtitle <- paste0(format(range$start_date,"%d.%m.%Y"),"\u2013",
     format(range$end_date,"%d.%m.%Y")," \u00b7 ",iso)
   typology <- if(identical(typology_mode,"dissertation"))
-    "Typologie: Dissertation-Referenz (2017\u20132020)" else paste0(
+    "Typologie: Historische Referenztypologie (2017\u20132020)" else paste0(
       "Typologie: Dynamisch \u00b7 Referenzzeitraum ",min(demographic_years),
       "\u2013",max(demographic_years)," \u00b7 k=",as.integer(k))
   list(title=title,subtitle=subtitle,typology=typology)
@@ -661,6 +701,16 @@
     stringsAsFactors = FALSE
   ) -> joined
   list(data = joined, map_only_geo_ids = missing, typology_only_geo_ids = extra)
+}
+
+.shiny_current_display_assignments <- function(map_join) {
+  .require_named_list(map_join, "data", "Shiny current-display assignments")
+  .require_data_frame(map_join$data, "Shiny current-display assignments")
+  .require_columns(map_join$data, c("geo_id", "display_cluster_id"),
+                   "Shiny current-display assignments")
+  output <- map_join$data[c("geo_id", "display_cluster_id")]
+  names(output)[[2L]] <- "cluster_id"
+  output
 }
 
 .shiny_fetch_demography <- function(years) {

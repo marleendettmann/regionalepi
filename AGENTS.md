@@ -211,3 +211,29 @@ additional pathogens, AGI presets, arbitrary state groups, state-specific or
 regional typology fitting, within-state cluster comparison, new demographic
 indicators, spatial-dependence models, advanced state-map interaction, and
 Professional/Explorer functionality are deferred.
+
+The region-centred comparison has exactly three display levels: four reviewed
+Großregionen, 12 reviewed aggregated-Land groups, and 16 canonical Länder. The
+12-group level combines Berlin/Brandenburg,
+Bremen/Niedersachsen, Hamburg/Schleswig-Holstein, and
+Saarland/Rheinland-Pfalz, corresponding to the RKI/AGI 12-region composition.
+It is derived only through reviewed Land membership, is applied identically
+across pathogens for descriptive comparison, and is not a geography, source
+query scope, regional typology, or regional incidence. Focal-region cluster
+time courses and overall regional context remain descriptive summaries of
+source-provided district incidence; regional controls never refetch or refit.
+The absolute regional cluster time course is primary. Its secondary signed
+relative-activity heatmap subtracts the contemporaneous weekly median across
+all observed focal-region districts from each national cluster's weekly median
+district incidence in that region. It preserves neutral missing cells versus
+observed zero and retains both cluster and regional-reference completeness in
+hover. Regional context comparisons use deterministic lightness and line-type
+differentiation. The display adds no formal onset, lead/lag, smoothing,
+inference, causal, or transmission interpretation. Functional Research-v0.1 is
+frozen after this regional temporal-pattern and UX consolidation.
+
+The final Shiny information architecture retains five top-level destinations,
+with subordinate tabs for demographic typology and methodology/provenance. Its
+Stuttgart-inspired theme and district/Land/Germany boundary hierarchy are
+presentation-only. The German exterior outline is derived during the reviewed
+VG2500 builder workflow and is not an analytical geography.

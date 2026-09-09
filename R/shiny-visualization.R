@@ -156,16 +156,20 @@
   composition <- .shiny_apply_display_metadata(
     composition, display_metadata, "cluster_id"
   )
-  composition$state_name <- factor(
-    composition$state_name, levels = rev(sort(unique(composition$state_name)))
+  name_col <- if ("comparison_name" %in% names(composition))
+    "comparison_name" else "state_name"
+  total_col <- if ("comparison_total_districts" %in% names(composition))
+    "comparison_total_districts" else "state_total_districts"
+  composition$comparison_name <- factor(
+    composition[[name_col]], levels = rev(sort(unique(composition[[name_col]])))
   )
   composition$hover <- sprintf(
     paste0(
       "%s<br>Nationaler Cluster: %s<br>Kreise im Cluster: %d",
       "<br>Kreise im Land: %d<br>Anteil der Kreise: %.1f%%"
     ),
-    composition$state_name, composition$cluster_id,
-    composition$n_districts, composition$state_total_districts,
+    composition$comparison_name, composition$cluster_id,
+    composition$n_districts, composition[[total_col]],
     100 * composition$district_fraction
   )
   colours <- stats::setNames(
@@ -174,7 +178,7 @@
   graph <- ggplot2::ggplot(
     composition,
     ggplot2::aes(
-      x = state_name, y = district_fraction, fill = cluster_id,
+      x = comparison_name, y = district_fraction, fill = cluster_id,
       text = hover
     )
   ) +
@@ -193,15 +197,36 @@
 
 .shiny_state_comparison_display <- function(summary, selected_cluster,
                                               crosswalk) {
+  out <- .shiny_regional_comparison_display(
+    summary, selected_cluster, crosswalk, "states")
+  out$groups$state_id <- out$groups$comparison_id
+  out$groups$state_name <- out$groups$comparison_name
+  out$groups$state_display <- out$groups$comparison_display
+  out$data$state_display <- out$data$comparison_display
+  out
+}
+
+.shiny_regional_comparison_display <- function(
+    summary, selected_cluster, crosswalk,
+    comparison_level = c("grossregion", "aggregated_state", "state"),
+    comparison_groups = .regional_comparison_groups()) {
+  comparison_level <- comparison_level[[1L]]
   .check_scalar_nonempty_character(
     selected_cluster, "selected_cluster", "state comparison display"
   )
   validate_district_state_crosswalk(crosswalk)
+  membership <- .regional_comparison_membership(
+    crosswalk, comparison_level, comparison_groups)
   selected <- summary[summary$cluster_id == selected_cluster, , drop = FALSE]
-  states <- unique(crosswalk[c("state_id", "state_name")])
-  counts <- table(factor(selected$state_id, levels = states$state_id))
+  selected$comparison_id <- membership$comparison_id[
+    match(selected$geo_id, membership$geo_id)]
+  selected$comparison_name <- membership$comparison_name[
+    match(selected$geo_id, membership$geo_id)]
+  units <- unique(membership[c("comparison_id", "comparison_name")])
+  counts <- table(factor(selected$comparison_id, levels = units$comparison_id))
   groups <- data.frame(
-    state_id = states$state_id, state_name = states$state_name,
+    comparison_id = units$comparison_id,
+    comparison_name = units$comparison_name,
     n_districts = as.integer(counts), stringsAsFactors = FALSE
   )
   groups$display_rule <- ifelse(
@@ -210,15 +235,18 @@
       ifelse(groups$n_districts <= 4L, "points_and_median",
              "points_and_boxplot"))
   )
-  groups$state_display <- paste0(groups$state_name, " (n=", groups$n_districts, ")")
-  selected$state_display <- groups$state_display[match(selected$state_id, groups$state_id)]
-  list(data = selected, groups = groups)
+  groups$comparison_display <- paste0(
+    groups$comparison_name, " (n=", groups$n_districts, ")")
+  selected$comparison_display <- groups$comparison_display[
+    match(selected$comparison_id, groups$comparison_id)]
+  list(data = selected, groups = groups, comparison_level = comparison_level)
 }
 
 .shiny_state_comparison_widget <- function(display, colour) {
-  states <- display$groups$state_display
+  states <- display$groups$comparison_display
   data <- display$data
-  data$state_display <- factor(data$state_display, levels = rev(states))
+  data$comparison_display <- factor(
+    data$comparison_display, levels = rev(states))
   data$hover <- sprintf(
     paste0(
       "%s<br>AGS: %s<br>Bundesland: %s<br>Nationaler Cluster: %s",
@@ -235,49 +263,118 @@
   graph <- ggplot2::ggplot(
     data,
     ggplot2::aes(
-      x = period_median_incidence, y = state_display,
+      x = comparison_display, y = period_median_incidence,
       text = hover, key = geo_id
     )
   ) + ggplot2::labs(
-      x = "Median der w\u00f6chentlichen Kreisinzidenz", y = NULL
+      x = NULL, y = "Median der w\u00f6chentlichen Kreisinzidenz"
     ) +
-    ggplot2::theme_minimal()
-  box_states <- display$groups$state_id[
+    ggplot2::coord_flip() + ggplot2::theme_minimal()
+  box_states <- display$groups$comparison_id[
     display$groups$display_rule == "points_and_boxplot"
   ]
-  box_data <- data[data$state_id %in% box_states, , drop = FALSE]
+  box_data <- data[data$comparison_id %in% box_states, , drop = FALSE]
   if (nrow(box_data)) graph <- graph + ggplot2::geom_boxplot(
     data = box_data,
     ggplot2::aes(
-      x = period_median_incidence, y = state_display, group = state_display
+      x = comparison_display, y = period_median_incidence,
+      group = comparison_display
     ),
     inherit.aes = FALSE,
-    width = .34, outlier.shape = NA, fill = NA, colour = colour,
-    linewidth = .55, na.rm = TRUE
+    width = .48, outlier.shape = NA,
+    fill = "white", alpha = .72, colour = colour,
+    linewidth = .75, na.rm = TRUE
   )
-  median_states <- display$groups$state_id[
+  median_states <- display$groups$comparison_id[
     display$groups$display_rule == "points_and_median"
   ]
-  median_data <- data[data$state_id %in% median_states, , drop = FALSE]
+  median_data <- data[data$comparison_id %in% median_states, , drop = FALSE]
   if (nrow(median_data)) {
     medians <- stats::aggregate(
       median_data$period_median_incidence,
-      median_data[c("state_id", "state_display")],
+      median_data[c("comparison_id", "comparison_display")],
       function(value) if (all(is.na(value))) NA_real_ else stats::median(value, na.rm = TRUE)
     )
     names(medians)[[3L]] <- "period_median_incidence"
     graph <- graph + ggplot2::geom_point(
       data = medians,
-      ggplot2::aes(x = period_median_incidence, y = state_display),
+      ggplot2::aes(x = comparison_display, y = period_median_incidence),
       inherit.aes = FALSE, shape = 23, size = 3, fill = "white",
       colour = colour, stroke = 1, na.rm = TRUE
     )
   }
   graph <- graph + suppressWarnings(ggplot2::geom_jitter(
-    height = .10, width = 0, colour = colour, alpha = .72, size = 1.8,
+    width = .10, height = 0, colour = colour, alpha = .72, size = 1.8,
     na.rm = TRUE
   ))
   plotly::ggplotly(graph, tooltip = "text", source = "state-comparison")
+}
+
+.shiny_finite_n_display <- function(values) {
+  if (!is.numeric(values)) stop("Adaptive display values must be numeric.", call. = FALSE)
+  n <- sum(is.finite(values))
+  rule <- if (n == 0L) "unavailable" else if (n == 1L) "point_only" else if (
+    n <= 4L) "points_and_median" else if (n <= 9L) "points_and_boxplot" else
+      "points_boxplot_and_violin"
+  list(
+    n_finite = as.integer(n), display_rule = rule,
+    show_points = n > 0L, show_median = n >= 2L && n <= 4L,
+    show_boxplot = n >= 5L, show_violin = n >= 10L
+  )
+}
+
+.shiny_adaptive_distribution_layers <- function(data, group_cols, value_col) {
+  .require_data_frame(data, "adaptive distribution display")
+  .require_columns(data, c(group_cols, value_col), "adaptive distribution display")
+  if (!is.numeric(data[[value_col]])) {
+    stop("Adaptive distribution values must be numeric.", call. = FALSE)
+  }
+  key <- interaction(data[group_cols], drop = TRUE, lex.order = TRUE)
+  indices <- split(seq_len(nrow(data)), key, drop = TRUE)
+  rules <- lapply(indices, function(index) {
+    classification <- .shiny_finite_n_display(data[[value_col]][index])
+    row <- data[index[[1L]], group_cols, drop = FALSE]
+    row$n_finite <- classification$n_finite
+    row$display_rule <- classification$display_rule
+    row
+  })
+  rules <- if (length(rules)) do.call(rbind, rules) else {
+    output <- data[FALSE, group_cols, drop = FALSE]
+    output$n_finite <- integer()
+    output$display_rule <- character()
+    output
+  }
+  rownames(rules) <- NULL
+  row_key <- interaction(data[group_cols], drop = TRUE, lex.order = TRUE)
+  rule_key <- interaction(rules[group_cols], drop = TRUE, lex.order = TRUE)
+  display_rule <- rules$display_rule[match(row_key, rule_key)]
+  finite <- is.finite(data[[value_col]])
+  select <- function(allowed) data[finite & display_rule %in% allowed, , drop = FALSE]
+  median_rows <- rules[rules$display_rule == "points_and_median", group_cols,
+                       drop = FALSE]
+  if (nrow(median_rows)) {
+    median_key <- interaction(median_rows[group_cols], drop = TRUE,
+                              lex.order = TRUE)
+    median_rows$.display_median <- vapply(seq_len(nrow(median_rows)),
+      function(index) stats::median(data[[value_col]][
+        finite & as.character(row_key) == as.character(median_key[index])]),
+      numeric(1))
+  } else median_rows$.display_median <- numeric()
+  list(
+    rules = rules,
+    points = data[finite, , drop = FALSE],
+    medians = median_rows,
+    boxplots = select(c("points_and_boxplot", "points_boxplot_and_violin")),
+    violins = select("points_boxplot_and_violin")
+  )
+}
+
+.shiny_weekly_heatmap_xgap <- function(n_weeks) {
+  if (length(n_weeks) != 1L || is.na(n_weeks) || !is.numeric(n_weeks) ||
+      !is.finite(n_weeks) || n_weeks < 0 || n_weeks != floor(n_weeks)) {
+    stop("Displayed week count must be one non-negative whole number.", call. = FALSE)
+  }
+  if (n_weeks <= 60L) 1 else 0
 }
 
 .shiny_heatmap_grid <- function(data, row, column, value, text = NULL,
@@ -299,7 +396,97 @@
        custom = custom_matrix)
 }
 
-.shiny_pairwise_heatmap_widget <- function(pairwise, display_metadata) {
+.shiny_regional_temporal_heatmap_data <- function(data, display_metadata) {
+  required <- c(
+    "date", "cluster_id", "median_incidence", "regional_reference_median",
+    "regional_relative_activity", "observed_districts",
+    "expected_districts", "missing_districts", "completeness",
+    "regional_observed_districts", "regional_expected_districts",
+    "regional_missing_districts", "regional_completeness"
+  )
+  .require_data_frame(data, "regional relative-activity heatmap")
+  .require_columns(data, required, "regional relative-activity heatmap")
+  ids <- display_metadata$display_cluster_id
+  represented <- ids[ids %in% unique(as.character(
+    data$cluster_id[data$expected_districts > 0L]))]
+  dates <- sort(unique(data$date))
+  selected <- data[data$expected_districts > 0L &
+    as.character(data$cluster_id) %in% represented, , drop = FALSE]
+  key <- paste(selected$date, selected$cluster_id, sep = "\r")
+  expected <- as.vector(outer(as.character(dates), represented, paste,
+                              sep = "\r"))
+  if (anyDuplicated(key) || !setequal(key, expected)) {
+    stop("Regional relative-activity cells must form one complete unique cluster-by-week grid.",
+         call. = FALSE)
+  }
+  selected$cluster_id <- factor(as.character(selected$cluster_id),
+    levels = represented, ordered = TRUE)
+  selected <- selected[order(selected$cluster_id, selected$date), , drop = FALSE]
+  profile <- display_metadata$profile_description[
+    match(as.character(selected$cluster_id), display_metadata$display_cluster_id)]
+  label <- display_metadata$display_label[
+    match(as.character(selected$cluster_id), display_metadata$display_cluster_id)]
+  observed <- !is.na(selected$regional_relative_activity)
+  selected$hover <- ifelse(observed,
+    sprintf(paste0("%s<br>Cluster: %s \u00b7 %s<br>%s<br>",
+      "Cluster-Wochenmedian: %.2f<br>Median aller Kreise der Region: %.2f<br>",
+      "Relative Aktivit\u00e4t: %+.2f<br>",
+      "Cluster-Kreise beobachtet/erwartet/fehlend: %d/%d/%d (%.1f %%)<br>",
+      "Region gesamt beobachtet/erwartet/fehlend: %d/%d/%d (%.1f %%)"),
+      .iso_week_label(selected$date), as.character(selected$cluster_id), label,
+      profile, selected$median_incidence, selected$regional_reference_median,
+      selected$regional_relative_activity,
+      selected$observed_districts, selected$expected_districts,
+      selected$missing_districts, 100 * selected$completeness,
+      selected$regional_observed_districts,
+      selected$regional_expected_districts,
+      selected$regional_missing_districts,
+      100 * selected$regional_completeness),
+    sprintf(paste0("%s<br>Cluster: %s \u00b7 %s<br>%s<br>",
+      "Keine beobachtbare relative Aktivit\u00e4t<br>",
+      "Cluster-Kreise beobachtet/erwartet/fehlend: %d/%d/%d (%.1f %%)<br>",
+      "Region gesamt beobachtet/erwartet/fehlend: %d/%d/%d (%.1f %%)"),
+      .iso_week_label(selected$date), as.character(selected$cluster_id), label,
+      profile, selected$observed_districts, selected$expected_districts,
+      selected$missing_districts, 100 * selected$completeness,
+      selected$regional_observed_districts,
+      selected$regional_expected_districts,
+      selected$regional_missing_districts,
+      100 * selected$regional_completeness))
+  grid <- .shiny_heatmap_grid(selected, "cluster_id", "date",
+    "regional_relative_activity", "hover")
+  grid$rows <- represented
+  grid$data <- selected
+  grid
+}
+
+.shiny_regional_context_styles <- function(region_names, focal_name) {
+  region_names <- unique(as.character(region_names))
+  if (length(focal_name) != 1L || is.na(focal_name) ||
+      !focal_name %in% region_names || !"Deutschland" %in% region_names) {
+    stop("Regional context styles require one focal region and Germany.",
+         call. = FALSE)
+  }
+  comparisons <- setdiff(region_names, c(focal_name, "Deutschland"))
+  if (length(comparisons) > 3L) {
+    stop("Regional context supports at most three comparison regions.",
+         call. = FALSE)
+  }
+  comparison_colours <- c("#4E6478", "#7A8D9E", "#A5B0BA")
+  comparison_types <- c("solid", "dashed", "dotdash")
+  data.frame(
+    comparison_name = c(focal_name, comparisons, "Deutschland"),
+    colour = c("#B3261E", comparison_colours[seq_along(comparisons)],
+               "#1F2937"),
+    linetype = c("solid", comparison_types[seq_along(comparisons)],
+                 "longdash"),
+    linewidth = c(1.10, rep(.72, length(comparisons)), .88),
+    stringsAsFactors = FALSE
+  )
+}
+
+.shiny_pairwise_heatmap_widget <- function(pairwise, display_metadata,
+                                            reviewed_period = NULL) {
   ids <- display_metadata$display_cluster_id
   pair_order <- apply(utils::combn(ids, 2L), 2L, paste, collapse = "\r")
   pairwise$pair_key <- factor(pairwise$pair_key, levels = pair_order,
@@ -312,16 +499,29 @@
   grid <- .shiny_heatmap_grid(
     pairwise, "pair_key", "date", "difference", "hover")
   labels <- unique(pairwise[c("pair_key", "pair_label")])
+  shapes <- list()
+  if (!is.null(reviewed_period) && nrow(reviewed_period) == 1L) {
+    shapes <- lapply(
+      c(reviewed_period$start_date, reviewed_period$end_date),
+      function(day) list(
+        type = "line", xref = "x", yref = "paper",
+        x0 = format(day), x1 = format(day), y0 = 0, y1 = 1,
+        line = list(color = "#4B5563", width = 1, dash = "dot")
+      )
+    )
+  }
   plotly::plot_ly(
     x = grid$columns,
     y = labels$pair_label[match(grid$rows, as.character(labels$pair_key))],
     z = grid$z, type = "heatmap", zmid = 0,
     colors = c("#2166AC", "#F7F7F7", "#B2182B"), text = grid$text,
-    hoverinfo = "text", source = "pairwise", connectgaps = FALSE
+    hoverinfo = "text", source = "pairwise", connectgaps = FALSE,
+    xgap = .shiny_weekly_heatmap_xgap(length(grid$columns)), ygap = 1
   ) |>
     plotly::layout(
       xaxis = list(title = "", rangeslider = list(visible = TRUE)),
-      yaxis = list(title = ""))
+      yaxis = list(title = ""), shapes = shapes,
+      plot_bgcolor = "#D1D5DB")
 }
 
 .shiny_district_heatmap_layout <- function(data, selected_geo_id = NULL) {
@@ -404,6 +604,16 @@
   data
 }
 
+.shiny_regional_type_choices <- function(metadata) {
+  description <- sub("[,;].*$", "", metadata$profile_description)
+  label <- ifelse(
+    metadata$mode == "dynamic",
+    paste0(metadata$display_cluster_id, " \u2013 ", description),
+    metadata$display_label
+  )
+  stats::setNames(metadata$display_cluster_id, label)
+}
+
 .shiny_district_heatmap_data <- function(data, metadata,
                                          selected_geo_id = NULL) {
   required <- c("geo_id", "geo_name", "cluster_id", "date", "incidence", "cases")
@@ -469,15 +679,18 @@
 
 .shiny_district_heatmap_widget <- function(audit, source = "district-heat") {
   x <- audit$weeks$date; y <- audit$districts$row_position
+  xgap <- .shiny_weekly_heatmap_xgap(nrow(audit$weeks))
   figure <- plotly::plot_ly(x = x, y = y, z = audit$incidence,
     type = "heatmap", colors = c("#F7FBFF", "#6BAED6", "#08306B"),
     text = audit$hover, hoverinfo = "text", customdata = audit$customdata,
-    source = source, connectgaps = FALSE, colorbar = list(title = "Inzidenz"))
+    source = source, connectgaps = FALSE, xgap = xgap, ygap = 0,
+    colorbar = list(title = "Inzidenz"))
   if (any(audit$missing)) figure <- plotly::add_trace(figure, x = x, y = y,
     z = ifelse(audit$missing, 1, NA_real_), type = "heatmap",
     colorscale = list(c(0, "#D9D9D9"), c(1, "#D9D9D9")),
     zmin = 0, zmax = 1, showscale = FALSE, text = audit$hover,
     customdata = audit$customdata, hoverinfo = "text", connectgaps = FALSE,
+    xgap = xgap, ygap = 0,
     inherit = FALSE)
   strip <- plotly::plot_ly(x = rep("Cluster", nrow(audit$districts)), y = y,
     type = "scatter", mode = "markers", hoverinfo = "text",
@@ -623,4 +836,68 @@
   transitions <- do.call(rbind,lapply(comparisons,`[[`,"data"));rownames(transitions)<-NULL
   list(reference_k=3L,summary=summary,transitions=transitions,
        comparisons=comparisons)
+}
+
+.shiny_stability_alluvial_widget <- function(stability, display_metadata) {
+  if (!identical(stability$reference_k, 3L)) {
+    stop("Stability alluvials require the reviewed k=3 reference.", call. = FALSE)
+  }
+  source_ids <- display_metadata$display_cluster_id
+  source_colours <- stats::setNames(
+    display_metadata$display_colour, display_metadata$display_cluster_id
+  )
+  rgba <- function(colour, alpha = .52) {
+    rgb <- grDevices::col2rgb(colour)
+    sprintf("rgba(%d,%d,%d,%.2f)", rgb[1L, ], rgb[2L, ], rgb[3L, ], alpha)
+  }
+  trace <- function(target_k, x_domain, y_domain) {
+    x <- stability$transitions[
+      stability$transitions$target_k == target_k &
+        stability$transitions$n_shared > 0L, , drop = FALSE
+    ]
+    target_ids <- sort(unique(as.character(x$target_cluster)))
+    nodes <- c(
+      paste0("k=3 \u00b7 ", source_ids),
+      paste0("k=", target_k, " \u00b7 ", target_ids)
+    )
+    source <- match(as.character(x$reference_cluster), source_ids) - 1L
+    target <- length(source_ids) +
+      match(as.character(x$target_cluster), target_ids) - 1L
+    list(
+      type = "sankey", orientation = "h", arrangement = "snap",
+      domain = list(x = x_domain, y = y_domain),
+      node = list(
+        label = nodes, pad = 12, thickness = 16,
+        color = c(unname(source_colours[source_ids]),
+          rep("#AEB7C2", length(target_ids)))
+      ),
+      link = list(
+        source = source, target = target, value = x$n_shared,
+        color = unname(rgba(source_colours[as.character(x$reference_cluster)])),
+        customdata = sprintf(
+          "%s \u2192 %s<br>Gemeinsame Kreise: %d",
+          x$reference_cluster, x$target_cluster, x$n_shared
+        ),
+        hovertemplate = "%{customdata}<extra></extra>"
+      )
+    )
+  }
+  first <- trace(2L, c(0, .47), c(.55, 1))
+  second <- trace(4L, c(.53, 1), c(.55, 1))
+  third <- trace(5L, c(.14, .86), c(0, .41))
+  plot <- do.call(plotly::plot_ly, first)
+  plot <- do.call(plotly::add_trace, c(list(p = plot), second))
+  plot <- do.call(plotly::add_trace, c(list(p = plot), third))
+  plotly::layout(
+    plot,
+    annotations = list(
+      list(x = .235, y = 1.035, xref = "paper", yref = "paper",
+        text = "k=3 \u2192 k=2", showarrow = FALSE),
+      list(x = .765, y = 1.035, xref = "paper", yref = "paper",
+        text = "k=3 \u2192 k=4", showarrow = FALSE),
+      list(x = .5, y = .46, xref = "paper", yref = "paper",
+        text = "k=3 \u2192 k=5", showarrow = FALSE)
+    ),
+    margin = list(l = 12, r = 12, t = 34, b = 12)
+  )
 }

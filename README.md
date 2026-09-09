@@ -61,6 +61,9 @@ three-center k-means. Historical labels require an explicit reproduction mode.
 `compare_typology()` safely aligns arbitrary raw cluster numbers to a reviewed
 historical partition by evaluating all six permutations.
 
+The methodological concept follows the demographic regional typology developed
+by [Dettmann (2026)](https://doi.org/10.17169/refubium-51449).
+
 The separate `demographic_structure_v1` indicator set and
 `dynamic_kmeans_v1` fitting specification support deterministic exploratory
 demographic typologies for `k = 2` through `5`. Dynamic fits retain raw
@@ -161,6 +164,43 @@ state-specific or regional typology fits, within-state cluster comparison, new
 demographic indicators, spatial-dependence models, advanced state-map
 interaction, and Professional/Explorer deployment functionality are explicitly
 deferred. This is a scope statement, not a package-version release.
+
+The region-centred analysis can display four reviewed Großregionen, 12
+aggregated-Land groups, or all 16 canonical Länder. Its focal view shows
+national-cluster composition, weekly focal-region cluster medians, an overall
+context against Germany and up to two regions, and district drill-down. Every
+curve is a descriptive median of source-provided district incidences, never an
+official regional incidence. The four combinations in the 12-group level are
+Brandenburg/Berlin, Niedersachsen/Bremen, Schleswig-Holstein/Hamburg, and
+Rheinland-Pfalz/Saarland; all other Länder remain separate. This composition
+corresponds to the grouping documented by the RKI Arbeitsgemeinschaft
+Influenza. regionalepi reuses the composition identically across pathogens only
+for descriptive comparison and does not claim it as a new geography, a source
+query level, or a pathogen-specific epidemiological region. The official
+composition is documented at <https://influenza.rki.de/Glossar.aspx>. The four
+Großregionen—Süden, Mitte (West), Norden (West), and Osten—correspond to the
+four AGI-Großregionen documented there, but remain neutral comparison groups
+inside regionalepi.
+
+The regional absolute cluster time course is complemented by a secondary
+relative-activity heatmap. For every week and national cluster it subtracts
+the median incidence of all observed districts in the selected region from
+the cluster's median district incidence in that region. Positive and negative
+values therefore describe activity above and below the contemporaneous focal-
+region district median; they do not define formal wave onset, lead/lag,
+transmission direction, causation, or significance. Missing incidence remains
+distinct from observed zero. Both cluster and regional-reference completeness
+are retained in hover. Regional-context comparisons use deterministic colour
+lightness and line types; Großregionen allow all three non-focal comparisons,
+whereas the 12- and 16-group levels remain capped at two.
+
+The Research-v0.1 Shiny information architecture retains five top-level
+destinations. Demographic typology is divided into cluster profiles, stability,
+and district distributions; methodology and provenance are divided into
+method, data sources, current definitions, and reproducibility. Optional
+Regionaldatenbank credentials are configured only through
+`REGIONALSTATISTIK_USER` and `REGIONALSTATISTIK_PASSWORD`; the app never offers
+secret input fields or displays their values.
 
 ### Reviewed demographic snapshot
 
