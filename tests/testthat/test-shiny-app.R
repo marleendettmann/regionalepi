@@ -233,7 +233,7 @@ test_that("one display metadata contract fixes identity order labels and colours
     regionalepi:::.shiny_germany_outline_geojson(),
     display_metadata = reference_metadata)
   map_display <- widget$jsHooks$render[[1L]]$data
-  representatives <- c(ClD="01001",ClJ="01003",ClA="01004")
+  representatives <- c(ClD="01001",ClJ="01004",ClA="01003")
   expect_identical(unlist(map_display$clusters[representatives],use.names=FALSE),
     names(representatives))
   expect_identical(unlist(map_display$colours[names(representatives)],use.names=FALSE),

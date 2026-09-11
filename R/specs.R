@@ -145,9 +145,9 @@ dissertation_typology_spec <- function() {
       historical_label_mapping = list(
         list(raw_cluster = 1L, cluster_code = "ClD",
              cluster_label = "dichte Regionen"),
-        list(raw_cluster = 3L, cluster_code = "ClJ",
+        list(raw_cluster = 2L, cluster_code = "ClJ",
              cluster_label = "familiengepr\u00e4gte Regionen"),
-        list(raw_cluster = 2L, cluster_code = "ClA",
+        list(raw_cluster = 3L, cluster_code = "ClA",
              cluster_label = "\u00e4ltere, l\u00e4ndliche Regionen")
       ),
       label_mapping_scope = "historical_fitted_solution_only"

@@ -182,11 +182,13 @@ test_that("historical regional composition uses the reviewed current display uni
   expect_setequal(current$geo_id, crosswalk$geo_id)
   expect_false("16056" %in% current$geo_id)
   expect_true("16056" %in% raw$geo_id)
-  expect_identical(raw$cluster_id[raw$geo_id == "16056"], "ClJ")
-  expect_identical(current$cluster_id[current$geo_id == "16063"], "ClJ")
+  expect_identical(as.integer(table(factor(raw$cluster_id,
+    levels = c("ClD", "ClJ", "ClA")))), c(63L, 213L, 125L))
+  expect_identical(raw$cluster_id[raw$geo_id == "16056"], "ClA")
+  expect_identical(current$cluster_id[current$geo_id == "16063"], "ClA")
   expect_identical(current$cluster_id[current$geo_id == "11000"], "ClD")
   expect_identical(as.integer(table(factor(current$cluster_id,
-    levels = c("ClA", "ClD", "ClJ")))), c(213L, 63L, 124L))
+    levels = c("ClA", "ClD", "ClJ")))), c(124L, 63L, 213L))
 
   gross <- summarize_cluster_composition_by_region(
     current, "grossregion", crosswalk
@@ -194,8 +196,8 @@ test_that("historical regional composition uses the reviewed current display uni
   expected_gross <- data.frame(
     comparison_id = rep(c("middle_west", "north", "east", "south"), each = 3L),
     cluster_id = rep(c("ClA", "ClD", "ClJ"), 4L),
-    n_districts = c(67L, 28L, 26L, 40L, 7L, 16L,
-                    9L, 7L, 60L, 97L, 21L, 22L),
+    n_districts = c(26L, 28L, 67L, 16L, 7L, 40L,
+                    60L, 7L, 9L, 22L, 21L, 97L),
     stringsAsFactors = FALSE
   )
   observed_gross <- gross[c("comparison_id", "cluster_id", "n_districts")]
@@ -217,17 +219,17 @@ test_that("historical regional composition uses the reviewed current display uni
   expect_identical(length(unique(aggregated$comparison_id)), 12L)
   expect_identical(length(unique(states$comparison_id)), 16L)
   expect_identical(aggregated$n_districts[
-    aggregated$comparison_id == "BB_BE" & aggregated$cluster_id == "ClA"], 3L)
+    aggregated$comparison_id == "BB_BE" & aggregated$cluster_id == "ClA"], 15L)
   expect_identical(aggregated$n_districts[
     aggregated$comparison_id == "BB_BE" & aggregated$cluster_id == "ClD"], 1L)
   expect_identical(aggregated$n_districts[
-    aggregated$comparison_id == "BB_BE" & aggregated$cluster_id == "ClJ"], 15L)
+    aggregated$comparison_id == "BB_BE" & aggregated$cluster_id == "ClJ"], 3L)
   expect_identical(states$n_districts[
-    states$comparison_id == "16" & states$cluster_id == "ClA"], 4L)
+    states$comparison_id == "16" & states$cluster_id == "ClA"], 17L)
   expect_identical(states$n_districts[
     states$comparison_id == "16" & states$cluster_id == "ClD"], 1L)
   expect_identical(states$n_districts[
-    states$comparison_id == "16" & states$cluster_id == "ClJ"], 17L)
+    states$comparison_id == "16" & states$cluster_id == "ClJ"], 4L)
 })
 
 test_that("regional composition supports both reviewed comparison levels", {

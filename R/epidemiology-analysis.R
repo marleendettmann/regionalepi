@@ -49,7 +49,7 @@ dissertation_surveillance_compatibility <- function() {
     expected_surveillance_only_geo_ids = character(),
     expected_typology_count = 401L, expected_surveillance_count = 400L,
     review_status = "reviewed",
-    reason = "Eisenach absent from analytical surveillance; Wartburgkreis retained; both historical ClJ; no reassignment"
+    reason = "Eisenach absent from analytical surveillance; Wartburgkreis retained; both historical ClA; no reassignment"
   )
   validate_typology_surveillance_compatibility(x)
   x

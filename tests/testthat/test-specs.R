@@ -97,9 +97,9 @@ test_that("dissertation typology preserves every reference parameter", {
     list(
       list(raw_cluster = 1L, cluster_code = "ClD",
            cluster_label = "dichte Regionen"),
-      list(raw_cluster = 3L, cluster_code = "ClJ",
+      list(raw_cluster = 2L, cluster_code = "ClJ",
            cluster_label = "familiengeprägte Regionen"),
-      list(raw_cluster = 2L, cluster_code = "ClA",
+      list(raw_cluster = 3L, cluster_code = "ClA",
            cluster_label = "ältere, ländliche Regionen")
     )
   )

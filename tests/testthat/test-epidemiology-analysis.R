@@ -135,5 +135,5 @@ test_that("dissertation compatibility records 401 to 400 without reassignment", 
   expect_identical(x$expected_surveillance_count, 400L)
   expect_identical(x$expected_typology_only_geo_ids, "16056")
   expect_identical(x$reason,
-    "Eisenach absent from analytical surveillance; Wartburgkreis retained; both historical ClJ; no reassignment")
+    "Eisenach absent from analytical surveillance; Wartburgkreis retained; both historical ClA; no reassignment")
 })
