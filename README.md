@@ -148,6 +148,14 @@ source units is retained only as a validation diagnostic. The final
 source measures verbatim. Counts are contextual: cluster totals depend on
 cluster size and population and are not comparable as rates.
 
+`derive_incidence_annual_average()` is a separate scientific-core operation.
+It divides canonical source-provided cases by official annual-average
+population for the identical character AGS and reporting year and retains full
+precision in `incidence_annual_average`. It performs no standardization,
+weighting, rounding, or fallback. The existing source-provided `incidence`
+contract, historical dissertation reproduction, Paper-2 outputs, and Shiny
+behavior remain unchanged in this implementation block.
+
 ### Research-v0.1 generalization and freeze
 
 Norovirus-Gastroenteritis is the third supported Shiny pathogen and reuses the

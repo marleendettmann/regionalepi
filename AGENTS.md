@@ -22,7 +22,10 @@ deterministic geographic identity resolution, geography transformations, tests,
 architecture documentation, and narrow authenticated Regionaldatenbank
 demographic-context adapters. The separate source-provided SurvStat incidence
 contract, local-file reader, and reviewed non-additive replacement assembly are
-also implemented. Other network retrieval, standardization, clustering,
+also implemented. A separate derived-incidence contract calculates only
+SurvStat cases divided by official reporting-year annual-average population;
+it is not wired into Shiny or historical reproduction. Other network
+retrieval, standardization, clustering,
 visualization, and applications remain outside this scope.
 
 The frozen dissertation typology reproduction is implemented as a narrow
@@ -86,7 +89,21 @@ Offline tests use a synthetic internal transport boundary.
 never sums or averages rates and incidence is explicitly rejected by additive
 geography transformations. The reviewed resource supplies the Berlin-specific
 12-to-1 specification and Bundesland alias as data; analytical function code
-contains no Berlin branch. Incidence calculation remains deferred.
+contains no Berlin branch. This source-incidence assembly never calculates a
+rate.
+
+## Annual-average population incidence v0.1
+
+`derive_incidence_annual_average()` calculates the distinct field
+`incidence_annual_average` from canonical source-provided SurvStat cases and
+official annual-average population joined exactly by character `geo_id` and
+reporting year. It preserves full numeric precision, propagates missing cases,
+requires complete positive denominators, and performs no rounding, weighting,
+age/sex standardization, geographic transformation, or provisional fallback.
+
+The result deliberately does not create the source-provided `incidence` field.
+Historical dissertation reproduction and current Shiny behavior therefore
+remain source-incidence based and cannot silently consume this derived measure.
 
 ## Geographic Resolution v0.1
 
@@ -154,8 +171,8 @@ dependency quotients plus district area. An internal age-population adapter
 validates, but never replaces, the authoritative youth quotient. Population
 density is derived by exact identifier/date joins without rounding, and annual
 indicators may be summarized only by a complete unweighted arithmetic mean.
-All adapter-produced `geo_vintage` values remain `NA_Date_`. Incidence
-calculation and denominator selection remain outside this block.
+All adapter-produced `geo_vintage` values remain `NA_Date_`. Denominator
+selection for downstream analyses remains outside the adapter layer.
 
 ## Map geometry and dynamic typology v0.1
 
