@@ -131,6 +131,14 @@ district total population at 31 December for the approved 2017-2025 period and
 returns validated `population_denominator` data with separate diagnostics and
 dataset-level provenance. It is not a generic GENESIS client.
 
+`fetch_regional_average_population()` is a distinct narrow authenticated
+adapter for table `12411-05-01-4`, measure `BEV028`, and the reviewed
+2022-2025 period. It returns strictly positive district annual-average
+population keyed by reporting year under a separate validated contract. Its
+source-supported Census 2022 basis is retained in provenance, while
+`geo_vintage` remains unresolved. This acquisition layer does not calculate
+incidence or alter the scientific meaning of year-end population.
+
 Credentials are infrastructure configuration read only from
 `REGIONALSTATISTIK_USER` and `REGIONALSTATISTIK_PASSWORD`. The package does not
 parse `.env`, expose credential arguments, store credentials, or include them

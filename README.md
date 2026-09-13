@@ -55,6 +55,13 @@ may be summarized with an unweighted arithmetic mean. Geographic vintage
 remains unresolved; no historical harmonization is inferred from observation
 dates.
 
+`fetch_regional_average_population()` separately retrieves official district
+annual-average population for the reviewed 2022--2025 years from table
+`12411-05-01-4`, measure `BEV028`. The source defines this measure from 2012
+onward as the simple arithmetic mean of population at the beginning and end of
+the reporting year. It has its own validated year-based contract and does not
+reinterpret the 31 December population adapter. No incidence is calculated.
+
 `fit_dissertation_typology()` consumes the complete 2017--2020 indicator
 summary and reproduces the dissertation's explicit base-R scaling and frozen
 three-center k-means. Historical labels require an explicit reproduction mode.
