@@ -40,10 +40,18 @@ which remains undecided (License: TBD).
 
 Regionaldatenbank Deutschland attribution
 
-Population observations retrieved at runtime from Regionaldatenbank
-Deutschland table 12411-01-01-4 are provided by the Statistische Ämter des
-Bundes und der Länder. The service response states that the data are licensed
-under Datenlizenz Deutschland - Namensnennung - Version 2.0.
+The bundled reviewed demographic snapshot contains observations derived from
+Regionaldatenbank Deutschland tables 12411-07-01-4 (BEV519 mean age),
+12411-08-01-4 (BEV216 youth dependency quotient), 12411-01-01-4 (population at
+31 December), and 11111-01-01-4 (FLC006 district area). Runtime adapters also
+retrieve those sources and table 12411-05-01-4 (BEV028 annual-average
+population). Population density is derived in regionalepi from compatible
+population and area observations.
+
+These data are provided by the Statistische Ämter des Bundes und der Länder.
+The reviewed service responses retained in resource and result provenance state
+that the data are licensed under Datenlizenz Deutschland - Namensnennung -
+Version 2.0.
 
 Regionaldatenbank Deutschland: https://www.regionalstatistik.de/
 Datenlizenz Deutschland - Namensnennung - Version 2.0:

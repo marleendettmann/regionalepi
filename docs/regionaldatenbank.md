@@ -1,10 +1,26 @@
-# Regionaldatenbank Deutschland source adapter v0.1
+# Regionaldatenbank Deutschland source adapters v0.1
 
-The reviewed runtime source is Regionaldatenbank Deutschland table
+The year-end population adapter uses Regionaldatenbank Deutschland table
 `12411-01-01-4`, statistic `12411`, *Bevölkerung nach Geschlecht - Stichtag
 31.12. - regionale Tiefe: Kreise und kreisfreie Städte*. The adapter retrieves
 only total population (`Insgesamt`, `Bevölkerungsstand`, unit `Anzahl`) for the
-approved reference dates 2019-12-31 through 2025-12-31.
+approved reference dates 2017-12-31 through 2025-12-31.
+
+`fetch_regional_average_population()` is a separate narrow adapter for table
+`12411-05-01-4`, statistic `12411`, measure `BEV028`, sex `Insgesamt`, and
+reporting years 2022--2025. It returns official reporting-year annual-average
+population under its own validated contract. Provenance retains the table,
+measure, year, Census population basis, retrieval time, data status, source
+notes, and attribution. This adapter does not calculate incidence and does not
+reinterpret a 31 December population value.
+
+The demographic-context adapters additionally retrieve source-provided mean
+age (`BEV519`, table `12411-07-01-4`), source-provided youth dependency
+quotient (`BEV216`, table `12411-08-01-4`), and district area (`FLC006`, table
+`11111-01-01-4`). `derive_population_density()` joins compatible year-end
+population and area by exact character district identifier and reference date
+and divides without rounding. An internal age-population request is used only
+for validation of the authoritative youth quotient.
 
 The official REST endpoint family is
 `https://www.regionalstatistik.de/genesisws/rest/2020/`. The implementation
@@ -29,7 +45,7 @@ establish the canonical territorial register vintage.
 
 The source documentation distinguishes the population basis used through 2021
 from the Census 2022 basis used from 2022. The adapter records `census_2011` for
-2019-2021 and `census_2022` for 2022-2025, and retains the methodological break
+2017-2021 and `census_2022` for 2022-2025, and retains the methodological break
 once in result-level provenance.
 
 The API response attributes the data to the Statistische Ämter des Bundes und
@@ -37,5 +53,7 @@ der Länder under Datenlizenz Deutschland - Namensnennung - Version 2.0. Runtime
 source-data licensing is distinct from the package-code license, which remains
 `TBD`.
 
-Age-structure table `12411-09-01-4` is recorded only as the approved next
-context-data source. It is not implemented in this block.
+The source copyright and license text is retained in result-level provenance.
+The installed demographic snapshot contains reviewed observations from tables
+`12411-07-01-4`, `12411-08-01-4`, `12411-01-01-4`, and `11111-01-01-4`;
+runtime annual-average population retrieval uses `12411-05-01-4`.

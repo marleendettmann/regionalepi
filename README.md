@@ -106,10 +106,14 @@ are not persisted. Results are cached only in the active Shiny session.
 
 The default path uses the 2022--2024 demographic reference period,
 `demographic_structure_v1`, `dynamic_kmeans_v1`, `k = 3`, the reviewed VG2500
-2024 map, source-provided SurvStat incidence, reviewed Berlin replacement, and
-weekly median district incidence by cluster. Cluster IDs such as `C01` are
-fit-local neutral identifiers and must not be interpreted as stable categories
-across settings.
+2024 map, reviewed Berlin replacement, and SurvStat case counts. Empty cells in
+the reviewed complete count exports are interpreted as structural zeros after
+exact source-total reconciliation. The normal dynamic analysis derives the
+**Inzidenz auf Basis der durchschnittlichen Jahresbevölkerung** from
+Regionaldatenbank table `12411-05-01-4`; a displayed 2026 result is explicitly
+provisional and uses the 2025 denominator. Weekly summaries are medians of
+district incidence by cluster. Cluster IDs such as `C01` are fit-local neutral
+identifiers and must not be interpreted as stable categories across settings.
 
 The interface offers two explicitly distinct typology modes. Dynamic fits use
 neutral fit-local IDs and a neutral deterministic palette. Dissertation mode
@@ -179,10 +183,12 @@ Norovirus wave; no reviewed national Norovirus wave catalogue is provided.
 Bundesland is an administrative comparison dimension over the unchanged
 national district typology. State composition reports shares of canonical
 districts, not population. The epidemiological state view compares one
-district-level median of source-provided weekly incidence per district for the
-same selected national cluster; it neither calculates a state incidence nor
-supports causal state-effect interpretation. State display changes never fetch
-data or refit the typology.
+district-level median of weekly incidence per district from the selected
+analysis contract for the same national cluster. The normal dynamic path uses
+incidence based on annual-average population; historical dissertation mode uses
+the preserved source-provided SurvStat incidence. The view neither calculates a
+state incidence nor supports causal state-effect interpretation. State display
+changes never fetch data or refit the typology.
 
 Functional Research-v0.1 scope is frozen after this generalization. Rotavirus,
 vaccination coverage, further pathogens, AGI presets, arbitrary state groups,
@@ -195,8 +201,10 @@ The region-centred analysis can display four reviewed Großregionen, 12
 aggregated-Land groups, or all 16 canonical Länder. Its focal view shows
 national-cluster composition, weekly focal-region cluster medians, an overall
 context against Germany and up to two regions, and district drill-down. Every
-curve is a descriptive median of source-provided district incidences, never an
-official regional incidence. The four combinations in the 12-group level are
+curve is a descriptive median of district incidence from the selected analysis
+contract, never an official regional incidence. Dynamic/current analysis uses
+incidence based on annual-average population; historical dissertation mode uses
+source-provided SurvStat incidence. The four combinations in the 12-group level are
 Brandenburg/Berlin, Niedersachsen/Bremen, Schleswig-Holstein/Hamburg, and
 Rheinland-Pfalz/Saarland; all other Länder remain separate. This composition
 corresponds to the grouping documented by the RKI Arbeitsgemeinschaft

@@ -12,7 +12,7 @@ Description: Provides data contracts and a reproducible architecture for
     and geographic data. Publication metadata and licensing are to be decided.
 License: TBD
 Depends:
-    R (>= 3.5.0)
+    R (>= 4.1.0)
 Encoding: UTF-8
 LazyData: true
 LazyDataCompression: xz

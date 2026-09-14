@@ -17,16 +17,18 @@ The intended future processing order is:
 7. clients such as Shiny consume package results.
 
 The package core remains independent of external-service availability. The
-narrow Regionaldatenbank source adapter is the only authenticated network
-adapter in this scope; normal tests and all downstream contracts and geography
-operations remain offline.
+narrow Regionaldatenbank source-adapter family is the only authenticated
+network integration in this scope; normal tests and all downstream contracts
+and geography operations remain offline. The narrow SurvStat SOAP adapters are
+unauthenticated and likewise execute only when called explicitly.
 
 Geographic matching must never be guessed silently. A missing `geo_id` is
 allowed in canonical surveillance data only at the initial source-adapter stage
-when no identifier can be resolved. After a future `resolve_geography()` step,
-unresolved identifiers must be rejected or explicitly diagnosed before
-analytical processing. That function and analytical processing are not part of
-v0.1.
+when no identifier can be resolved. The implemented `resolve_geography()` step
+then requires deterministic exact, reviewed-alias, or reviewed-spatial-unit
+resolution; unresolved and ambiguous source units abort before analytical
+processing. Source spatial aggregation and historical-vintage harmonization
+remain separate subsequent operations.
 
 The dissertation definitions are preserved as versioned reference
 specifications. They are examples that support reproducibility, not fixed
@@ -225,6 +227,24 @@ annual observations and an unweighted arithmetic mean. Dissertation workflow
 code obtains 2017--2020 and the method from `dissertation_typology_spec()`.
 Neither function harmonizes geography, infers `geo_vintage`, or calculates
 incidence.
+
+`fetch_regional_average_population()` is a separate narrow adapter for table
+`12411-05-01-4`, measure `BEV028`, and reporting years 2022--2025. Its validated
+contract is keyed by character district identifier and reporting year and keeps
+the source table, measure, Census population basis, retrieval time, and data
+status in provenance. It does not reinterpret the 31 December population
+contract or itself calculate incidence.
+
+`derive_incidence_annual_average()` calculates the distinct
+`incidence_annual_average` field from SurvStat cases and the matching official
+reporting-year annual-average population without rounding or weighting.
+`prepare_analysis_incidence()` is the explicit current-analysis boundary: it
+preserves the source-provided rate as `incidence_source` and supplies the
+derived value to the established downstream `incidence` field. Final Paper-2
+analysis supports 2022--2025. A Shiny-only 2026 display requires an explicit
+2025 denominator mapping and records `incidence_status = "provisional"`.
+Historical dissertation reproduction bypasses this boundary and continues to
+use source-provided SurvStat incidence.
 
 ## Dissertation typology reproduction
 
@@ -456,8 +476,10 @@ canonical districts to exactly one of the 16 reviewed Länder. This crosswalk is
 only an administrative stratification. Demographic standardization, dynamic
 fits for k = 2--5, the frozen historical fit, display IDs, and colours remain
 national. State composition uses district counts. Epidemiological comparison
-uses one median of source-provided weekly incidence per district and selected
-period, grouped for display by state and one national cluster. It does not
+uses one median of weekly district incidence from the selected analysis
+contract and selected period, grouped for display by state and one national
+cluster. Dynamic/current analysis uses annual-average-population incidence;
+dissertation mode uses historical source incidence. It does not
 construct state incidence, perform inference, or imply causal state effects.
 Cluster selection is downstream display state and enters no retrieval or
 typology cache key.
@@ -486,8 +508,10 @@ composition corresponds to the four AGI-Großregionen documented by RKI/AGI,
 but regionalepi does not treat them as canonical administrative regions or as
 official COVID-19 or Norovirus regions. Regional composition is a share of
 canonical districts. Regional time courses are medians and empirical IQRs of
-observed source-provided district incidences, with expected, observed, and
-missing district counts retained. They are not official regional incidences.
+observed district incidences from the selected analysis contract, with expected,
+observed, and missing district counts retained. They are not official regional
+incidences. Dynamic/current analysis uses annual-average-population incidence;
+historical dissertation mode uses the preserved source incidence.
 National standardization, fitting, cluster assignments, profiles, IDs, and
 colours remain unchanged by every regional control.
 

@@ -159,6 +159,32 @@ contract with unresolved `geo_id` and `geo_vintage`, to be resolved by the
 existing reviewed geography layer. Source member identifiers are provenance,
 not canonical geographic identifiers.
 
+## Annual-average population and derived incidence
+
+`annual_average_population` is distinct from the 31 December population
+denominator. It contains one strictly positive population for each character
+district identifier and reporting year, with `population_measure =
+"annual_average_population"`, `population_reference =
+"reporting_year_annual_average"`, table `12411-05-01-4`, retrieval time, data
+status, population basis, and a compact provenance ID. `geo_vintage` may remain
+`NA_Date_`; reporting year does not establish territorial vintage.
+
+`derive_incidence_annual_average()` joins source-provided SurvStat cases to that
+contract exactly by `geo_id` and reporting year and creates the separate field
+`incidence_annual_average = cases / annual_average_population * 100000`. It does
+not round, weight, standardize, or overwrite a source-provided `incidence`
+field. Structural-zero cases therefore yield zero, while genuinely missing
+cases yield missing derived incidence.
+
+`prepare_analysis_incidence()` is the explicit boundary for dynamic/current
+Paper-2 analysis. It preserves the source-provided SurvStat rate as
+`incidence_source`, places `incidence_annual_average` into the established
+downstream `incidence` field, and records `population_year` and
+`incidence_status`. Final results require the same reporting and population
+year for 2022--2025. A 2026 Shiny display is accepted only through an explicit
+2025 denominator mapping and is marked `provisional`; no silent fallback is
+permitted. Historical dissertation reproduction does not cross this boundary.
+
 Reviewed incidence assembly requires exact query compatibility for source,
 version, pathogen, measure, reference definition, reporting path, relevant
 filters, time unit, years, weeks, and data status. Retrieval timestamps may
@@ -307,8 +333,9 @@ and never performs name matching, refitting, reassignment, or incidence
 transformation.
 
 `summarize_incidence_by_typology()` supports only the median in v0.1. Its
-estimand is median source-provided district incidence by pathogen, period,
-week, typology, and cluster. It reports expected, observed non-missing,
+estimand is median district incidence from the explicitly selected analysis
+contract by pathogen, period, week, typology, and cluster. It reports expected,
+observed non-missing,
 missing, and zero counts plus minimum-group-size status. Zero remains zero;
 `NA` is omitted only explicitly and an all-missing group has an `NA` median.
 No pooled or population-weighted cluster incidence is calculated.
@@ -352,9 +379,9 @@ and source display; the UI does not duplicate period labels.
 The weekly typology summary preserves its median estimand and now also reports
 empirical Q1 and Q3 using R quantile type 7 plus completeness proportion. The
 IQR is not estimation uncertainty. `summarize_period_incidence_by_district()`
-returns exactly one unweighted median of weekly source-provided incidence per
-district, with week completeness diagnostics. Neither contract pools or
-population-weights incidence.
+returns exactly one unweighted median of weekly district incidence from the
+selected analysis contract per district, with week completeness diagnostics.
+Neither contract pools or population-weights incidence.
 
 ## SurvStat reported cases and incidence compatibility
 
