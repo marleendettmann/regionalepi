@@ -102,8 +102,60 @@ test_that("Shiny cache keys respect reactive source boundaries", {
   ))
   bundle <- regionalepi:::.shiny_surveillance_bundle_cache_key(
     "Influenza, saisonal", 2025:2026)
-  expect_match(bundle, "survstat-incidence-counts", fixed = TRUE)
+  expect_match(bundle, "source_survstat_incidence", fixed = TRUE)
   expect_match(bundle, "reference-definition", fixed = TRUE)
+  derived_bundle <- regionalepi:::.shiny_surveillance_bundle_cache_key(
+    "Influenza, saisonal", 2025:2026, "annual_average_population_v1",
+    "survstat-status", "population-status", "provisional", 2025L
+  )
+  expect_false(identical(bundle, derived_bundle))
+  expect_match(derived_bundle, "population-status", fixed = TRUE)
+  expect_match(derived_bundle, "provisional:2025", fixed = TRUE)
+  index$derived <- list(
+    key = derived_bundle, pathogen = "COVID-19", reporting_years = 2021:2022,
+    incidence_definition = "annual_average_population_v1"
+  )
+  expect_identical(regionalepi:::.shiny_surveillance_cache_match(
+    index, "COVID-19", 2022, "annual_average_population_v1"
+  ), derived_bundle)
+  expect_identical(regionalepi:::.shiny_surveillance_cache_match(
+    index, "COVID-19", 2022, "source_survstat_incidence"
+  ), "narrow")
+})
+
+test_that("normal Shiny assembly uses annual-average population with explicit 2026 status", {
+  population_years <- NULL
+  provisional <- NULL
+  source <- list(timings = numeric(), resolution = list())
+  testthat::local_mocked_bindings(
+    .shiny_fetch_surveillance_bundle = function(...) source,
+    fetch_regional_average_population = function(years, ...) {
+      population_years <<- years
+      list(population = TRUE)
+    },
+    prepare_analysis_incidence = function(surveillance,
+                                          annual_average_population,
+                                          provisional_denominator_years) {
+      provisional <<- provisional_denominator_years
+      list(data = data.frame(), diagnostics = list(status = "provisional"),
+           provenance = list(), source_incidence = surveillance)
+    },
+    .shiny_regional_credentials_available = function() TRUE,
+    .package = "regionalepi"
+  )
+  result <- regionalepi:::.shiny_fetch_analysis_bundle(
+    "Influenza, saisonal", 2025:2026, list()
+  )
+  expect_identical(population_years, 2025L)
+  expect_identical(provisional, c("2026" = 2025L))
+  expect_identical(result$diagnostics$status, "provisional")
+  expect_identical(result$source_incidence, source)
+  expect_error(
+    regionalepi:::.shiny_fetch_analysis_bundle(
+      "Influenza, saisonal", 2021L, list()
+    ),
+    "supported only for 2022-2025"
+  )
 })
 
 test_that("typology modes retain distinct identities and palettes", {
@@ -896,7 +948,11 @@ test_that("Shiny app exposes staged progress and caches fitted map widgets", {
   ui_text <- paste(readLines(file.path(app, "ui.R"), warn = FALSE),
                    collapse = "\n")
   expect_match(server_text, ".shiny_fetch_demography", fixed = TRUE)
-  expect_match(server_text, "SurvStat-Inzidenzen und gemeldete Fälle", fixed = TRUE)
+  expect_match(server_text, "SurvStat-Fallzahlen und amtliche durchschnittliche Jahresbevölkerung", fixed = TRUE)
+  expect_match(server_text, ".shiny_fetch_analysis_bundle", fixed = TRUE)
+  expect_match(server_text, "Inzidenz auf Basis der durchschnittlichen Jahresbevölkerung", fixed = TRUE)
+  expect_match(server_text, "Vorläufig: Für 2026 wird die zuletzt verfügbare amtliche durchschnittliche Jahresbevölkerung 2025 als Bezugsbevölkerung verwendet.", fixed = TRUE)
+  expect_false(grepl("incidence_selector|Inzidenz auswählen", ui_text))
   expect_match(server_text, ".shiny_fetch_surveillance_bundle", fixed = TRUE)
   expect_match(server_text, "mkey <- paste0(\"map:\"", fixed = TRUE)
   expect_true(grepl("fetch_surveillance_bundle", server_text, fixed = TRUE))
@@ -1228,8 +1284,27 @@ test_that("linked display state reuses one source bundle and one typology fit", 
     list(data = grid, diagnostics = list(exact_key_equality = TRUE),
          provenance = list(incidence = list(), counts = list()), timings = numeric())
   }
+  fake_analysis_bundle <- function(...) {
+    calls <<- calls + 1L
+    data <- grid
+    data$incidence_source <- data$incidence + 100
+    data$incidence_annual_average <- data$incidence
+    data$population_year <- 2025L
+    data$incidence_status <- "final"
+    list(data = data, diagnostics = list(
+      exact_key_equality = TRUE, status = "final",
+      status_by_reporting_year = data.frame(
+        reporting_year = 2025L, population_year = 2025L,
+        incidence_status = "final", stringsAsFactors = FALSE
+      )), provenance = list(
+        incidence = list(), source_incidence = list(), counts = list(),
+        population = list(population = list(data_status = "synthetic-population"))
+      ), timings = numeric())
+  }
   testthat::local_mocked_bindings(
     .shiny_fetch_surveillance_bundle = fake_bundle,
+    .shiny_fetch_analysis_bundle = fake_analysis_bundle,
+    .shiny_regional_credentials_available = function() TRUE,
     .package = "regionalepi"
   )
   shiny::testServer(server_environment$server, {
@@ -1242,6 +1317,10 @@ test_that("linked display state reuses one source bundle and one typology fit", 
     expect_null(state$error)
     expect_match(state$result$cache_keys$demographic,"snapshot",fixed=TRUE)
     expect_identical(calls, 1L)
+    expect_identical(state$result$bundle$data$incidence,
+      state$result$bundle$data$incidence_annual_average)
+    expect_false(identical(state$result$bundle$data$incidence,
+      state$result$bundle$data$incidence_source))
     fit_id <- state$result$fit$provenance$fit_id
     expect_no_error(output$methods_methodology)
     expect_no_error(output$methods_sources)
@@ -1314,7 +1393,9 @@ test_that("linked display state reuses one source bundle and one typology fit", 
     expect_no_error(output$regional_relative_activity_plot)
     expect_no_error(output$regional_context_time_plot)
     expect_no_error(output$regional_district_plot)
-    expect_identical(calls,1L)
+    expect_identical(calls,2L)
+    expect_false("incidence_annual_average" %in% names(state$result$bundle$data))
+    expect_identical(state$result$bundle$data$incidence,grid$incidence)
 
     session$setInputs(typology_mode="dynamic",k="3",load_analysis=3)
     session$flushReact()
@@ -1322,7 +1403,7 @@ test_that("linked display state reuses one source bundle and one typology fit", 
     expect_true(all(grepl("^C0[1-3]$",
       state$result$map_join$data$display_cluster_id)))
     expect_no_error(output$regional_composition_plot)
-    expect_identical(calls,1L)
+    expect_identical(calls,2L)
 
     session$setInputs(typology_mode="dissertation",load_analysis=4)
     session$flushReact()
@@ -1330,12 +1411,12 @@ test_that("linked display state reuses one source bundle and one typology fit", 
     expect_setequal(unique(state$result$map_join$data$display_cluster_id),
       c("ClD","ClJ","ClA"))
     expect_no_error(output$regional_composition_plot)
-    expect_identical(calls,1L)
+    expect_identical(calls,2L)
 
     session$setInputs(pathogen="COVID-19",window_id="covid19_2020_21",
       range_mode="custom",custom_range=as.Date(c("2020-05-11","2021-05-23")))
     session$flushReact()
     expect_null(state$result)
-    expect_identical(calls,1L)
+    expect_identical(calls,2L)
   })
 })

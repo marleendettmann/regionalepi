@@ -16,7 +16,7 @@ validate_annual_average_incidence <- function(x) {
   contract <- "annual-average population incidence"
   validate_surveillance(x)
   required <- c(
-    "reporting_year", "annual_average_population",
+    "reporting_year", "annual_average_population", "population_year",
     "population_provenance_id", "incidence_annual_average",
     "incidence_definition_id", "incidence_definition_version",
     "incidence_status"
@@ -24,6 +24,9 @@ validate_annual_average_incidence <- function(x) {
   .require_columns(x, required, contract)
   .check_whole_number(
     x$reporting_year, "reporting_year", contract, non_negative = TRUE
+  )
+  .check_whole_number(
+    x$population_year, "population_year", contract, non_negative = TRUE
   )
   .check_numeric(
     x$annual_average_population, "annual_average_population", contract
@@ -60,8 +63,22 @@ validate_annual_average_incidence <- function(x) {
       "`incidence_definition_version` must be annual_average_population_v1"
     )
   }
-  if (any(x$incidence_status != "final")) {
-    .stop_contract(contract, "`incidence_status` must be final")
+  if (any(!x$incidence_status %in% c("final", "provisional"))) {
+    .stop_contract(contract, "`incidence_status` must be final or provisional")
+  }
+  final <- x$incidence_status == "final"
+  if (any(x$population_year[final] != x$reporting_year[final])) {
+    .stop_contract(
+      contract,
+      "final incidence must use the reporting-year annual-average population"
+    )
+  }
+  provisional <- !final
+  if (any(x$population_year[provisional] >= x$reporting_year[provisional])) {
+    .stop_contract(
+      contract,
+      "provisional incidence must record an earlier denominator year"
+    )
   }
   if ("incidence" %in% names(x)) {
     .stop_contract(
@@ -130,7 +147,7 @@ derive_incidence_annual_average <- function(
     .stop_contract(contract, "numerator input must contain cases, not incidence")
   }
   collisions <- intersect(c(
-    "annual_average_population", "population_provenance_id",
+    "annual_average_population", "population_year", "population_provenance_id",
     "incidence_annual_average", "incidence_definition_id",
     "incidence_definition_version", "incidence_status"
   ), names(cases$data))
@@ -177,6 +194,7 @@ derive_incidence_annual_average <- function(
 
   output <- cases$data
   output$annual_average_population <- denominator
+  output$population_year <- population$year[position]
   output$population_provenance_id <- population$provenance_id[position]
   output$incidence_annual_average <-
     output$cases / denominator * .annual_average_incidence_multiplier

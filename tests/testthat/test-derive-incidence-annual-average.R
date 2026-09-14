@@ -66,6 +66,7 @@ test_that("annual-average incidence uses exact full-precision arithmetic", {
   expect_identical(validate_annual_average_incidence(data), data)
   expect_false("incidence" %in% names(data))
   expect_true(all(data$incidence_status == "final"))
+  expect_identical(data$population_year, data$reporting_year)
   expect_identical(
     unique(data$incidence_definition_version),
     "annual_average_population_v1"
@@ -188,7 +189,7 @@ test_that("derived contract verifies formula and final status", {
     annual_incidence_cases(), annual_incidence_population()
   )$data
   data$incidence_status <- "provisional"
-  expect_error(validate_annual_average_incidence(data), "must be final")
+  expect_error(validate_annual_average_incidence(data), "earlier denominator year")
   data <- derive_incidence_annual_average(
     annual_incidence_cases(), annual_incidence_population()
   )$data

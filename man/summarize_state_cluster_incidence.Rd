@@ -18,9 +18,10 @@ summarize_state_cluster_incidence(
 A data frame with one row per observed district.
 }
 \description{
-For every district, computes the median source-provided weekly incidence in
-the supplied analytical period and retains its national cluster and reviewed
+For every district, computes the median weekly incidence supplied by the
+selected analysis contract in the supplied analytical period and retains its
+national cluster and reviewed
 state membership. These are descriptive district summaries, not state
-incidence estimates. Source-provided incidence is never summed, averaged, or
+incidence estimates. District incidence is never summed, averaged, or
 population-weighted across districts.
 }

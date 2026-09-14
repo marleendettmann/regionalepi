@@ -2,7 +2,7 @@
 % Please edit documentation in R/epidemiology-analysis.R
 \name{summarize_incidence_by_typology}
 \alias{summarize_incidence_by_typology}
-\title{Summarize weekly source-provided incidence by typology}
+\title{Summarize weekly district incidence by typology}
 \usage{
 summarize_incidence_by_typology(
   data,

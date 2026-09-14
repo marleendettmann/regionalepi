@@ -24,7 +24,8 @@ demographic-context adapters. The separate source-provided SurvStat incidence
 contract, local-file reader, and reviewed non-additive replacement assembly are
 also implemented. A separate derived-incidence contract calculates only
 SurvStat cases divided by official reporting-year annual-average population;
-it is not wired into Shiny or historical reproduction. Other network
+one explicit assembly boundary supplies it to current Paper-2 and normal Shiny
+analysis while historical reproduction remains source-incidence based. Other network
 retrieval, standardization, clustering,
 visualization, and applications remain outside this scope.
 
@@ -101,9 +102,20 @@ reporting year. It preserves full numeric precision, propagates missing cases,
 requires complete positive denominators, and performs no rounding, weighting,
 age/sex standardization, geographic transformation, or provisional fallback.
 
-The result deliberately does not create the source-provided `incidence` field.
-Historical dissertation reproduction and current Shiny behavior therefore
-remain source-incidence based and cannot silently consume this derived measure.
+The derivation deliberately does not create the source-provided `incidence`
+field. `prepare_analysis_incidence()` preserves that source measure as
+`incidence_source` and supplies the derived value to the established downstream
+analysis field only at the explicit current-analysis boundary. Final Paper-2
+years are 2022--2025. A Shiny-only 2026 view may explicitly use 2025 population
+with `population_year = 2025` and `incidence_status = "provisional"`; it is not
+final 2026 analysis. Historical dissertation reproduction bypasses this
+boundary and remains source-incidence based.
+
+Blank cells in reviewed complete case-count exports are interpreted as
+structural zeros based on matrix completeness and exact total reconciliation,
+not described as missing-value imputation or explicit RKI confirmation.
+Explicitly missing cases remain missing, and source-incidence blanks remain
+`NA` in their preserved contract.
 
 ## Geographic Resolution v0.1
 
@@ -198,7 +210,7 @@ incidence or cases. COVID wave semantics remain separate.
 
 Typology attachment uses canonical character `geo_id` plus reviewed expected
 set differences; it never uses name matching or hard-coded territorial cases.
-The weekly summary estimand is median source-provided district incidence by
+The weekly summary estimand is the unweighted median of district incidence by
 period and cluster. Numeric zero is retained, missing incidence remains `NA`,
 and no pooled or population-weighted cluster incidence is calculated.
 
@@ -208,8 +220,10 @@ The optional package-owned Shiny application is a thin client of existing
 backend contracts. It uses the reviewed dynamic demographic typology, 2024
 map resource, reviewed demographic snapshot by default, optional live
 Regionaldatenbank retrieval, live SurvStat adapters, reviewed geography
-resolution and Berlin replacement, period assignment, typology attachment,
-and median district-incidence summaries. `shiny` and `leaflet` remain suggested
+resolution and Berlin replacement, annual-average-population incidence for the
+normal path, period assignment, typology attachment, and median
+district-incidence summaries. Historical dissertation mode continues to use
+its validated historical source incidence. `shiny` and `leaflet` remain suggested
 dependencies; base graphics provide charts and runtime mapping does not use
 `sf`.
 
@@ -227,7 +241,7 @@ Norovirus-Gastroenteritis is the third and final Research-v0.1 Shiny pathogen.
 Its inclusive KW27--KW26 windows are season-spanning analytical comparison
 frames; no reviewed national Norovirus wave is encoded. The reviewed 400-row
 district-to-state crosswalk supports composition by Land and descriptive
-comparison of district period-median source incidence for one national cluster.
+comparison of district period-median analysis incidence for one national cluster.
 Bundesland never changes the national typology, creates a state incidence,
 enters retrieval/fitting cache keys, or supports causal state-effect claims.
 
@@ -246,7 +260,7 @@ It is derived only through reviewed Land membership, is applied identically
 across pathogens for descriptive comparison, and is not a geography, source
 query scope, regional typology, or regional incidence. Focal-region cluster
 time courses and overall regional context remain descriptive summaries of
-source-provided district incidence; regional controls never refetch or refit.
+district incidence from the selected analysis contract; regional controls never refetch or refit.
 The absolute regional cluster time course is primary. Its secondary signed
 relative-activity heatmap subtracts the contemporaneous weekly median across
 all observed focal-region districts from each national cluster's weekly median

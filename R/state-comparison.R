@@ -455,10 +455,11 @@ summarize_cluster_composition_by_state <- function(
 
 #' Create district-level state-comparison incidence summaries
 #'
-#' For every district, computes the median source-provided weekly incidence in
-#' the supplied analytical period and retains its national cluster and reviewed
+#' For every district, computes the median weekly incidence supplied by the
+#' selected analysis contract in the supplied analytical period and retains its
+#' national cluster and reviewed
 #' state membership. These are descriptive district summaries, not state
-#' incidence estimates. Source-provided incidence is never summed, averaged, or
+#' incidence estimates. District incidence is never summed, averaged, or
 #' population-weighted across districts.
 #'
 #' @param data District-week surveillance data with national `cluster_id`.

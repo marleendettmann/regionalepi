@@ -134,7 +134,7 @@ attach_typology <- function(surveillance, typology, compatibility) {
   )
 }
 
-#' Summarize weekly source-provided incidence by typology
+#' Summarize weekly district incidence by typology
 #'
 #' Calculates the median and empirical first and third quartiles of district
 #' incidences (R's default `quantile()` type 7). It never calculates a
@@ -207,7 +207,7 @@ summarize_incidence_by_typology <- function(
       group_count = nrow(output), all_na_group_count = sum(is.na(output$median_incidence)),
       below_minimum_group_count = sum(!output$minimum_group_size_met),
       statistic = statistic, na_policy = na_policy,
-      estimand = "median_of_district_source_provided_incidence"
+      estimand = "unweighted_median_of_district_incidence"
     ),
     provenance = list(
       query_ids = sort(unique(data$query_id)),
@@ -220,7 +220,7 @@ summarize_incidence_by_typology <- function(
 #' Summarize selected-period incidence for each district
 #'
 #' Produces exactly one unweighted district-specific median of weekly
-#' source-provided incidence. District-week observations are not pooled across
+#' district incidence supplied by the selected analysis contract. District-week observations are not pooled across
 #' districts.
 #'
 #' @param data Period-assigned, typology-attached surveillance incidence.
@@ -269,7 +269,7 @@ summarize_period_incidence_by_district <- function(data, na_policy = "omit") {
       district_count = nrow(output),
       all_missing_district_count = sum(is.na(output$median_period_incidence)),
       na_policy = na_policy,
-      estimand = "district_median_of_weekly_source_provided_incidence",
+      estimand = "district_median_of_weekly_incidence",
       weighting = "none"
     ),
     provenance = list(

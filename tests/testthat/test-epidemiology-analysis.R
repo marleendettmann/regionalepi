@@ -116,7 +116,7 @@ test_that("median handles even, odd, and all-NA groups without pooling", {
   b <- result$data[result$data$cluster_id == "B", ]
   expect_true(is.na(b$median_incidence))
   expect_false(b$minimum_group_size_met)
-  expect_identical(result$diagnostics$estimand, "median_of_district_source_provided_incidence")
+  expect_identical(result$diagnostics$estimand, "unweighted_median_of_district_incidence")
 })
 
 test_that("unsupported summary semantics fail", {

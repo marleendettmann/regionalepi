@@ -16,6 +16,6 @@ A list with \code{data}, \code{diagnostics}, and \code{provenance}.
 }
 \description{
 Produces exactly one unweighted district-specific median of weekly
-source-provided incidence. District-week observations are not pooled across
+district incidence supplied by the selected analysis contract. District-week observations are not pooled across
 districts.
 }

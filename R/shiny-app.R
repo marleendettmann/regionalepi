@@ -140,10 +140,21 @@
         paste(sort(unique(reporting_years)), collapse = "-"), sep = ":")
 }
 
-.shiny_surveillance_bundle_cache_key <- function(pathogen, reporting_years) {
-  paste("survstat-incidence-counts", pathogen,
-        paste(sort(unique(reporting_years)), collapse = "-"),
-        "reference-definition", .survstat_reporting_path, sep = ":")
+.shiny_surveillance_bundle_cache_key <- function(
+    pathogen, reporting_years,
+    incidence_definition = "source_survstat_incidence",
+    surveillance_data_status = "unknown",
+    population_data_status = "not_applicable",
+    incidence_status = "source",
+    provisional_denominator_year = NA_integer_) {
+  paste(
+    "surveillance-analysis", pathogen,
+    paste(sort(unique(reporting_years)), collapse = "-"),
+    incidence_definition, surveillance_data_status, population_data_status,
+    incidence_status,
+    paste(provisional_denominator_year, collapse = "-"),
+    "reference-definition", .survstat_reporting_path, sep = ":"
+  )
 }
 
 .shiny_typology_cache_key <- function(summary, k, mode = "dynamic") {
@@ -162,11 +173,15 @@
   paste("incidence-summary", surveillance_key, period_id, fit_id, sep = ":")
 }
 
-.shiny_surveillance_cache_match <- function(index, pathogen, reporting_years) {
+.shiny_surveillance_cache_match <- function(
+    index, pathogen, reporting_years,
+    incidence_definition = "source_survstat_incidence") {
   if (!length(index)) return(NULL)
   required <- sort(unique(as.integer(reporting_years)))
   compatible <- vapply(index, function(entry) {
     identical(entry$pathogen, pathogen) &&
+      identical(entry$incidence_definition %||% "source_survstat_incidence",
+                incidence_definition) &&
       all(required %in% entry$reporting_years)
   }, logical(1L))
   if (!any(compatible)) return(NULL)
@@ -836,6 +851,70 @@
   combined$timings <- c(incidence_retrieval = incidence_time,
     count_retrieval = count_time, compatibility = combined_time)
   combined
+}
+
+.shiny_fetch_analysis_bundle <- function(pathogen, years, resources) {
+  years <- sort(unique(as.integer(years)))
+  unsupported <- setdiff(years, 2022:2026)
+  if (length(unsupported)) {
+    stop(
+      "Final Paper-2 analysis requires official annual-average population and is supported only for 2022-2025; 2026 is available only as an explicit provisional display.",
+      call. = FALSE
+    )
+  }
+  if (!.shiny_regional_credentials_available()) {
+    stop(
+      "Annual-average-population incidence requires configured Regionaldatenbank credentials.",
+      call. = FALSE
+    )
+  }
+  provisional <- if (2026L %in% years) c("2026" = 2025L) else integer()
+  population_years <- sort(unique(c(intersect(years, 2022:2025),
+                                    unname(provisional))))
+  source_time <- system.time(source <- .shiny_fetch_surveillance_bundle(
+    pathogen, years, resources
+  ))[["elapsed"]]
+  population_time <- system.time(population <-
+    fetch_regional_average_population(population_years))[["elapsed"]]
+  derivation_time <- system.time(result <- prepare_analysis_incidence(
+    source, population, provisional
+  ))[["elapsed"]]
+  result$resolution <- source$resolution
+  result$timings <- c(source$timings, source_bundle = source_time,
+                      population_retrieval = population_time,
+                      incidence_derivation = derivation_time)
+  result
+}
+
+.shiny_analysis_cache_metadata <- function(bundle) {
+  status <- bundle$diagnostics$status %||% "source"
+  status_by_year <- bundle$diagnostics$status_by_reporting_year
+  provisional_year <- if (is.data.frame(status_by_year)) {
+    unique(status_by_year$population_year[
+      status_by_year$incidence_status == "provisional"
+    ])
+  } else {
+    NA_integer_
+  }
+  incidence_queries <- bundle$provenance$source_incidence %||%
+    bundle$provenance$incidence
+  source_status <- sort(unique(c(
+    .shiny_app_query_status(incidence_queries),
+    .shiny_app_query_status(bundle$provenance$counts)
+  )))
+  population_status <- if ("population" %in% names(bundle$provenance)) {
+    vapply(bundle$provenance$population, function(x) {
+      as.character(x$data_status %||% "unknown")
+    }, character(1L))
+  } else {
+    "not_applicable"
+  }
+  list(
+    surveillance_data_status = paste(sort(unique(source_status)), collapse = ","),
+    population_data_status = paste(sort(unique(population_status)), collapse = ","),
+    incidence_status = status,
+    provisional_denominator_year = provisional_year
+  )
 }
 
 .shiny_analyse_period <- function(surveillance, selected_period, fit) {

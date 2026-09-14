@@ -152,9 +152,20 @@ cluster size and population and are not comparable as rates.
 It divides canonical source-provided cases by official annual-average
 population for the identical character AGS and reporting year and retains full
 precision in `incidence_annual_average`. It performs no standardization,
-weighting, rounding, or fallback. The existing source-provided `incidence`
-contract, historical dissertation reproduction, Paper-2 outputs, and Shiny
-behavior remain unchanged in this implementation block.
+weighting, or rounding. `prepare_analysis_incidence()` is the single explicit
+boundary that supplies this measure to current Paper-2 and normal Shiny
+analyses while preserving the original SurvStat incidence for provenance and
+audit. Final analyses are limited to 2022--2025. A Shiny view that includes
+2026 is explicitly provisional and records 2025 as its population denominator;
+it is never presented as final 2026 annual-average population.
+
+Empty result cells in the reviewed SurvStat case-count exports are interpreted
+as structural zero counts, an interpretation strongly supported by their
+complete matrix structure and exact source-total reconciliation. This is not a
+claim of explicit RKI confirmation and is not described as imputing missing
+values. Structural zero cases yield zero derived incidence; explicitly missing
+cases remain `NA`. Historical dissertation reproduction continues to consume
+the separately preserved historical source-provided incidence.
 
 ### Research-v0.1 generalization and freeze
 
