@@ -24,6 +24,54 @@ golden_incidence_fixture <- function() {
   x
 }
 
+canonical_historical_assignment <- function(assignments) {
+  x <- assignments[c("geo_id", "display_cluster_id")]
+  names(x)[[2L]] <- "cluster_code"
+  expect_identical(nrow(x), 401L)
+  expect_identical(anyDuplicated(x$geo_id), 0L)
+  expect_true(all(grepl("^[0-9]{5}$", x$geo_id)))
+  expect_setequal(unique(x$cluster_code), c("ClD", "ClJ", "ClA"))
+  x <- x[order(x$geo_id, method = "radix"), , drop = FALSE]
+
+  # Scientific membership only: UTF-8 `geo_id|cluster_code` lines, sorted by
+  # geo_id, joined by LF, with exactly one trailing LF. Changing the reviewed
+  # literal below requires explicit scientific review of the full partition.
+  lines <- enc2utf8(paste(x$geo_id, x$cluster_code, sep = "|"))
+  list(data = x, bytes = charToRaw(paste0(paste(lines, collapse = "\n"), "\n")))
+}
+
+test_that("golden hash protects the complete historical typology assignment", {
+  summary <- regionalepi:::.shiny_fetch_snapshot_demography(2017:2020)$summary
+  fit <- regionalepi:::.shiny_fit_typology(summary, "dissertation", 3L)
+  canonical <- canonical_historical_assignment(fit$assignments)
+  assignments <- canonical$data
+
+  expect_identical(
+    as.integer(table(factor(assignments$cluster_code,
+      levels = c("ClD", "ClJ", "ClA")))),
+    c(63L, 213L, 125L)
+  )
+  expect_identical(assignments$cluster_code[assignments$geo_id == "11000"], "ClD")
+  expect_identical(assignments$cluster_code[assignments$geo_id == "16056"], "ClA")
+  expect_identical(assignments$cluster_code[assignments$geo_id == "16063"], "ClA")
+  expect_identical(
+    digest::digest(canonical$bytes, algo = "sha256", serialize = FALSE),
+    "a80278e916ff30b4c35b70ae2790e00531a981ed7a1ab1f4f68374d26be95dcf"
+  )
+
+  map_join <- regionalepi:::.shiny_map_assignments(regionalepi_map_geometry(), fit)
+  current <- regionalepi:::.shiny_current_display_assignments(map_join)
+  expected <- assignments[assignments$geo_id != "16056", , drop = FALSE]
+  current <- current[order(current$geo_id, method = "radix"),
+    c("geo_id", "cluster_id"), drop = FALSE]
+  names(current)[[2L]] <- "cluster_code"
+  rownames(expected) <- NULL
+  rownames(current) <- NULL
+  expect_identical(nrow(current), 400L)
+  expect_identical(map_join$typology_only_geo_ids, "16056")
+  expect_identical(current, expected)
+})
+
 test_that("golden weekly estimand preserves zero NA and Core Shiny equality", {
   x <- golden_incidence_fixture()
   core <- summarize_incidence_by_typology(x)$data

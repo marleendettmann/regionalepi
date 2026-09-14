@@ -24,6 +24,7 @@ Imports:
     xml2
 Suggests:
     DBI,
+    digest,
     ggplot2,
     htmlwidgets,
     leaflet,
