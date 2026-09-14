@@ -65,6 +65,59 @@ test_that("period context is metadata driven and makes typology explicit", {
     "Typologie: Historische Referenztypologie (2017–2020)")
 })
 
+test_that("loaded analysis context preserves typology and incidence semantics", {
+  result <- list(
+    typology_mode = "dynamic",
+    display_metadata = data.frame(
+      display_cluster_id = c("C01", "C02", "C03", "C04")
+    ),
+    bundle = list(diagnostics = list(status_by_reporting_year = data.frame(
+      reporting_year = 2026L, population_year = 2025L,
+      incidence_status = "provisional"
+    ))),
+    loaded_selection = list(
+      typology_mode = "dynamic", demographic_period = "2022–2024",
+      k = 4L, demographic_source = "snapshot"
+    )
+  )
+  expect_identical(
+    regionalepi:::.shiny_loaded_analysis_context(result),
+    paste0(
+      "Dynamische Typologie (C01 / C02 / C03 / C04; k = 4) · ",
+      "Inzidenz auf Basis der durchschnittlichen Jahresbevölkerung"
+    )
+  )
+  expect_true(regionalepi:::.shiny_loaded_analysis_is_provisional(result))
+  expect_false(regionalepi:::.shiny_loaded_selection_changed(
+    result, "dynamic", "2022–2024", "4", NULL
+  ))
+  expect_true(regionalepi:::.shiny_loaded_selection_changed(
+    result, "dynamic", "2022–2024", "3", "snapshot"
+  ))
+  expect_true(regionalepi:::.shiny_loaded_selection_changed(
+    result, "dynamic", "2017–2020", "4", "snapshot"
+  ))
+  expect_true(regionalepi:::.shiny_loaded_selection_changed(
+    result, "dissertation", "2022–2024", "4", "snapshot"
+  ))
+  expect_true(regionalepi:::.shiny_loaded_selection_changed(
+    result, "dynamic", "2022–2024", "4", "live"
+  ))
+
+  result$typology_mode <- "dissertation"
+  result$display_metadata$display_cluster_id <- c("ClD", "ClJ", "ClA", NA)
+  result$display_metadata <- result$display_metadata[1:3, , drop = FALSE]
+  expect_identical(
+    regionalepi:::.shiny_loaded_analysis_context(result),
+    paste0(
+      "Historische Typologie der Dissertation (ClD / ClJ / ClA) · ",
+      "Historische quellseitige SurvStat-Inzidenz"
+    )
+  )
+  result$bundle$diagnostics$status_by_reporting_year$incidence_status <- "final"
+  expect_false(regionalepi:::.shiny_loaded_analysis_is_provisional(result))
+})
+
 test_that("Shiny cache keys respect reactive source boundaries", {
   demographic <- regionalepi:::.shiny_demographic_cache_key("2022–2024")
   expect_identical(demographic, "demography:snapshot:2022-2023-2024")
@@ -1308,6 +1361,10 @@ test_that("linked display state reuses one source bundle and one typology fit", 
     .package = "regionalepi"
   )
   shiny::testServer(server_environment$server, {
+    rendered <- function(x) {
+      if (is.list(x) && "html" %in% names(x)) return(x$html)
+      paste(as.character(x), collapse = "")
+    }
     session$setInputs(pathogen="Influenza, saisonal",window_id="influenza_2025_26",
       range_mode="window",custom_range=as.Date(c("2025-09-29","2026-05-17")),
       typology_mode="dynamic",demographic_period="2022–2024",
@@ -1321,7 +1378,51 @@ test_that("linked display state reuses one source bundle and one typology fit", 
       state$result$bundle$data$incidence_annual_average)
     expect_false(identical(state$result$bundle$data$incidence,
       state$result$bundle$data$incidence_source))
+    expect_match(rendered(output$regional_analysis_context),
+      "Dynamische Typologie (C01 / C02 / C03; k = 3)", fixed = TRUE)
+    expect_match(rendered(output$regional_analysis_context),
+      "Inzidenz auf Basis der durchschnittlichen Jahresbevölkerung",
+      fixed = TRUE)
+    expect_match(rendered(output$analysis_heading), "Dynamische Typologie", fixed = TRUE)
+    expect_match(rendered(output$analysis_heading), "k = 3", fixed = TRUE)
+    expect_false(grepl("Vorläufig:", rendered(output$analysis_wide_status), fixed = TRUE))
     fit_id <- state$result$fit$provenance$fit_id
+    fixed_incidence <- state$result$bundle$data$incidence
+    fixed_assignments <- state$result$fit$assignments
+    fixed_weekly <- exploration()$weekly
+    fixed_relative <- exploration()$weekly$relative_activity
+    fixed_membership <- regional_membership()
+    session$setInputs(k="4")
+    session$flushReact()
+    expect_match(rendered(output$analysis_wide_status),
+      "Auswahl geändert – Analyse aktualisieren", fixed = TRUE)
+    expect_match(rendered(output$analysis_wide_status),
+      "zuvor geladenen Analyse", fixed = TRUE)
+    expect_match(rendered(output$regional_analysis_context),
+      "C01 / C02 / C03; k = 3", fixed = TRUE)
+    expect_identical(state$result$bundle$data$incidence, fixed_incidence)
+    expect_identical(state$result$fit$assignments, fixed_assignments)
+    expect_identical(exploration()$weekly, fixed_weekly)
+    expect_identical(exploration()$weekly$relative_activity, fixed_relative)
+    expect_identical(regional_membership(), fixed_membership)
+    session$setInputs(k="3",load_analysis=2)
+    session$flushReact()
+    expect_false(grepl("Auswahl geändert", rendered(output$analysis_wide_status),
+      fixed = TRUE))
+    expect_identical(calls, 1L)
+    provisional_result <- state$result
+    provisional_result$bundle$diagnostics$status_by_reporting_year$incidence_status <-
+      "provisional"
+    state$result <- provisional_result
+    session$flushReact()
+    expect_match(rendered(output$analysis_wide_status),
+      "Vorläufig: Für 2026 wird die zuletzt verfügbare amtliche durchschnittliche Jahresbevölkerung 2025 als Bezugsbevölkerung verwendet.",
+      fixed = TRUE)
+    final_result <- state$result
+    final_result$bundle$diagnostics$status_by_reporting_year$incidence_status <-
+      "final"
+    state$result <- final_result
+    session$flushReact()
     expect_no_error(output$methods_methodology)
     expect_no_error(output$methods_sources)
     expect_no_error(output$methods_status)
@@ -1379,7 +1480,15 @@ test_that("linked display state reuses one source bundle and one typology fit", 
     expect_identical(calls, 1L)
     expect_identical(state$result$fit$provenance$fit_id, fit_id)
 
-    session$setInputs(typology_mode="dissertation",load_analysis=2)
+    session$setInputs(typology_mode="dissertation")
+    session$flushReact()
+    expect_match(rendered(output$analysis_wide_status),
+      "Auswahl geändert – Analyse aktualisieren", fixed = TRUE)
+    expect_match(rendered(output$regional_analysis_context),
+      "Dynamische Typologie", fixed = TRUE)
+    expect_false(grepl("Historische Typologie",rendered(output$regional_analysis_context),
+      fixed = TRUE))
+    session$setInputs(load_analysis=3)
     session$flushReact()
     historical_fit_id <- state$result$fit$provenance$fit_id
     expect_identical(historical_fit_id,
@@ -1396,8 +1505,12 @@ test_that("linked display state reuses one source bundle and one typology fit", 
     expect_identical(calls,2L)
     expect_false("incidence_annual_average" %in% names(state$result$bundle$data))
     expect_identical(state$result$bundle$data$incidence,grid$incidence)
+    expect_match(rendered(output$regional_analysis_context),
+      "Historische Typologie der Dissertation (ClD / ClJ / ClA)", fixed = TRUE)
+    expect_match(rendered(output$regional_analysis_context),
+      "Historische quellseitige SurvStat-Inzidenz", fixed = TRUE)
 
-    session$setInputs(typology_mode="dynamic",k="3",load_analysis=3)
+    session$setInputs(typology_mode="dynamic",k="3",load_analysis=4)
     session$flushReact()
     expect_identical(state$result$fit$provenance$fit_id,fit_id)
     expect_true(all(grepl("^C0[1-3]$",
@@ -1405,7 +1518,7 @@ test_that("linked display state reuses one source bundle and one typology fit", 
     expect_no_error(output$regional_composition_plot)
     expect_identical(calls,2L)
 
-    session$setInputs(typology_mode="dissertation",load_analysis=4)
+    session$setInputs(typology_mode="dissertation",load_analysis=5)
     session$flushReact()
     expect_identical(state$result$fit$provenance$fit_id,historical_fit_id)
     expect_setequal(unique(state$result$map_join$data$display_cluster_id),

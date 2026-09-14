@@ -5,6 +5,45 @@
   )
 }
 
+.shiny_loaded_analysis_context <- function(result) {
+  ids <- as.character(result$display_metadata$display_cluster_id)
+  cluster_text <- paste(ids, collapse = " / ")
+  if (identical(result$typology_mode, "dissertation")) {
+    return(paste0(
+      "Historische Typologie der Dissertation (", cluster_text, ") \u00b7 ",
+      "Historische quellseitige SurvStat-Inzidenz"
+    ))
+  }
+  paste0(
+    "Dynamische Typologie (", cluster_text, "; k = ", length(ids), ") \u00b7 ",
+    "Inzidenz auf Basis der durchschnittlichen Jahresbev\u00f6lkerung"
+  )
+}
+
+.shiny_loaded_analysis_is_provisional <- function(result) {
+  status <- result$bundle$diagnostics$status_by_reporting_year
+  is.data.frame(status) && nrow(status) > 0L &&
+    any(status$incidence_status == "provisional")
+}
+
+.shiny_loaded_selection_changed <- function(
+    result, typology_mode, demographic_period, k, demographic_source) {
+  loaded <- result$loaded_selection
+  if (is.null(loaded)) return(FALSE)
+  source_mode <- demographic_source
+  if (is.null(source_mode) || !source_mode %in% c("snapshot", "live")) {
+    source_mode <- "snapshot"
+  }
+  changed <- !identical(typology_mode, loaded$typology_mode) ||
+    !identical(source_mode, loaded$demographic_source)
+  if (identical(typology_mode, "dynamic")) {
+    changed <- changed ||
+      !identical(demographic_period, loaded$demographic_period) ||
+      !identical(as.integer(k), loaded$k)
+  }
+  changed
+}
+
 .shiny_regional_credentials_available <- function(getenv = Sys.getenv) {
   username <- getenv("REGIONALSTATISTIK_USER", unset = "")
   password <- getenv("REGIONALSTATISTIK_PASSWORD", unset = "")
