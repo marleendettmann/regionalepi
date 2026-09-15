@@ -1,0 +1,9 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it using the metadata below."
+title: "regionalepi: Demographic Context for Regional Infectious-Disease Surveillance"
+type: software
+authors:
+  - given-names: Marleen
+    family-names: Dettmann
+version: "0.0.0.9000"
+license: GPL-3.0-only

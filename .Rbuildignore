@@ -1,5 +1,6 @@
 ^AGENTS\.md$
 ^docs$
 ^data-raw$
+^CITATION\.cff$
 ^\.env$
 ^\.env\..*$

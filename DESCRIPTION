@@ -9,8 +9,9 @@ Authors@R: person(
   )
 Description: Provides data contracts and a reproducible architecture for
     contextualizing regional infectious-disease surveillance with demographic
-    and geographic data. Publication metadata and licensing are to be decided.
-License: TBD
+    and geographic data. Publication metadata are to be decided.
+License: GPL-3
+Copyright: 2026 Marleen Dettmann
 Depends:
     R (>= 4.1.0)
 Encoding: UTF-8

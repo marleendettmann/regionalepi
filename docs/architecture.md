@@ -569,6 +569,11 @@ POST-v0.1: a future high-activity district filter requires a reviewed estimand
 such as weekly incidence, period median, maximum, percentile, or relative
 activity. No definition is selected in v0.1.
 
+POST-v0.1: a genuinely domain-independent regional-typology core may be
+evaluated for extraction as a separate permissively licensed package. This is
+a non-binding architectural option and does not alter the Research-v0.1
+package boundary or license.
+
 The reviewed historical pandemic observation frame is a neutral data and
 display context that makes all approved dissertation COVID periods selectable;
 it does not define a COVID season or alter any period boundary. Typology mode

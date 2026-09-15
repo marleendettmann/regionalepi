@@ -6,8 +6,11 @@ contextualization of regional infectious-disease surveillance data.
 The package defines canonical data contracts, deterministic geographic
 resolution, and a documented non-geometric 2024 geography resource derived
 from BKG VG-Hist with reviewed SurvStat directives. Official source-data
-attribution is installed in `NOTICE`; BKG source-data licensing remains
-distinct from the package code license (`TBD`).
+attribution is installed in `NOTICE`. The regionalepi package code is licensed
+under GPL-3. Third-party data and bundled resources remain subject to their
+respective source licenses and terms; see `NOTICE` and source provenance. No
+SurvStat observation data are distributed with the package, and GPL-3 grants no
+rights over data retrieved at runtime.
 
 Reproducible development inputs are kept in Git under `data-raw`, while ignored
 local source files and all `data-raw` materials are excluded from built source

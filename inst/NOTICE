@@ -13,8 +13,8 @@ CC BY 4.0: https://creativecommons.org/licenses/by/4.0/
 Modification notice: The derived resource selects German district records
 applicable on 2024-12-31, omits geometry, and renames and reorders attributes.
 
-These source-data terms are distinct from the regionalepi package-code license,
-which remains undecided (License: TBD).
+These source-data terms are distinct from the GPL-3 license of the regionalepi
+package code. GPL-3 does not relicense this source data.
 
 BKG VG2500 map-geometry attribution
 
@@ -35,8 +35,8 @@ removed unnecessary source attributes, transformed geometry from EPSG:25832
 to EPSG:4326, and performed no simplification. The geometry is not used for
 population-density area.
 
-These source-data terms are distinct from the regionalepi package-code license,
-which remains undecided (License: TBD).
+These source-data terms are distinct from the GPL-3 license of the regionalepi
+package code. GPL-3 does not relicense this source data.
 
 Regionaldatenbank Deutschland attribution
 
@@ -57,5 +57,5 @@ Regionaldatenbank Deutschland: https://www.regionalstatistik.de/
 Datenlizenz Deutschland - Namensnennung - Version 2.0:
 https://www.govdata.de/dl-de/by-2-0
 
-These source-data terms are distinct from the regionalepi package-code license,
-which remains undecided (License: TBD).
+These source-data terms are distinct from the GPL-3 license of the regionalepi
+package code. GPL-3 does not relicense this source data.
