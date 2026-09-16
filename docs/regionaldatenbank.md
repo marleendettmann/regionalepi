@@ -49,9 +49,9 @@ from the Census 2022 basis used from 2022. The adapter records `census_2011` for
 once in result-level provenance.
 
 The API response attributes the data to the Statistische Ämter des Bundes und
-der Länder under Datenlizenz Deutschland - Namensnennung - Version 2.0. Runtime
-source-data licensing is distinct from the package-code license, which remains
-`TBD`.
+der Länder under Datenlizenz Deutschland - Namensnennung - Version 2.0. These
+source-data terms remain distinct from the GPL-3 license of the regionalepi
+package code; GPL-3 does not relicense the Regionaldatenbank data.
 
 The source copyright and license text is retained in result-level provenance.
 The installed demographic snapshot contains reviewed observations from tables
