@@ -1002,6 +1002,30 @@ test_that("installed app files do not rely on unqualified app helpers", {
   expect_false(file.exists(file.path(app, "helpers.R")))
 })
 
+test_that("runtime code does not look up ordinary package data in the namespace", {
+  app <- regionalepi:::.shiny_app_dir()
+  server_text <- paste(readLines(file.path(app, "server.R"), warn = FALSE),
+    collapse = "\n")
+  data_names <- c(
+    "regionalepi_geography_resources_2024",
+    "regionalepi_map_geometry_2024",
+    "regionalepi_state_boundaries_2024",
+    "regionalepi_demographic_snapshot_v1",
+    "regionalepi_demographic_snapshot_v2",
+    "regionalepi_demographic_snapshot_v3"
+  )
+  direct_lookup <- paste0(
+    "(?:get|get0)\\s*\\([^)]*\"(?:",
+    paste(data_names, collapse = "|"),
+    ")\""
+  )
+  expect_false(grepl(direct_lookup, server_text, perl = TRUE))
+  expect_false(grepl('asNamespace\\("regionalepi"\\)', server_text,
+    perl = TRUE))
+  expect_match(server_text, "regionalepi:::.regionalepi_geography_resources()",
+    fixed = TRUE)
+})
+
 test_that("Shiny provenance formats POSIXct source statuses safely", {
   status <- as.POSIXct("2026-08-28 08:20:20", tz = "UTC")
   source <- list(population = list(

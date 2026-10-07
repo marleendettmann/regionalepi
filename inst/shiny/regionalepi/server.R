@@ -2,7 +2,7 @@ server <- function(input, output, session) {
   cache <- new.env(parent=emptyenv()); cache$map <- regionalepi::regionalepi_map_geometry()
   cache$states <- regionalepi::regionalepi_state_boundaries(); cache$crosswalk <- regionalepi::regionalepi_district_state_crosswalk(); cache$map_bounds <- regionalepi:::.shiny_app_map_bounds(cache$map)
   cache$surveillance_index <- list()
-  resources <- get("regionalepi_geography_resources_2024", envir=asNamespace("regionalepi"), inherits=TRUE)
+  resources <- regionalepi:::.regionalepi_geography_resources()
   state <- reactiveValues(result=NULL,error=NULL,technical_error=NULL,busy=FALSE,
     selected_geo_id=NULL,selected_date=NULL,retrieval_count=0L)
   session$userData$plotlyShinyEventIDs <- paste("plotly_click",

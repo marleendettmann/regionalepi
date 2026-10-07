@@ -41,3 +41,25 @@ stopifnot(
               population = 3204L, area = 3204L,
               annual_average_population = 1600L))
 )
+
+if (requireNamespace("shiny", quietly = TRUE)) {
+  app_directory <- system.file(
+    "shiny", "regionalepi", package = "regionalepi", mustWork = TRUE
+  )
+  server_environment <- new.env(parent = asNamespace("shiny"))
+  sys.source(file.path(app_directory, "server.R"), envir = server_environment)
+  shiny::testServer(server_environment$server, {
+    stopifnot(
+      identical(cache$map$provenance$resource_id,
+                "regionalepi_map_geometry_2024"),
+      identical(cache$states$provenance$resource_id,
+                "regionalepi_state_boundaries_2024"),
+      identical(nrow(cache$crosswalk), 400L),
+      identical(resources$provenance$resource_id,
+                "regionalepi_geography_resources_2024"),
+      identical(nrow(regionalepi_state_comparison_groups()), 16L),
+      identical(regionalepi_demographic_snapshot()$provenance$snapshot_id,
+                "regionalepi_demography_996c38455f53c59c")
+    )
+  })
+}
