@@ -17,10 +17,7 @@ regionalepi_map_geometry <- function(vintage = as.Date("2024-12-31")) {
       vintage != as.Date("2024-12-31")) {
     .stop_contract(contract, "unsupported map vintage; v1 provides only 2024-12-31")
   }
-  resource <- get(
-    "regionalepi_map_geometry_2024", envir = environment(),
-    inherits = TRUE
-  )
+  resource <- .regionalepi_package_data("regionalepi_map_geometry_2024")
   validate_map_geometry_resource(resource)
   resource
 }

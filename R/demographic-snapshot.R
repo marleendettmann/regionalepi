@@ -561,8 +561,7 @@ regionalepi_demographic_snapshot <- function(snapshot = "reviewed_default") {
     .stop_contract("demographic snapshot accessor",
                    "unsupported snapshot; available value is reviewed_default")
   }
-  value <- get("regionalepi_demographic_snapshot_v3", envir = environment(),
-               inherits = TRUE)
+  value <- .regionalepi_package_data("regionalepi_demographic_snapshot_v3")
   validate_demographic_snapshot(value)
   value
 }

@@ -13,11 +13,11 @@ regionalepi_district_state_crosswalk <- function(version = "2024_v1") {
   if (!identical(version, "2024_v1")) {
     stop("Unsupported district-to-state crosswalk version.", call. = FALSE)
   }
-  districts <- get(
-    "regionalepi_geography_resources_2024", envir = asNamespace("regionalepi")
+  districts <- .regionalepi_package_data(
+    "regionalepi_geography_resources_2024"
   )$bkg_districts
-  states <- get(
-    "regionalepi_state_boundaries_2024", envir = asNamespace("regionalepi")
+  states <- .regionalepi_package_data(
+    "regionalepi_state_boundaries_2024"
   )$features
   state_id <- substr(districts$geo_id, 1L, 2L)
   position <- match(state_id, states$geo_id)
@@ -69,11 +69,11 @@ validate_district_state_crosswalk <- function(x) {
       length(unique(x$definition_version)) != 1L) {
     .stop_contract(contract, "reference date and definition version must be uniform")
   }
-  districts <- get(
-    "regionalepi_geography_resources_2024", envir = asNamespace("regionalepi")
+  districts <- .regionalepi_package_data(
+    "regionalepi_geography_resources_2024"
   )$bkg_districts
-  states <- get(
-    "regionalepi_state_boundaries_2024", envir = asNamespace("regionalepi")
+  states <- .regionalepi_package_data(
+    "regionalepi_state_boundaries_2024"
   )$features
   if (!setequal(x$geo_id, districts$geo_id) ||
       !setequal(unique(x$state_id), states$geo_id) ||

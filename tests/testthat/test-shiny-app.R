@@ -1592,9 +1592,11 @@ test_that("final user-facing terminology is localized and current", {
   app <- regionalepi:::.shiny_app_dir()
   server_text <- paste(readLines(file.path(app, "server.R"), warn = FALSE),
     collapse = "\n")
-  visualization_text <- paste(readLines(
-    testthat::test_path("..", "..", "R", "shiny-visualization.R"),
-    warn = FALSE), collapse = "\n")
+  visualization_text <- paste(
+    deparse(body(regionalepi:::.shiny_state_composition_widget)),
+    deparse(body(regionalepi:::.shiny_state_comparison_widget)),
+    collapse = "\n"
+  )
 
   expect_match(server_text,
     "Start- und End-KW können innerhalb des Beobachtungszeitraums gewählt werden.",

@@ -31,7 +31,7 @@ validate_state_boundaries_resource <- function(x) {
 regionalepi_state_boundaries <- function(vintage = as.Date("2024-12-31")) {
   if (!inherits(vintage, "Date") || length(vintage) != 1L || is.na(vintage) ||
       vintage != as.Date("2024-12-31")) stop("Unsupported state-boundary vintage.", call. = FALSE)
-  resource <- get("regionalepi_state_boundaries_2024", envir = environment(), inherits = TRUE)
+  resource <- .regionalepi_package_data("regionalepi_state_boundaries_2024")
   validate_state_boundaries_resource(resource)
   resource
 }
