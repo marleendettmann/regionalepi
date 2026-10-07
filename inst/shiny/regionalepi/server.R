@@ -198,6 +198,7 @@ server <- function(input, output, session) {
 
   observeEvent(input$load_analysis,{
     state$error<-NULL; state$technical_error<-NULL; state$busy<-TRUE; on.exit(state$busy<-FALSE,add=TRUE)
+    load_stage <- "selection"
     tryCatch(withProgress(message="Analyse wird vorbereitet …",value=0,{
       window <- selected_window();load_range<-analysis_range()
       request_range<-regionalepi:::.shiny_effective_analysis_range(
@@ -213,8 +214,10 @@ server <- function(input, output, session) {
         stop("Live-Abruf derzeit nicht konfiguriert. Erforderlich sind die Umgebungsvariablen REGIONALSTATISTIK_USER und REGIONALSTATISTIK_PASSWORD. Hinweise zur sicheren Einrichtung: Methodik und Daten → Datenquellen → Regionaldatenbank.",call.=FALSE)
       demographic_years <- regionalepi:::.shiny_demographic_periods()[[period_label]]
       dkey <- regionalepi:::.shiny_demographic_cache_key(period_label,source_mode)
+      load_stage <- "demography"
       if(!exists(dkey,envir=cache,inherits=FALSE)) assign(dkey,if(source_mode=="snapshot") regionalepi:::.shiny_fetch_snapshot_demography(demographic_years) else regionalepi:::.shiny_fetch_demography(demographic_years),envir=cache)
       demographic <- get(dkey,envir=cache,inherits=FALSE); setProgress(.2,detail="Typologie wird angepasst …")
+      load_stage <- "typology"
       tkey <- regionalepi:::.shiny_typology_cache_key(demographic$summary,if(mode=="dissertation")3L else as.integer(input$k),mode)
       if(!exists(tkey,envir=cache,inherits=FALSE)) assign(tkey,regionalepi:::.shiny_fit_typology(demographic$summary,mode,if(mode=="dissertation")3L else as.integer(input$k)),envir=cache)
       fit <- get(tkey,envir=cache,inherits=FALSE)
@@ -253,6 +256,7 @@ server <- function(input, output, session) {
       population_source_mode <- if(mode=="dissertation") "not_applicable" else source_mode
       skey <- regionalepi:::.shiny_surveillance_cache_match(cache$surveillance_index,input$pathogen,years,incidence_definition,population_source_mode,request_range$end_date)
       if(is.null(skey)) {
+        load_stage <- "surveillance_analysis"
         setProgress(.35,detail=if(mode=="dissertation") "Historische SurvStat-Inzidenzen und gemeldete Fälle werden geladen …" else "SurvStat-Fallzahlen und amtliche durchschnittliche Jahresbevölkerung werden geladen …")
         fetched_bundle <- if(mode=="dissertation") {
           historical<-regionalepi:::.shiny_fetch_surveillance_bundle(input$pathogen,years,resources)
@@ -271,6 +275,7 @@ server <- function(input, output, session) {
         cache$surveillance_index[[skey]] <- c(list(key=skey,pathogen=input$pathogen,reporting_years=years,incidence_definition=incidence_definition,effective_analysis_end=request_range$end_date),cache_metadata)
         state$retrieval_count <- state$retrieval_count+1L
       }
+      load_stage <- "map_and_result"
       bundle <- get(skey,envir=cache,inherits=FALSE); map_join <- regionalepi:::.shiny_map_assignments(cache$map,fit)
       display_metadata <- regionalepi:::.shiny_cluster_display_metadata(
         fit,mode,palette_variant,palette_alignment,map_join$data$geo_id)
@@ -293,7 +298,9 @@ server <- function(input, output, session) {
         cache_keys=list(demographic=dkey,typology=tkey,surveillance=skey,map=mkey))
       if(is.null(state$selected_geo_id)||!state$selected_geo_id%in%map_join$data$geo_id) state$selected_geo_id<-"11000"
       state$selected_date <- request_range$start_date; setProgress(1,detail="Darstellung ist bereit.")
-    }),error=function(e){state$technical_error<-conditionMessage(e);state$error<-regionalepi:::.shiny_app_format_error(e,"Die Live-Analyse")})
+    }),error=function(e){
+      regionalepi:::.shiny_app_handle_failure(state,e,load_stage)
+    })
   })
 
   exploration <- reactive({ req(state$result); regionalepi:::.shiny_exploration_summaries(state$result$bundle,state$result$fit,state$result$analysis_range,state$result$display_metadata) })

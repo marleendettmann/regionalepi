@@ -924,8 +924,12 @@ test_that("server error callback resolves its formatter from the package namespa
     .shiny_fetch_demography = function(years) {
       stop("synthetic Regionaldatenbank failure", call. = FALSE)
     },
+    .shiny_app_log_failure = function(stage, error, logger = message) {
+      logged <<- list(stage = stage, message = conditionMessage(error))
+    },
     .package = "regionalepi"
   )
+  logged <- NULL
   shiny::testServer(server_environment$server, {
     session$setInputs(
       pathogen = "Influenza, saisonal",
@@ -945,8 +949,52 @@ test_that("server error callback resolves its formatter from the package namespa
     expect_false(state$busy)
     expect_match(state$technical_error, "synthetic Regionaldatenbank failure",
                  fixed = TRUE)
+    expect_identical(logged$stage, "demography")
+    expect_identical(logged$message, "synthetic Regionaldatenbank failure")
 
   })
+})
+
+test_that("analysis-load diagnostics are stage-aware and do not expose source internals", {
+  secret <- paste(
+    "SurvStat@RKI retrieval failed: SurvStat API transport:",
+    "Authorization: Basic credential-secret",
+    "<SOAP><raw-response>private</raw-response></SOAP>"
+  )
+  output <- character()
+  diagnostic <- regionalepi:::.shiny_app_log_failure(
+    "surveillance_analysis", simpleError(secret),
+    logger = function(message) output <<- c(output, message)
+  )
+  expect_identical(diagnostic$stage, "surveillance_analysis")
+  expect_identical(diagnostic$category, "survstat_transport")
+  expect_match(output, "stage=surveillance_analysis", fixed = TRUE)
+  expect_match(output, "condition=simpleError/error/condition", fixed = TRUE)
+  expect_match(output, "SurvStat transport or source availability failed.",
+    fixed = TRUE)
+  expect_false(grepl("credential-secret|Authorization|SOAP|raw-response|private",
+    output, ignore.case = TRUE))
+})
+
+test_that("analysis-load failure handling preserves a previous result", {
+  previous <- list(marker = "previous analysis")
+  state <- new.env(parent = emptyenv())
+  state$result <- previous
+  output <- character()
+  diagnostic <- regionalepi:::.shiny_app_handle_failure(
+    state, simpleError("synthetic deployed failure"), "surveillance_analysis",
+    logger = function(message) output <<- c(output, message)
+  )
+  expect_identical(state$result, previous)
+  expect_identical(state$error,
+    "Die Live-Analyse konnte nicht geladen werden. Bitte erneut versuchen.")
+  expect_identical(state$technical_error, "synthetic deployed failure")
+  expect_identical(diagnostic$stage, "surveillance_analysis")
+  expect_match(output, "category=unexpected", fixed = TRUE)
+  expect_identical(
+    regionalepi:::.shiny_app_display_error(state$error, !is.null(state$result)),
+    paste(state$error, "Die zuvor geladene Analyse bleibt angezeigt.")
+  )
 })
 
 test_that("failed-refresh display identifies a still-visible previous result", {

@@ -731,6 +731,66 @@
   paste0(source, " konnte nicht geladen werden. Bitte erneut versuchen.")
 }
 
+.shiny_app_failure_category <- function(error, stage) {
+  message <- conditionMessage(error)
+  if (grepl("SurvStat API transport", message, ignore.case = TRUE)) {
+    return("survstat_transport")
+  }
+  if (grepl("SurvStat API response|SOAP|XML", message, ignore.case = TRUE)) {
+    return("survstat_response")
+  }
+  if (grepl("SurvStat.*retrieval failed", message, ignore.case = TRUE)) {
+    return("survstat_retrieval")
+  }
+  if (grepl("geograph|geo_id|resolution|spatial|aggregate",
+            message, ignore.case = TRUE)) {
+    return("geography")
+  }
+  if (grepl("incidence|annual-average|population denominator|case count",
+            message, ignore.case = TRUE)) {
+    return("incidence_preparation")
+  }
+  if (grepl("Regionaldatenbank", message, ignore.case = TRUE)) {
+    return("regionaldatenbank")
+  }
+  if (identical(stage, "typology")) return("typology")
+  if (identical(stage, "map_and_result")) return("result_assembly")
+  "unexpected"
+}
+
+.shiny_app_safe_failure_message <- function(category) {
+  switch(category,
+    survstat_transport = "SurvStat transport or source availability failed.",
+    survstat_response = "SurvStat response parsing or validation failed.",
+    survstat_retrieval = "SurvStat retrieval failed before analysis preparation.",
+    geography = "Geography resolution or aggregation failed.",
+    incidence_preparation = "Incidence preparation or denominator validation failed.",
+    regionaldatenbank = "Regionaldatenbank retrieval or validation failed.",
+    typology = "Typology preparation failed.",
+    result_assembly = "Analysis result assembly failed.",
+    "Unexpected analysis-load failure."
+  )
+}
+
+.shiny_app_log_failure <- function(stage, error, logger = message) {
+  class <- paste(class(error), collapse = "/")
+  category <- .shiny_app_failure_category(error, stage)
+  safe_message <- .shiny_app_safe_failure_message(category)
+  logger(sprintf(
+    "regionalepi analysis load failed: stage=%s; category=%s; condition=%s; message=%s",
+    stage, category, class, safe_message
+  ))
+  invisible(list(stage = stage, category = category,
+                 condition_class = class, message = safe_message))
+}
+
+.shiny_app_handle_failure <- function(state, error, stage, logger = message) {
+  state$technical_error <- conditionMessage(error)
+  diagnostic <- .shiny_app_log_failure(stage, error, logger)
+  state$error <- .shiny_app_format_error(error, "Die Live-Analyse")
+  invisible(diagnostic)
+}
+
 .shiny_app_display_error <- function(error, previous_result_visible) {
   paste0(
     error,
