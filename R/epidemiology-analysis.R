@@ -35,7 +35,7 @@ validate_typology_surveillance_compatibility <- function(x) {
   invisible(x)
 }
 
-#' Dissertation typology/surveillance compatibility
+#' Historical reference typology/surveillance compatibility
 #'
 #' @return The reviewed 401-to-400 compatibility specification.
 #' @export
@@ -219,9 +219,9 @@ summarize_incidence_by_typology <- function(
 
 #' Summarize selected-period incidence for each district
 #'
-#' Produces exactly one unweighted district-specific median of weekly
-#' district incidence supplied by the selected analysis contract. District-week observations are not pooled across
-#' districts.
+#' Calculates one unweighted median of weekly incidence for each district, using
+#' the incidence measure in the supplied analysis data. District-week
+#' observations are not pooled across districts.
 #'
 #' @param data Period-assigned, typology-attached surveillance incidence.
 #' @param na_policy Only explicit `"omit"` is supported.

@@ -2,7 +2,7 @@
 % Please edit documentation in R/dissertation-typology.R
 \name{fit_dissertation_typology}
 \alias{fit_dissertation_typology}
-\title{Fit the frozen dissertation typology}
+\title{Fit the frozen historical reference typology}
 \usage{
 fit_dissertation_typology(
   indicator_summary,
@@ -22,8 +22,9 @@ An ordinary list with \code{data}, matrix and scaling diagnostics,
 k-means diagnostics, and specification provenance.
 }
 \description{
-Constructs the three-indicator 2017--2020 dissertation matrix, explicitly
-reproduces base R sample-standard-deviation scaling, and fits the frozen
-three-cluster k-means. Historical labels are applied only when explicitly
-requested for reproduction of the historical fitted solution.
+Constructs the three-indicator 2017--2020 matrix used for the historical
+reference typology, explicitly reproduces base R sample-standard-deviation
+scaling, and fits the frozen three-cluster k-means. Historical labels are
+applied only when explicitly requested for reproduction of the historical
+fitted solution.
 }

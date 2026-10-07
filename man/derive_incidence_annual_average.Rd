@@ -34,5 +34,5 @@ performed.
 \details{
 This function creates the distinct field \code{incidence_annual_average}. It does
 not create or modify the source-provided \code{incidence} field used by historical
-dissertation reproduction.
+historical reference reproduction.
 }

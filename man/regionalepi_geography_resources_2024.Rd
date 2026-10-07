@@ -14,7 +14,8 @@ applicable character SKZ; \code{vghid} is retained historical provenance.}
 \item{survstat_aliases}{Nineteen exact reviewed aliases satisfying
 \code{validate_geography_aliases()}.}
 \item{survstat_incidence_aliases}{One exact reviewed alias for the
-Bundesland-filtered Berlin source geography used by the incidence PoC.}
+Bundesland-filtered Berlin source geography used by the incidence
+analysis.}
 \item{survstat_spatial_units}{Twelve reviewed Berlin Bezirk source
 identities with opaque namespaced identifiers. They do not identify or
 imply an aggregation target.}

@@ -134,7 +134,7 @@ test_that("state comparison display rules are deterministic", {
 test_that("state composition supports every current typology k and reference", {
   crosswalk <- regionalepi_district_state_crosswalk()
   map_ids <- regionalepi_map_geometry()$features$geo_id
-  for (years in list(2017:2020, 2022:2024)) {
+  for (years in list(2017:2020, 2022:2025)) {
     summary <- regionalepi:::.shiny_fetch_snapshot_demography(years)$summary
     for (k in 2:5) {
       fit <- fit_dynamic_typology(summary, k = k)
@@ -235,7 +235,7 @@ test_that("historical regional composition uses the reviewed current display uni
 test_that("regional composition supports both reviewed comparison levels", {
   crosswalk <- regionalepi_district_state_crosswalk()
   fit <- regionalepi:::.shiny_fit_typology(
-    regionalepi:::.shiny_fetch_snapshot_demography(2022:2024)$summary,
+    regionalepi:::.shiny_fetch_snapshot_demography(2022:2025)$summary,
     "dynamic", 5L)
   assignments <- fit$assignments[c("geo_id", "display_cluster_id")]
   names(assignments)[[2L]] <- "cluster_id"

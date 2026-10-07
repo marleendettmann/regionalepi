@@ -25,12 +25,22 @@
 #' Berlin with regional keys `02` and `11` in this response; these are
 #' deterministically expanded to AGS `02000` and `11000`.
 #'
+#' @section Data source and license:
+#' Data are obtained from Regionaldatenbank Deutschland, provided by the
+#' Statistische Ämter des Bundes und der Länder, under Datenlizenz Deutschland
+#' – Namensnennung – Version 2.0 (`dl-de/by-2-0`). regionalepi selects and
+#' validates the reviewed source table and measure. Returned provenance retains
+#' the source table, retrieval time, source data status, and available source
+#' notes. Selection and normalization do not relicense the source data; GPL-3
+#' applies to regionalepi package code.
 #' @param reference_dates A non-empty `Date` vector containing unique
 #'   31 December dates from 2017 through 2025.
 #' @param regions `NULL` to return all supplied district observations, or a
 #'   non-empty character vector of unique five-character district AGS values.
 #' @return An ordinary list with validated `data`, compact `diagnostics`, and
 #'   dataset-level `provenance`.
+#' @references [Regionaldatenbank Deutschland](https://www.regionalstatistik.de/),
+#'   [Datenlizenz Deutschland – Namensnennung – Version 2.0](https://www.govdata.de/dl-de/by-2-0)
 #' @export
 fetch_regional_population <- function(reference_dates, regions = NULL) {
   request <- .validate_regional_population_request(reference_dates, regions)

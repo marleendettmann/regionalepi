@@ -9,9 +9,8 @@
 #' Empty cells already interpreted as structural zero counts by the approved
 #' count adapter therefore produce zero derived incidence. Explicitly missing
 #' cases remain missing. Final observations require population from the same
-#' reporting year. Final Paper-2 analysis is limited to 2022--2025. Reporting
-#' year 2026 is accepted only through the explicit 2025 provisional denominator
-#' mapping; it can never be represented as final by this function.
+#' reporting year. A reporting year may use the preceding year's official
+#' annual-average population only through an explicit provisional mapping.
 #'
 #' @param surveillance A combined canonical SurvStat incidence-and-count result.
 #' @param annual_average_population A validated annual-average population result.
@@ -36,25 +35,15 @@ prepare_analysis_incidence <- function(
 
   years <- sort(unique(surveillance$data$reporting_year))
   available <- sort(unique(annual_average_population$data$year))
-  if (any(!years %in% 2022:2026)) {
+  if (any(years < 2022L)) {
     .stop_contract(
       contract,
-      "final Paper-2 analysis is supported only for reporting years 2022-2025"
+      "analysis is supported only from reporting year 2022 onward"
     )
   }
-  if (length(mapping) && any(names(mapping) != "2026")) {
-    .stop_contract(
-      contract,
-      "only reporting year 2026 has an approved provisional denominator rule"
-    )
-  }
-  if (2026L %in% years && !identical(names(mapping), "2026")) {
-    .stop_contract(
-      contract,
-      "reporting year 2026 must be explicitly provisional and cannot be final"
-    )
-  }
-  missing_years <- union(setdiff(years, available), intersect(years, 2026L))
+  missing_years <- union(
+    setdiff(years, available), as.integer(names(mapping))
+  )
   if (length(mapping) &&
       !setequal(names(mapping), as.character(missing_years))) {
     .stop_contract(
@@ -174,10 +163,10 @@ prepare_analysis_incidence <- function(
     )
   }
   reporting_years <- if (length(x)) as.integer(names(x)) else integer()
-  if (length(x) && any(as.integer(x) >= reporting_years)) {
+  if (length(x) && any(as.integer(x) != reporting_years - 1L)) {
     .stop_contract(
       contract,
-      "provisional denominator years must precede their reporting years"
+      "a provisional denominator must be exactly one year before its reporting year"
     )
   }
   as.integer(x) |> stats::setNames(names(x))

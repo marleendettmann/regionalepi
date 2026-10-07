@@ -193,7 +193,7 @@ derive_population_density <- function(
 #'
 #' Calculates only an unweighted arithmetic mean. Every geographic indicator
 #' must have exactly one complete observation for each supplied year. The
-#' dissertation workflow supplies its years and method from
+#' historical reference workflow supplies its years and method from
 #' [dissertation_typology_spec()].
 #'
 #' @param indicators A validated annual `demographic_indicator` data frame.

@@ -34,7 +34,6 @@ is retained verbatim as \code{incidence_source}; the existing downstream
 Empty cells already interpreted as structural zero counts by the approved
 count adapter therefore produce zero derived incidence. Explicitly missing
 cases remain missing. Final observations require population from the same
-reporting year. Final Paper-2 analysis is limited to 2022--2025. Reporting
-year 2026 is accepted only through the explicit 2025 provisional denominator
-mapping; it can never be represented as final by this function.
+reporting year. A reporting year may use the preceding year's official
+annual-average population only through an explicit provisional mapping.
 }

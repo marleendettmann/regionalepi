@@ -8,7 +8,7 @@ fetch_regional_average_population(years, regions = NULL)
 }
 \arguments{
 \item{years}{A non-empty vector of unique whole reporting years in the
-reviewed 2022--2025 range.}
+reviewed range beginning in 2022.}
 
 \item{regions}{\code{NULL} or a non-empty character vector of unique
 five-character district identifiers.}
@@ -19,8 +19,9 @@ dataset-level \code{provenance}.
 }
 \description{
 Retrieves total annual-average population from Regionaldatenbank table
-\code{12411-05-01-4}, measure \code{BEV028}, for reviewed reporting years 2022 through
-2025. The source defines this measure, from 2012 onward, as the simple
+\code{12411-05-01-4}, measure \code{BEV028}, for requested reporting years from 2022
+onward. Years not yet supplied by the source are omitted. The source defines
+this measure, from 2012 onward, as the simple
 arithmetic mean of population at the beginning and end of the reporting
 year. This function is distinct from \code{\link[=fetch_regional_population]{fetch_regional_population()}}, which
 retrieves population at 31 December.
@@ -29,4 +30,19 @@ retrieves population at 31 December.
 Authentication is read internally from \code{REGIONALSTATISTIK_USER} and
 \code{REGIONALSTATISTIK_PASSWORD}. Credentials are never returned or stored.
 Structural \code{-} observations are omitted and are never interpreted as zero.
+}
+\section{Data source and license}{
+
+Data are obtained from Regionaldatenbank Deutschland, provided by the
+Statistische Ämter des Bundes und der Länder, under Datenlizenz Deutschland
+– Namensnennung – Version 2.0 (\code{dl-de/by-2-0}). regionalepi selects and
+validates the reviewed source table and measure. Returned provenance retains
+the source table and measure, retrieval time, source data status, and
+available source notes. Selection and normalization do not relicense the
+source data; GPL-3 applies to regionalepi package code.
+}
+
+\references{
+\href{https://www.regionalstatistik.de/}{Regionaldatenbank Deutschland},
+\href{https://www.govdata.de/dl-de/by-2-0}{Datenlizenz Deutschland – Namensnennung – Version 2.0}
 }

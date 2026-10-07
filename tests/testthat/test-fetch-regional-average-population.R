@@ -135,6 +135,20 @@ test_that("annual-average population fetch selects the reviewed table and measur
   expect_false(grepl("synthetic-user|synthetic-password", printed))
 })
 
+test_that("annual-average population fetch reports only source-available years", {
+  transport <- function(years, regions, credentials) {
+    expect_identical(years, 2025:2026)
+    annual_average_population_json()
+  }
+  result <- with_regional_average_population_transport(
+    transport, fetch_regional_average_population(2025:2026)
+  )
+  expect_identical(unique(result$data$year), 2025L)
+  expect_identical(result$diagnostics$requested_years, 2025:2026)
+  expect_identical(as.integer(names(result$diagnostics$observations_by_year)),
+                   2025L)
+})
+
 test_that("annual-average year parser handles structural absence and exact coverage", {
   parse <- regionalepi:::.regional_average_population_result
   call <- function(response, years = c(2022L, 2025L), regions = NULL) {
@@ -195,7 +209,7 @@ test_that("annual-average request and contract reject unsafe inputs", {
   expect_error(check(character(), NULL), "whole numbers")
   expect_error(check(2022.5, NULL), "whole numbers")
   expect_error(check(c(2022, 2022), NULL), "duplicates")
-  expect_error(check(2021, NULL), "2022-2025")
+  expect_error(check(2021, NULL), "2022 or later")
   expect_error(check(2022, 7315), "five-character")
   expect_error(check(2022, "7315"), "five-character")
 
@@ -219,6 +233,25 @@ test_that("annual-average transport errors never expose credentials", {
     error = conditionMessage
   )
   expect_false(grepl("synthetic-user|synthetic-password", message))
+})
+
+test_that("annual-average HTTP transport applies the reviewed timeout", {
+  testthat::local_mocked_bindings(
+    req_perform = function(request) {
+      expect_identical(request$options$timeout_ms, 120000)
+      structure(list(), class = "synthetic_response")
+    },
+    resp_body_string = function(response) {
+      expect_s3_class(response, "synthetic_response")
+      "synthetic response"
+    },
+    .package = "httr2"
+  )
+  result <- regionalepi:::.regional_average_population_http_transport(
+    2022L, "07315",
+    list(username = "synthetic-user", password = "synthetic-password")
+  )
+  expect_identical(result, "synthetic response")
 })
 
 test_that("year-end population path remains scientifically distinct", {

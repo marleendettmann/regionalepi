@@ -18,6 +18,16 @@ test_that("observation windows have exact reviewed ISO boundaries", {
   expect_identical(norovirus$end_iso_week, 26L)
   expect_match(norovirus$note, "occurs year-round", fixed = TRUE)
   expect_match(norovirus$note, "no reviewed national Norovirus wave", fixed = TRUE)
+  running <- x[x$observation_window_id %in% c(
+    "influenza_2026_27", "covid19_2026_27", "norovirus_2026_27"
+  ), ]
+  expect_identical(running$start_date, as.Date(c(
+    "2026-09-28", "2026-05-11", "2026-06-29"
+  )))
+  expect_identical(running$end_date, as.Date(c(
+    "2027-05-23", "2027-05-23", "2027-07-04"
+  )))
+  expect_true(all(grepl("laufend", running$label, fixed = TRUE)))
 })
 
 test_that("observation-window validation rejects undocumented assumptions", {
@@ -41,9 +51,124 @@ test_that("three analysis ranges remain explicit and bounded", {
     custom_dates = as.Date(c("2026-01-05", "2026-02-01")))
   expect_identical(custom$label, "Benutzerdefinierter Analysezeitraum")
   expect_error(regionalepi:::.shiny_select_analysis_range(window, "custom",
-    custom_dates = as.Date(c("2025-01-01", "2026-02-01"))), "au\u00dferhalb")
+    custom_dates = as.Date(c("2024-12-30", "2026-02-01"))), "au\u00dferhalb")
   expect_error(regionalepi:::.shiny_select_analysis_range(window, "reviewed"),
     "No reviewed")
+})
+
+test_that("running ranges use an injectable analysis cutoff", {
+  ids <- c("influenza_2026_27", "covid19_2026_27", "norovirus_2026_27")
+  for (id in ids) {
+    pathogen <- regionalepi_observation_windows()$pathogen[
+      match(id, regionalepi_observation_windows()$observation_window_id)
+    ]
+    window <- regionalepi:::.shiny_selected_window(pathogen, id)
+    nominal <- regionalepi:::.shiny_select_analysis_range(window, "window")
+    effective <- regionalepi:::.shiny_effective_analysis_range(
+      nominal, as.Date("2026-10-06")
+    )
+    expect_identical(effective$end_date, as.Date("2026-10-06"))
+    expect_identical(effective$analysis_as_of_date, as.Date("2026-10-06"))
+    expect_identical(effective$nominal_end_date, window$end_date)
+    expect_identical(seq.int(
+      as.integer(format(effective$start_date, "%Y")),
+      as.integer(format(effective$end_date, "%Y"))
+    ), 2026L)
+  }
+  expect_identical(regionalepi:::.shiny_analysis_as_of_date(
+    function() as.Date("2026-10-06")
+  ), as.Date("2026-10-06"))
+})
+
+test_that("early running-window note reports calendar weeks reached", {
+  window <- regionalepi:::.shiny_selected_window(
+    "Influenza, saisonal", "influenza_2026_27")
+  range <- regionalepi:::.shiny_select_analysis_range(window, "window")
+  first <- regionalepi:::.shiny_effective_analysis_range(
+    range, as.Date("2026-09-28"))
+  expect_identical(regionalepi:::.shiny_early_window_note(window, first),
+    paste0("Der Beobachtungszeitraum 2026/27 hat in KW 40 begonnen und umfasst ",
+      "bis zum Analyse-Stichtag erst 1 Kalenderwoche. Zeitliche Verl\u00e4ufe sind ",
+      "daher noch eingeschr\u00e4nkt interpretierbar."))
+  second <- regionalepi:::.shiny_effective_analysis_range(
+    range, as.Date("2026-10-06"))
+  expect_match(regionalepi:::.shiny_early_window_note(window, second),
+    "umfasst bis zum Analyse-Stichtag erst 2 Kalenderwochen", fixed = TRUE)
+  fifth <- regionalepi:::.shiny_effective_analysis_range(
+    range, as.Date("2026-10-26"))
+  expect_match(regionalepi:::.shiny_early_window_note(window, fifth),
+    "erst 5 Kalenderwochen", fixed = TRUE)
+  sixth <- regionalepi:::.shiny_effective_analysis_range(
+    range, as.Date("2026-11-02"))
+  expect_null(regionalepi:::.shiny_early_window_note(window, sixth))
+
+  completed <- regionalepi:::.shiny_selected_window(
+    "Influenza, saisonal", "influenza_2025_26")
+  completed_range <- regionalepi:::.shiny_effective_analysis_range(
+    regionalepi:::.shiny_select_analysis_range(completed, "window"),
+    as.Date("2026-10-06"))
+  expect_null(regionalepi:::.shiny_early_window_note(
+    completed, completed_range))
+})
+
+test_that("custom ranges require explicit complete ISO calendar weeks", {
+  window <- regionalepi:::.shiny_selected_window(
+    "Influenza, saisonal", "influenza_2026_27")
+  expect_error(regionalepi:::.shiny_select_analysis_range(window, "custom",
+    custom_dates = as.Date(c("2026-09-30", "2026-10-05"))),
+    "complete ISO calendar weeks", fixed = TRUE)
+  one <- regionalepi:::.shiny_select_custom_week_range(
+    window, "2026-KW40", "2026-KW40", as.Date("2026-10-06"))
+  expect_identical(one$start_date, as.Date("2026-09-28"))
+  expect_identical(one$end_date, as.Date("2026-10-04"))
+  multiple <- regionalepi:::.shiny_select_custom_week_range(
+    window, "2026-KW40", "2026-KW41", as.Date("2026-10-06"))
+  expect_identical(multiple$start_date, as.Date("2026-09-28"))
+  expect_identical(multiple$end_date, as.Date("2026-10-11"))
+  effective <- regionalepi:::.shiny_effective_analysis_range(
+    multiple, as.Date("2026-10-06"))
+  expect_identical(effective$end_date, as.Date("2026-10-06"))
+  expect_identical(effective$nominal_end_date, as.Date("2026-10-11"))
+})
+
+test_that("custom ISO-week choices respect windows and running cutoffs", {
+  running <- regionalepi:::.shiny_selected_window(
+    "Influenza, saisonal", "influenza_2026_27")
+  choices <- regionalepi:::.shiny_custom_week_choices(
+    running, as.Date("2026-10-06"))
+  expect_identical(names(choices), c("2026 \u2013 KW 40", "2026 \u2013 KW 41"))
+  expect_identical(unname(choices), c("2026-KW40", "2026-KW41"))
+  expect_false("2026-KW42" %in% choices)
+
+  completed <- regionalepi:::.shiny_selected_window(
+    "Influenza, saisonal", "influenza_2025_26")
+  historical <- regionalepi:::.shiny_custom_week_choices(
+    completed, as.Date("2026-10-06"))
+  expect_identical(unname(historical)[[1L]], "2025-KW40")
+  expect_identical(utils::tail(unname(historical), 1L), "2026-KW20")
+  cross_year <- regionalepi:::.shiny_select_custom_week_range(
+    completed, "2025-KW52", "2026-KW01", as.Date("2026-10-06"))
+  expect_identical(cross_year$start_date, as.Date("2025-12-22"))
+  expect_identical(cross_year$end_date, as.Date("2026-01-04"))
+})
+
+test_that("custom ISO-week state is retained or reconciled deterministically", {
+  window <- regionalepi:::.shiny_selected_window(
+    "Influenza, saisonal", "influenza_2026_27")
+  retained <- regionalepi:::.shiny_reconcile_custom_weeks(
+    window, "2026-KW40", "2026-KW41", as.Date("2026-10-06"))
+  expect_identical(retained$start_week, "2026-KW40")
+  expect_identical(retained$end_week, "2026-KW41")
+  start_changed <- regionalepi:::.shiny_reconcile_custom_weeks(
+    window, "2026-KW41", "2026-KW40", as.Date("2026-10-06"), "start")
+  expect_identical(start_changed$end_week, "2026-KW41")
+  end_changed <- regionalepi:::.shiny_reconcile_custom_weeks(
+    window, "2026-KW41", "2026-KW40", as.Date("2026-10-06"), "end")
+  expect_identical(end_changed$start_week, "2026-KW40")
+  reset <- regionalepi:::.shiny_reconcile_custom_weeks(
+    window, "2025-KW40", "2026-KW41", as.Date("2026-10-06"))
+  expect_identical(reset$start_week, "2026-KW40")
+  expect_identical(reset$end_week, "2026-KW41")
 })
 
 test_that("COVID 2025/26 remains available without an invented reviewed wave", {
@@ -54,7 +179,7 @@ test_that("COVID 2025/26 remains available without an invented reviewed wave", {
 
 test_that("Norovirus windows have no invented reviewed period", {
   choices <- regionalepi:::.shiny_window_choices("Norovirus-Gastroenteritis")
-  expect_identical(length(choices), 9L)
+  expect_identical(length(choices), 10L)
   expect_true("norovirus_2025_26" %in% unname(choices))
   window <- regionalepi:::.shiny_selected_window(
     "Norovirus-Gastroenteritis", "norovirus_2025_26"
@@ -64,7 +189,7 @@ test_that("Norovirus windows have no invented reviewed period", {
   reconciled <- regionalepi:::.shiny_reconcile_selection(
     "Norovirus-Gastroenteritis", "influenza_2025_26", "reviewed"
   )
-  expect_identical(reconciled$window_id, "norovirus_2025_26")
+  expect_identical(reconciled$window_id, "norovirus_2026_27")
   expect_identical(reconciled$range_mode, "window")
 })
 
@@ -93,9 +218,9 @@ test_that("dynamic descriptions are versioned deterministic display metadata", {
     indicator_id=c("population_density","mean_age","youth_dependency_ratio"),
     standardized_center=c(1.2,-.8,.1))
   x <- regionalepi:::.shiny_profile_descriptions(profiles)
-  expect_identical(x$description_specification_id,"dynamic_profile_descriptions_v1")
+  expect_identical(x$description_specification_id,"dynamic_profile_descriptions_v2")
   expect_match(x$profile_description,"deutlich höhere Bevölkerungsdichte",fixed=TRUE)
-  expect_match(x$profile_description,"niedrigere Durchschnittsalter",fixed=TRUE)
+  expect_match(x$profile_description,"niedrigeres Durchschnittsalter",fixed=TRUE)
   expect_null(regionalepi:::.shiny_profile_descriptions(profiles,"dissertation"))
 })
 

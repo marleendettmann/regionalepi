@@ -71,8 +71,8 @@ validate_observation_windows <- function(x) {
 #'
 #' Influenza windows run inclusively from ISO week 40 through week 20 of the
 #' following year. Ordinary COVID-19 windows run from week 20 through week 20.
-#' A neutral historical pandemic frame spans the complete reviewed dissertation
-#' period system from 2020 week 10 through 2022 week 21. These are regionalepi
+#' A neutral historical pandemic frame spans the complete reviewed historical
+#' reference period system from 2020 week 10 through 2022 week 21. These are regionalepi
 #' observation frames, not official RKI seasons or waves.
 #' @return A validated observation-window data frame.
 #' @export
@@ -94,7 +94,7 @@ regionalepi_observation_windows <- function() {
     )
   }
   norovirus <- make(
-    "Norovirus-Gastroenteritis", 2017:2026, 27L, 26L,
+    "Norovirus-Gastroenteritis", 2017:2027, 27L, 26L,
     "norovirus_comparison_window", "norovirus",
     paste(
       "Norovirus occurs year-round and typically peaks approximately October through March;",
@@ -103,9 +103,11 @@ regionalepi_observation_windows <- function() {
     )
   )
   norovirus$label <- paste0("Norovirus-Beobachtungszeitraum ", norovirus$label)
+  norovirus$label[norovirus$observation_window_id == "norovirus_2026_27"] <-
+    "Norovirus-Beobachtungszeitraum 2026/27 (laufend)"
   out <- rbind(
     make(
-      "Influenza, saisonal", 2017:2026, 40L, 20L,
+      "Influenza, saisonal", 2017:2027, 40L, 20L,
       "influenza_season_window", "influenza",
       "ordinary seasonal Influenza observation window; reviewed RKI waves remain separate"
     ),
@@ -119,16 +121,19 @@ regionalepi_observation_windows <- function() {
       window_type = "covid_observation_window",
       definition_version = "observation_windows_v1",
       note = paste("neutral historical data/display frame covering the reviewed",
-        "dissertation pandemic periods; not an official RKI COVID-19 season or wave"),
+        "historical reference pandemic periods; not an official RKI COVID-19 season or wave"),
       stringsAsFactors = FALSE
     ),
     make(
-      "COVID-19", 2020:2026, 20L, 20L,
+      "COVID-19", 2020:2027, 20L, 20L,
       "covid_observation_window", "covid19",
       "regionalepi analytical observation window; not an official RKI COVID-19 season or wave"
     ),
     norovirus
   )
+  out$label[out$observation_window_id %in% c(
+    "influenza_2026_27", "covid19_2026_27"
+  )] <- "2026/27 (laufend)"
   validate_observation_windows(out)
   out
 }

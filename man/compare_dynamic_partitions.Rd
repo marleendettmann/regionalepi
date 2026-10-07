@@ -15,5 +15,5 @@ Label-neutral partition diagnostics.
 \description{
 Computes a contingency table and adjusted Rand index for two partitions of
 exactly the same units. Different values of \code{k} are allowed; no one-to-one
-mapping or dissertation label is applied.
+mapping or historical reference label is applied.
 }

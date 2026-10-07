@@ -2,7 +2,7 @@
 % Please edit documentation in R/shiny-app.R
 \name{run_regionalepi_app}
 \alias{run_regionalepi_app}
-\title{Run the regionalepi Shiny proof of concept}
+\title{Run the regionalepi Shiny application}
 \usage{
 run_regionalepi_app(...)
 }
@@ -13,7 +13,9 @@ run_regionalepi_app(...)
 The value returned by \code{shiny::runApp()}, invisibly.
 }
 \description{
-Launches the installed, deliberately narrow interactive demonstration. Live
-demographic queries require the Regionaldatenbank credential environment
-variables; SurvStat incidence is fetched from the official live service.
+Launches the installed interactive application. The bundled demographic
+snapshot supplies typology indicators and annual-average population for
+dynamic incidence by default. Optional live retrieval of both demographic
+components uses the Regionaldatenbank credential environment variables;
+SurvStat surveillance is fetched from the official live service.
 }

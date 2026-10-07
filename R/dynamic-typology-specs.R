@@ -91,7 +91,7 @@ validate_indicator_set_spec <- function(x) {
 #' Defines the ordered population-density, mean-age, and youth-dependency
 #' inputs used for dynamic demographic clustering. It reuses their authoritative
 #' `dissertation_v1` indicator definitions but is separate from the frozen
-#' dissertation clustering result and contains no reference period.
+#' historical reference clustering result and contains no reference period.
 #'
 #' @return A validated `demographic_structure_v1` indicator-set specification.
 #' @export
@@ -174,7 +174,7 @@ validate_dynamic_fitting_spec <- function(x) {
 #' Uses an explicit seed derived from the reviewed map/reference date
 #' (`20241231`), Lloyd k-means, 50 starts, 100 iterations, and deterministic
 #' character `geo_id` ordering. These parameters are independent of the frozen
-#' dissertation fit.
+#' historical reference fit.
 #'
 #' @return A validated `dynamic_kmeans_v1` specification.
 #' @export

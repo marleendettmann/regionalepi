@@ -40,15 +40,18 @@ therefore preserves that source value rather than normalizing it to `NA`.
 
 Run `Rscript data-raw/build-demographic-snapshot.R` from the package root with
 the external Regionaldatenbank credential environment configured. The builder
-uses the existing narrow adapters, retrieves the contiguous 2017--2024 range
-required by the API, and stores only reviewed years 2017--2020 and 2022--2024.
-It validates component contracts, exact annual geography, the reviewed
-source-status window, and the deterministic checksum. Raw envelopes and
-credentials are never written.
+uses the existing narrow adapters, retrieves the contiguous 2017--2025 range
+required by the API, and stores only reviewed years 2017--2020 and 2022--2025.
+It also retrieves official annual-average population for 2022--2025 through
+the existing `12411-05-01-4` / `BEV028` adapter. It validates component
+contracts, exact annual geography, reviewed source statuses, and the
+deterministic checksum. Raw envelopes and credentials are never written.
 
-Only `data/regionalepi_demographic_snapshot_v1.rda` is installed. A refresh is
-a reviewed development/release build of a new immutable version; Shiny live
-retrieval never updates this resource.
+The current installed resource is
+`data/regionalepi_demographic_snapshot_v3.rda`; the immutable v2 and v1
+resources are retained, with v2 recorded as its predecessor. A refresh is a reviewed
+development/release build of a new immutable version; Shiny live retrieval
+never updates these resources.
 
 `build-state-boundaries-2024.R` selects exactly 16 `GF = 9` features from the
 official local VG2500 `vg2500_lan` layer, transforms EPSG:25832 to EPSG:4326

@@ -182,8 +182,8 @@
 #'
 #' Fits deterministic k-means to a complete reviewed demographic indicator
 #' set. Algorithmic cluster numbers are preserved; neutral `C01`, `C02`, ...
-#' identifiers are deterministic only within a fit and carry no dissertation
-#' or natural-language meaning.
+#' identifiers are deterministic only within a fit and carry no historical
+#' reference or natural-language meaning.
 #'
 #' @param indicator_summary A complete result from [summarize_indicator_period()].
 #' @param indicator_set A validated reviewed indicator-set specification.
@@ -284,7 +284,7 @@ fit_dynamic_typology <- function(
 #'
 #' Computes a contingency table and adjusted Rand index for two partitions of
 #' exactly the same units. Different values of `k` are allowed; no one-to-one
-#' mapping or dissertation label is applied.
+#' mapping or historical reference label is applied.
 #'
 #' @param x,y Results from [fit_dynamic_typology()].
 #' @return Label-neutral partition diagnostics.

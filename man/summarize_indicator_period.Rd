@@ -23,6 +23,6 @@ A list with period-summary \code{data}, \code{diagnostics}, and \code{provenance
 \description{
 Calculates only an unweighted arithmetic mean. Every geographic indicator
 must have exactly one complete observation for each supplied year. The
-dissertation workflow supplies its years and method from
+historical reference workflow supplies its years and method from
 \code{\link[=dissertation_typology_spec]{dissertation_typology_spec()}}.
 }

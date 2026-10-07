@@ -8,8 +8,9 @@
 #' Fetch official district annual-average population
 #'
 #' Retrieves total annual-average population from Regionaldatenbank table
-#' `12411-05-01-4`, measure `BEV028`, for reviewed reporting years 2022 through
-#' 2025. The source defines this measure, from 2012 onward, as the simple
+#' `12411-05-01-4`, measure `BEV028`, for requested reporting years from 2022
+#' onward. Years not yet supplied by the source are omitted. The source defines
+#' this measure, from 2012 onward, as the simple
 #' arithmetic mean of population at the beginning and end of the reporting
 #' year. This function is distinct from [fetch_regional_population()], which
 #' retrieves population at 31 December.
@@ -18,12 +19,22 @@
 #' `REGIONALSTATISTIK_PASSWORD`. Credentials are never returned or stored.
 #' Structural `-` observations are omitted and are never interpreted as zero.
 #'
+#' @section Data source and license:
+#' Data are obtained from Regionaldatenbank Deutschland, provided by the
+#' Statistische Ämter des Bundes und der Länder, under Datenlizenz Deutschland
+#' – Namensnennung – Version 2.0 (`dl-de/by-2-0`). regionalepi selects and
+#' validates the reviewed source table and measure. Returned provenance retains
+#' the source table and measure, retrieval time, source data status, and
+#' available source notes. Selection and normalization do not relicense the
+#' source data; GPL-3 applies to regionalepi package code.
 #' @param years A non-empty vector of unique whole reporting years in the
-#'   reviewed 2022--2025 range.
+#'   reviewed range beginning in 2022.
 #' @param regions `NULL` or a non-empty character vector of unique
 #'   five-character district identifiers.
 #' @return An ordinary list with validated `data`, `diagnostics`, and
 #'   dataset-level `provenance`.
+#' @references [Regionaldatenbank Deutschland](https://www.regionalstatistik.de/),
+#'   [Datenlizenz Deutschland – Namensnennung – Version 2.0](https://www.govdata.de/dl-de/by-2-0)
 #' @export
 fetch_regional_average_population <- function(years, regions = NULL) {
   request <- .validate_regional_average_population_request(years, regions)
@@ -33,7 +44,7 @@ fetch_regional_average_population <- function(years, regions = NULL) {
   )
   .regional_average_population_result(
     response, request$years, request$regions,
-    as.POSIXct(Sys.time(), tz = "UTC")
+    as.POSIXct(Sys.time(), tz = "UTC"), allow_missing_years = TRUE
   )
 }
 
@@ -47,8 +58,8 @@ fetch_regional_average_population <- function(years, regions = NULL) {
   if (anyDuplicated(years)) {
     .stop_contract(contract, "`years` must not contain duplicates")
   }
-  if (any(years < 2022L | years > 2025L)) {
-    .stop_contract(contract, "`years` must be within the reviewed 2022-2025 scope")
+  if (any(years < 2022L)) {
+    .stop_contract(contract, "`years` must be 2022 or later")
   }
   if (!is.null(regions) &&
       (!is.character(regions) || !length(regions) || anyNA(regions) ||
@@ -79,6 +90,7 @@ fetch_regional_average_population <- function(years, regions = NULL) {
     httr2::req_body_form,
     c(list(.req = request), fields, list(.multipart = FALSE))
   )
+  request <- httr2::req_timeout(request, seconds = 120)
   httr2::resp_body_string(httr2::req_perform(request))
 }
 
@@ -99,7 +111,8 @@ fetch_regional_average_population <- function(years, regions = NULL) {
   result
 }
 
-.regional_year_rows <- function(content, table, years, regions, contract) {
+.regional_year_rows <- function(content, table, years, regions, contract,
+                                allow_missing_years = FALSE) {
   metadata <- .regional_content_metadata(content, contract)
   if (!identical(metadata$lines[[1L]], paste("Tabelle:", table))) {
     .stop_contract(contract, "table content has an unexpected identifier")
@@ -139,7 +152,7 @@ fetch_regional_average_population <- function(years, regions = NULL) {
   values <- values[district]
   ids[ids == "02"] <- "02000"
   ids[ids == "11"] <- "11000"
-  if (!all(years %in% observed_years)) {
+  if (!allow_missing_years && !all(years %in% observed_years)) {
     .stop_contract(contract, "one or more requested years are absent")
   }
   structural <- values == "-"
@@ -169,7 +182,7 @@ fetch_regional_average_population <- function(years, regions = NULL) {
     ),
     stringsAsFactors = FALSE
   )
-  if (!setequal(unique(result$year), years)) {
+  if (!allow_missing_years && !setequal(unique(result$year), years)) {
     .stop_contract(contract, "one or more requested years are absent")
   }
   if (any(!grepl("^[0-9]{5}$", result$geo_id)) ||
@@ -242,7 +255,8 @@ fetch_regional_average_population <- function(years, regions = NULL) {
 }
 
 .regional_average_population_result <- function(response, years, regions,
-                                                  retrieved_at) {
+                                                  retrieved_at,
+                                                  allow_missing_years = FALSE) {
   contract <- "Regionaldatenbank annual-average population response"
   object <- .regional_table_object(
     response, .regional_average_population_table,
@@ -257,7 +271,7 @@ fetch_regional_average_population <- function(years, regions = NULL) {
   )
   parsed <- .regional_year_rows(
     object$Object$Content, .regional_average_population_table,
-    years, regions, contract
+    years, regions, contract, allow_missing_years
   )
   basis <- .annual_average_population_basis(
     parsed$data$year, parsed$source_notes, contract
@@ -316,5 +330,17 @@ fetch_regional_average_population <- function(years, regions = NULL) {
       copyright = object$Copyright,
       geo_vintage = "Not independently established; returned as NA_Date_."
     )), .regional_average_population_provenance_id)
+  )
+}
+
+.fetch_regional_average_population_available <- function(years) {
+  request <- .validate_regional_average_population_request(years, NULL)
+  credentials <- .regional_credentials()
+  response <- .perform_regional_average_population_request(
+    request$years, NULL, credentials
+  )
+  .regional_average_population_result(
+    response, request$years, NULL, as.POSIXct(Sys.time(), tz = "UTC"),
+    allow_missing_years = TRUE
   )
 }

@@ -1,4 +1,7 @@
-# Regionaldatenbank Deutschland source adapters v0.1
+# Regionaldatenbank Deutschland demographic-data adapters v0.1
+
+The source database is Regionaldatenbank Deutschland, provided by the
+Statistische Ämter des Bundes und der Länder.
 
 The year-end population adapter uses Regionaldatenbank Deutschland table
 `12411-01-01-4`, statistic `12411`, *Bevölkerung nach Geschlecht - Stichtag
@@ -14,7 +17,7 @@ measure, year, Census population basis, retrieval time, data status, source
 notes, and attribution. This adapter does not calculate incidence and does not
 reinterpret a 31 December population value.
 
-The demographic-context adapters additionally retrieve source-provided mean
+The demographic-data adapters additionally retrieve source-provided mean
 age (`BEV519`, table `12411-07-01-4`), source-provided youth dependency
 quotient (`BEV216`, table `12411-08-01-4`), and district area (`FLC006`, table
 `11111-01-01-4`). `derive_population_density()` joins compatible year-end
@@ -49,11 +52,23 @@ from the Census 2022 basis used from 2022. The adapter records `census_2011` for
 once in result-level provenance.
 
 The API response attributes the data to the Statistische Ämter des Bundes und
-der Länder under Datenlizenz Deutschland - Namensnennung - Version 2.0. These
+der Länder under Datenlizenz Deutschland – Namensnennung – Version 2.0
+(`dl-de/by-2-0`). These
 source-data terms remain distinct from the GPL-3 license of the regionalepi
 package code; GPL-3 does not relicense the Regionaldatenbank data.
 
 The source copyright and license text is retained in result-level provenance.
+Retrieval time records when regionalepi executed the request; source data
+status records the database state reported for that response; observation
+reference date or year identifies the period represented by the value. These
+three concepts remain distinct. Observation dates do not independently
+establish a canonical territorial register vintage, so adapter-produced
+`geo_vintage` remains unresolved.
+
 The installed demographic snapshot contains reviewed observations from tables
-`12411-07-01-4`, `12411-08-01-4`, `12411-01-01-4`, and `11111-01-01-4`;
-runtime annual-average population retrieval uses `12411-05-01-4`.
+`12411-07-01-4`, `12411-08-01-4`, `12411-01-01-4`, `11111-01-01-4`, and
+`12411-05-01-4`. The last component is the distinct official annual-average
+population for reporting years 2022--2025. Optional live retrieval uses the
+same narrow adapters and source definitions. The snapshot is a selected and
+normalized resource; population density and incidence remain ordinary package
+derivations.

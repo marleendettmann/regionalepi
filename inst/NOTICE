@@ -38,23 +38,43 @@ population-density area.
 These source-data terms are distinct from the GPL-3 license of the regionalepi
 package code. GPL-3 does not relicense this source data.
 
+SurvStat@RKI attribution
+
+Runtime surveillance observations are retrieved from SurvStat@RKI 2.0,
+provided by the Robert Koch-Institut (RKI). Their use remains subject to the
+official RKI data-usage statement:
+https://survstat.rki.de/Content/Instruction/DataUsage.aspx
+
+The RKI proposes the following citation:
+"Robert Koch-Institut: SurvStat@RKI 2.0, https://survstat.rki.de,
+Abfragedatum: <Datum der Abfrage>"
+
+The query/retrieval date and the source data status are retained as distinct
+provenance fields. Runtime-retrieved SurvStat observations are not bundled as
+package data and are not relicensed under the GPL-3 license of regionalepi
+package code.
+
 Regionaldatenbank Deutschland attribution
 
 The bundled reviewed demographic snapshot contains observations derived from
 Regionaldatenbank Deutschland tables 12411-07-01-4 (BEV519 mean age),
 12411-08-01-4 (BEV216 youth dependency quotient), 12411-01-01-4 (population at
-31 December), and 11111-01-01-4 (FLC006 district area). Runtime adapters also
-retrieve those sources and table 12411-05-01-4 (BEV028 annual-average
-population). Population density is derived in regionalepi from compatible
-population and area observations.
+31 December), 11111-01-01-4 (FLC006 district area), and 12411-05-01-4 (BEV028
+annual-average population). Runtime adapters retrieve the same sources.
+Population density and incidence are derived in regionalepi through their
+separate validated contracts.
+
+Modified by regionalepi: selected reviewed tables, years, and district rows;
+normalized identifiers and field names; population density is derived by
+regionalepi.
 
 These data are provided by the Statistische Ämter des Bundes und der Länder.
 The reviewed service responses retained in resource and result provenance state
-that the data are licensed under Datenlizenz Deutschland - Namensnennung -
+that the data are licensed under Datenlizenz Deutschland – Namensnennung –
 Version 2.0.
 
 Regionaldatenbank Deutschland: https://www.regionalstatistik.de/
-Datenlizenz Deutschland - Namensnennung - Version 2.0:
+Datenlizenz Deutschland – Namensnennung – Version 2.0:
 https://www.govdata.de/dl-de/by-2-0
 
 These source-data terms are distinct from the GPL-3 license of the regionalepi

@@ -46,6 +46,7 @@
                                 password = credentials$password)
   request <- do.call(httr2::req_body_form,
                      c(list(.req = request), fields, list(.multipart = FALSE)))
+  request <- httr2::req_timeout(request, seconds = 120)
   httr2::resp_body_string(httr2::req_perform(request))
 }
 
@@ -244,12 +245,22 @@
 #' Retrieves `BEV519`, sex `Insgesamt`, from Regionaldatenbank table
 #' `12411-07-01-4`. Mean age is not reconstructed from age groups.
 #'
+#' @section Data source and license:
+#' Data are obtained from Regionaldatenbank Deutschland, provided by the
+#' Statistische Ämter des Bundes und der Länder, under Datenlizenz Deutschland
+#' – Namensnennung – Version 2.0 (`dl-de/by-2-0`). regionalepi selects and
+#' validates the reviewed source table and measure. Returned provenance retains
+#' source table and measure, retrieval time, source data status, and available
+#' source notes. Selection and normalization do not relicense the source data;
+#' GPL-3 applies to regionalepi package code.
 #' @param reference_dates Unique 31 December dates from 2011 through 2025.
 #' @param regions `NULL` or unique five-character district identifiers.
 #' @return A list with `data`, `diagnostics`, and `provenance`.
 #' @details Regionaldatenbank represents the district-equivalent city states
 #'   Hamburg and Berlin with regional keys `02` and `11` in this table family;
 #'   these are deterministically expanded to AGS `02000` and `11000`.
+#' @references [Regionaldatenbank Deutschland](https://www.regionalstatistik.de/),
+#'   [Datenlizenz Deutschland – Namensnennung – Version 2.0](https://www.govdata.de/dl-de/by-2-0)
 #' @export
 fetch_regional_mean_age <- function(reference_dates, regions = NULL) {
   .fetch_regional_source_indicator(
@@ -263,11 +274,21 @@ fetch_regional_mean_age <- function(reference_dates, regions = NULL) {
 #' Retrieves authoritative `BEV216`, sex `Insgesamt`, from Regionaldatenbank
 #' table `12411-08-01-4`. It does not calculate the quotient from age groups.
 #'
+#' @section Data source and license:
+#' Data are obtained from Regionaldatenbank Deutschland, provided by the
+#' Statistische Ämter des Bundes und der Länder, under Datenlizenz Deutschland
+#' – Namensnennung – Version 2.0 (`dl-de/by-2-0`). regionalepi selects and
+#' validates the reviewed source table and measure. Returned provenance retains
+#' source table and measure, retrieval time, source data status, and available
+#' source notes. Selection and normalization do not relicense the source data;
+#' GPL-3 applies to regionalepi package code.
 #' @param reference_dates Unique 31 December dates from 2011 through 2025.
 #' @param regions `NULL` or unique five-character district identifiers.
 #' @return A list with `data`, `diagnostics`, and `provenance`.
 #' @details Regionaldatenbank city-state keys `02` and `11` are
 #'   deterministically expanded to AGS `02000` and `11000`.
+#' @references [Regionaldatenbank Deutschland](https://www.regionalstatistik.de/),
+#'   [Datenlizenz Deutschland – Namensnennung – Version 2.0](https://www.govdata.de/dl-de/by-2-0)
 #' @export
 fetch_regional_youth_dependency <- function(reference_dates, regions = NULL) {
   .fetch_regional_source_indicator(
@@ -282,15 +303,25 @@ fetch_regional_youth_dependency <- function(reference_dates, regions = NULL) {
 #' Retrieves `FLC006` from Regionaldatenbank table `11111-01-01-4` and maps
 #' source unit `qkm` to square kilometres without conversion or rounding.
 #'
-#' @param reference_dates Unique 31 December dates from 1995 through 2024.
+#' @section Data source and license:
+#' Data are obtained from Regionaldatenbank Deutschland, provided by the
+#' Statistische Ämter des Bundes und der Länder, under Datenlizenz Deutschland
+#' – Namensnennung – Version 2.0 (`dl-de/by-2-0`). regionalepi selects and
+#' validates the reviewed source table and measure. Returned provenance retains
+#' source table and measure, retrieval time, source data status, and available
+#' source notes. Selection and normalization do not relicense the source data;
+#' GPL-3 applies to regionalepi package code.
+#' @param reference_dates Unique 31 December dates from 1995 through 2025.
 #' @param regions `NULL` or unique five-character district identifiers.
 #' @return A list with `data`, `diagnostics`, and `provenance`.
 #' @details Regionaldatenbank city-state keys `02` and `11` are
 #'   deterministically expanded to AGS `02000` and `11000`.
+#' @references [Regionaldatenbank Deutschland](https://www.regionalstatistik.de/),
+#'   [Datenlizenz Deutschland – Namensnennung – Version 2.0](https://www.govdata.de/dl-de/by-2-0)
 #' @export
 fetch_regional_area <- function(reference_dates, regions = NULL) {
   request <- .validate_regional_reference_request(
-    reference_dates, regions, 1995L, 2024L, "Regionaldatenbank area request")
+    reference_dates, regions, 1995L, 2025L, "Regionaldatenbank area request")
   table <- "11111-01-01-4"
   response <- .perform_regional_table_request(table, request$reference_dates,
                                                request$regions)

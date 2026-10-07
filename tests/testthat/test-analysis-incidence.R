@@ -87,27 +87,41 @@ test_that("final analysis refuses unavailable population without fallback", {
   source <- analysis_incidence_bundle(2026L)
   expect_error(
     prepare_analysis_incidence(source, analysis_population(2025L)),
-    "must be explicitly provisional"
+    "population is unavailable"
   )
   expect_error(
     prepare_analysis_incidence(
       analysis_incidence_bundle(2022L), analysis_population(2022L),
       c("2022" = 2021L)
     ),
-    "only reporting year 2026"
+    "must be present"
   )
   expect_error(
     prepare_analysis_incidence(
       analysis_incidence_bundle(2021L), analysis_population(2021L)
     ),
-    "only for reporting years 2022-2025"
+    "from reporting year 2022"
   )
-  expect_error(
-    prepare_analysis_incidence(
-      analysis_incidence_bundle(2026L), analysis_population(2026L)
-    ),
-    "must be explicitly provisional"
+  expect_true(all(prepare_analysis_incidence(
+    analysis_incidence_bundle(2026L), analysis_population(2026L)
+  )$data$incidence_status == "final"))
+})
+
+test_that("provisional denominator policy permits exactly one prior year", {
+  provisional_2027 <- prepare_analysis_incidence(
+    analysis_incidence_bundle(2027L), analysis_population(2026L),
+    c("2027" = 2026L)
   )
+  expect_true(all(provisional_2027$data$incidence_status == "provisional"))
+  expect_true(all(provisional_2027$data$population_year == 2026L))
+  expect_error(prepare_analysis_incidence(
+    analysis_incidence_bundle(2027L), analysis_population(2025L),
+    c("2027" = 2025L)
+  ), "exactly one year")
+  final_2027 <- prepare_analysis_incidence(
+    analysis_incidence_bundle(2027L), analysis_population(2027L)
+  )
+  expect_true(all(final_2027$data$incidence_status == "final"))
 })
 
 test_that("explicit 2026 provisional analysis records the 2025 denominator", {

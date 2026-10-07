@@ -176,14 +176,14 @@ not round, weight, standardize, or overwrite a source-provided `incidence`
 field. Structural-zero cases therefore yield zero, while genuinely missing
 cases yield missing derived incidence.
 
-`prepare_analysis_incidence()` is the explicit boundary for dynamic/current
-Paper-2 analysis. It preserves the source-provided SurvStat rate as
+`prepare_analysis_incidence()` is the explicit boundary for current dynamic
+analysis. It preserves the source-provided SurvStat rate as
 `incidence_source`, places `incidence_annual_average` into the established
 downstream `incidence` field, and records `population_year` and
-`incidence_status`. Final results require the same reporting and population
-year for 2022--2025. A 2026 Shiny display is accepted only through an explicit
-2025 denominator mapping and is marked `provisional`; no silent fallback is
-permitted. Historical dissertation reproduction does not cross this boundary.
+`incidence_status`. Equal reporting and population years are final. An
+available official denominator from exactly the preceding year is permitted
+only with `provisional` status; larger lags and silent fallbacks are rejected.
+Historical reference reproduction does not cross this boundary.
 
 Reviewed incidence assembly requires exact query compatibility for source,
 version, pathogen, measure, reference definition, reporting path, relevant
@@ -250,7 +250,7 @@ resolver `source_geo_*` provenance is omitted from aggregated output because
 the separate resolution audit is authoritative; other unclassified columns
 remain errors.
 
-## Dissertation typology input and output
+## Historical reference typology input and output
 
 The typology input is the ordinary `list(data, diagnostics, provenance)` from
 `summarize_indicator_period()`. Its long-form data must contain exactly one
@@ -294,7 +294,7 @@ sample-SD z-standardization.
 
 `dynamic_fitting_spec` separately versions algorithm, starts, iteration limit,
 seed, row ordering, and supported `k`. `dynamic_kmeans_v1` supports exactly
-2--5 and does not inherit frozen dissertation parameters.
+2--5 and does not inherit frozen historical-reference parameters.
 
 Dynamic fit assignments retain `fit_id`, canonical `geo_id`, immutable raw
 cluster number, and a neutral fit-local display ID. Profile rows contain one
@@ -347,8 +347,8 @@ one row per date and pair key, and `difference` is `median_a - median_b`.
 
 ## Shiny orchestration boundaries
 
-The Shiny PoC introduces no analytical data contract. Its internal cache keys
-encode only the inputs that can change each stage: demographic years for live
+The Shiny application introduces no analytical data contract. Its internal
+cache keys encode only the inputs that can change each stage: demographic years for live
 demography, pathogen and reporting years for SurvStat, summary provenance plus
 fitting specification and `k` for typology, and surveillance scope, reviewed
 period and fit ID for the final summary. Map joins use canonical `geo_id`
@@ -357,17 +357,20 @@ only `16056`; it is neither renamed nor silently treated as a 2024 feature.
 
 ## Demographic snapshot
 
-`demographic_snapshot` contains normalized `mean_age`, `youth_dependency`,
-`population`, and `area` source components plus dataset-level provenance and
-diagnostics. Components require duplicate-free five-character IDs and exact
-ID/name equality for every date. V1 retains 401 units in 2017--2020 and 400 in
-2022--2024 without harmonization or inferred `geo_vintage`.
+The current `demographic_snapshot` contains normalized `mean_age`,
+`youth_dependency`, `population`, and `area` source components plus the
+distinct official `annual_average_population` component for reporting years
+2022--2025. Components require duplicate-free five-character IDs. The typology
+components retain 401 units in 2017--2020 and 400 in 2022--2025 without
+harmonization or inferred `geo_vintage`; every annual-average population year
+matches the reviewed 400-district geography.
 
 Regionaldatenbank reports response-generation times separately for sequential
-table requests. V1 therefore preserves all four statuses and requires one
-calendar date with at most a 15-minute reviewed build window; a different date
-or wider interval fails. The deterministic checksum covers normalized values
-and stable source provenance while excluding volatile retrieval/build times.
+table requests. The four typology components preserve their statuses and must
+come from one calendar date within a 15-minute reviewed build window. The
+annual-average population retains its separately reviewed source status and
+retrieval timestamp. The deterministic checksum covers normalized values and
+stable source provenance while excluding volatile retrieval/build times.
 
 ## Period display and incidence-distribution additions
 
@@ -430,7 +433,7 @@ rendered separately from numeric zero.
 Internal Shiny display metadata contain one row per displayed cluster with fit
 ID, display and raw cluster IDs, optional profile anchor, display label,
 profile description, colour, order, displayed district count, and mode.
-Dissertation rows additionally carry their frozen historical code and label.
+Historical-reference rows additionally carry their frozen code and label.
 All views consume this same session object; it is display metadata, not a new
 analytical or public package contract.
 

@@ -1,6 +1,6 @@
 cff-version: 1.2.0
 message: "If you use this software, please cite it using the metadata below."
-title: "regionalepi: Demographic Context for Regional Infectious-Disease Surveillance"
+title: "regionalepi: Regional Infectious Disease Surveillance and Demographic Typologies"
 type: software
 authors:
   - given-names: Marleen

@@ -13,5 +13,5 @@ A validated \code{demographic_structure_v1} indicator-set specification.
 Defines the ordered population-density, mean-age, and youth-dependency
 inputs used for dynamic demographic clustering. It reuses their authoritative
 \code{dissertation_v1} indicator definitions but is separate from the frozen
-dissertation clustering result and contains no reference period.
+historical reference clustering result and contains no reference period.
 }

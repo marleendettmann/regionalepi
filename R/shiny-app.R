@@ -1,7 +1,7 @@
 .shiny_demographic_periods <- function() {
   stats::setNames(
-    list(2022:2024, 2017:2020),
-    c("2022\u20132024", "2017\u20132020")
+    list(2022:2025, 2017:2020),
+    c("2022\u20132025", "2017\u20132020")
   )
 }
 
@@ -10,12 +10,12 @@
   cluster_text <- paste(ids, collapse = " / ")
   if (identical(result$typology_mode, "dissertation")) {
     return(paste0(
-      "Historische Typologie der Dissertation (", cluster_text, ") \u00b7 ",
-      "Historische quellseitige SurvStat-Inzidenz"
+      "Historische Referenztypologie (", cluster_text, ") \u00b7 ",
+      "Historische SurvStat-Inzidenz"
     ))
   }
   paste0(
-    "Dynamische Typologie (", cluster_text, "; k = ", length(ids), ") \u00b7 ",
+    "Aktualisierte Typologie (", cluster_text, "; k = ", length(ids), ") \u00b7 ",
     "Inzidenz auf Basis der durchschnittlichen Jahresbev\u00f6lkerung"
   )
 }
@@ -58,7 +58,7 @@
     "Influenza, saisonal" = list(
       pathogen_id = "influenza", display_label = "Influenza",
       survstat_member = "Influenza, saisonal",
-      period_factories = list("RKI-gepr\u00fcfte Influenzawellen" = rki_influenza_periods_2017_2026),
+      period_factories = list("AGI-Influenzawellen" = rki_influenza_periods_2017_2026),
       specification_version = "shiny_pathogens_v1",
       temporal_context = "Seasonal observation windows with separately reviewed RKI waves"
     ),
@@ -66,8 +66,8 @@
       pathogen_id = "covid19", display_label = "COVID-19",
       survstat_member = "COVID-19",
       period_factories = list(
-        "Dissertation / RKI-Pandemieperioden" = dissertation_covid_welle2_periods,
-        "RKI-gepr\u00fcfte Aktivit\u00e4tswellen" = rki_covid_activity_waves
+        "Retrospektive Phaseneinteilung der Pandemie (RKI)" = dissertation_covid_welle2_periods,
+        "Definierte COVID-19-Wellen (RKI)" = rki_covid_activity_waves
       ),
       specification_version = "shiny_pathogens_v1",
       temporal_context = "Neutral observation windows with separately reviewed periods"
@@ -86,7 +86,7 @@
 
 .shiny_pathogen_config <- function(pathogen) {
   config <- .shiny_pathogen_registry()[[pathogen]]
-  if (is.null(config)) stop("Unsupported Shiny PoC pathogen.", call. = FALSE)
+  if (is.null(config)) stop("Unsupported Shiny application pathogen.", call. = FALSE)
   config
 }
 
@@ -116,7 +116,8 @@
 }
 
 .shiny_reconcile_selection <- function(pathogen, window_id = NULL,
-                                       range_mode = "window") {
+                                       range_mode = "window",
+                                       reviewed_period_id = NULL) {
   choices <- .shiny_window_choices(pathogen)
   valid_ids <- unname(choices)
   selected <- if (length(window_id) == 1L && !is.na(window_id) &&
@@ -126,8 +127,14 @@
   if (length(range_mode) != 1L || is.na(range_mode) ||
       !range_mode %in% c("window", "reviewed", "custom")) range_mode <- "window"
   mode <- if (identical(range_mode, "reviewed") && !nrow(periods)) "window" else range_mode
+  period_ids <- periods$period_id
+  selected_period <- if (length(period_ids)) {
+    if (length(reviewed_period_id) == 1L && !is.na(reviewed_period_id) &&
+        reviewed_period_id %in% period_ids) reviewed_period_id else period_ids[[1L]]
+  } else NA_character_
   list(pathogen = pathogen, window_id = selected, window = window,
-       periods = periods, range_mode = mode, choices = choices)
+       periods = periods, range_mode = mode,
+       reviewed_period_id = selected_period, choices = choices)
 }
 
 .shiny_periods_in_window <- function(window) {
@@ -184,14 +191,18 @@
     incidence_definition = "source_survstat_incidence",
     surveillance_data_status = "unknown",
     population_data_status = "not_applicable",
+    population_source_mode = "not_applicable",
     incidence_status = "source",
-    provisional_denominator_year = NA_integer_) {
+    provisional_denominator_year = NA_integer_,
+    effective_analysis_end = NA_character_) {
   paste(
     "surveillance-analysis", pathogen,
     paste(sort(unique(reporting_years)), collapse = "-"),
     incidence_definition, surveillance_data_status, population_data_status,
+    population_source_mode,
     incidence_status,
     paste(provisional_denominator_year, collapse = "-"),
+    as.character(effective_analysis_end),
     "reference-definition", .survstat_reporting_path, sep = ":"
   )
 }
@@ -214,13 +225,19 @@
 
 .shiny_surveillance_cache_match <- function(
     index, pathogen, reporting_years,
-    incidence_definition = "source_survstat_incidence") {
+    incidence_definition = "source_survstat_incidence",
+    population_source_mode = "not_applicable",
+    effective_analysis_end = NA_character_) {
   if (!length(index)) return(NULL)
   required <- sort(unique(as.integer(reporting_years)))
   compatible <- vapply(index, function(entry) {
     identical(entry$pathogen, pathogen) &&
       identical(entry$incidence_definition %||% "source_survstat_incidence",
                 incidence_definition) &&
+      identical(entry$population_source_mode %||% "not_applicable",
+                population_source_mode) &&
+      identical(as.character(entry$effective_analysis_end %||% NA_character_),
+                as.character(effective_analysis_end)) &&
       all(required %in% entry$reporting_years)
   }, logical(1L))
   if (!any(compatible)) return(NULL)
@@ -316,7 +333,8 @@
     remainder <- names(colours)[!names(colours)%in%unname(continuation)]
     colours[remainder] <- additions[seq_along(remainder)]
     return(list(colours=colours,anchor_alignment=anchor_alignment,
-      continuation=continuation,total_shared=if(length(clear))sum(table_overlap[
+      continuation=continuation,branch_alignment=stats::setNames(
+        character(), character()),total_shared=if(length(clear))sum(table_overlap[
         cbind(names(continuation),unname(continuation))]) else 0,
       total_center_distance=if(length(clear))sum(distances[
         cbind(names(continuation),unname(continuation))]) else 0,
@@ -339,15 +357,18 @@
                             anchor_fit$profiles)
     target_centers <- stats::xtabs(standardized_center~display_cluster_id+indicator_id,
                             fit$profiles)
+    distances <- outer(seq_len(nrow(source_centers)), seq_len(nrow(target_centers)),
+      Vectorize(function(i, j) sqrt(sum(
+        (source_centers[i, ] - target_centers[j, ])^2))))
+    dimnames(distances) <- list(rownames(source_centers), rownames(target_centers))
     candidates <- expand.grid(rep(list(target_ids), length(anchor_ids)),
                               stringsAsFactors=FALSE)
     candidates <- candidates[apply(candidates,1L,function(x)length(unique(x))==length(x)),,drop=FALSE]
     overlap_scores <- apply(candidates,1L,function(x)sum(table_overlap[
       cbind(anchor_ids,x)]))
-    distance_scores <- apply(candidates,1L,function(x)sum(vapply(seq_along(x),
-      function(i)sqrt(sum((source_centers[anchor_ids[[i]],]-
-                            target_centers[x[[i]],])^2)),numeric(1L))))
-    ordering <- order(-overlap_scores,distance_scores,
+    distance_scores <- apply(candidates, 1L, function(x) sum(
+      distances[cbind(anchor_ids, x)]))
+    ordering <- order(distance_scores,-overlap_scores,
                       apply(candidates,1L,paste,collapse="\r"),method="radix")
     best <- ordering[[1L]]
     continuation <- stats::setNames(as.character(candidates[best,]),anchor_ids)
@@ -359,12 +380,33 @@
     colours[[continuation[[source_id]]]] <- anchors[[reference_id]]
   }
   remainder <- names(colours)[is.na(colours)]
-  colours[remainder] <- additions[seq_along(remainder)]
+  branch_alignment <- stats::setNames(character(), character())
+  if (length(remainder)) {
+    nearest <- apply(distances[, remainder, drop = FALSE], 2L, function(value) {
+      ordered <- order(value, names(value), method = "radix")
+      c(anchor = unname(names(value)[ordered[[1L]]]),
+        margin = unname(value[ordered[[2L]]] - value[ordered[[1L]]]))
+    })
+    if (is.null(dim(nearest))) nearest <- matrix(nearest, ncol = 1L,
+      dimnames = list(names(nearest), remainder))
+    clear_branch <- as.numeric(nearest["margin", ]) >= 0.25
+    branch_targets <- remainder[clear_branch]
+    mixed_targets <- remainder[!clear_branch]
+    if (length(branch_targets)) {
+      branch_alignment <- stats::setNames(
+        unname(nearest["anchor", branch_targets]), branch_targets)
+      colours[branch_targets] <- additions[[2L]]
+    }
+    if (length(mixed_targets)) colours[mixed_targets] <- additions[[1L]]
+  }
   list(colours=colours, anchor_alignment=anchor_alignment,
-       continuation=continuation, total_shared=overlap,
+       continuation=continuation, branch_alignment=branch_alignment,
+       total_shared=overlap,
        total_center_distance=distance,
-       method=paste("maximum one-to-one district overlap; minimum standardized",
-                    "center distance as tie-breaker; remaining profile-ordered colours"))
+       method=paste("minimum one-to-one standardized-center distance; district",
+                    "overlap as tie-breaker; unmatched targets with a nearest-anchor",
+                    "distance margin of at least 0.25 use the stable branch colour;",
+                    "ambiguous residual targets use the mixed purple"))
 }
 
 .shiny_finalize_incidence_legend <- function(widget) {
@@ -564,10 +606,10 @@
 .shiny_typology_config <- function(mode) {
   if (identical(mode, "dissertation")) return(list(
     mode = mode, label = "Historische Referenztypologie (2017\u20132020)", years = 2017:2020,
-    k = 3L, note = "Historische Referenzreproduktion der Dissertation (2017\u20132020)"
+    k = 3L, note = "Historische Drei-Cluster-Typologie (2017\u20132020)"
   ))
   if (identical(mode, "dynamic")) return(list(
-    mode = mode, label = "Dynamische demographische Typologie",
+    mode = mode, label = "Aktualisierte demografische Typologie",
     years = NULL, k = NULL, note = "Fit-lokale neutrale Clusteridentit\u00e4ten"
   ))
   stop("Unsupported typology mode.", call. = FALSE)
@@ -659,6 +701,13 @@
 
 .shiny_app_format_error <- function(error, source) {
   message <- conditionMessage(error)
+  if (grepl("annual-average-population incidence|durchschnittlichen Jahresbev\u00f6lkerung",
+            message, ignore.case = TRUE)) {
+    return(paste(
+      "Die dynamische Inzidenzanalyse ben\u00f6tigt die amtliche durchschnittliche Jahresbev\u00f6lkerung aus der Regionaldatenbank.",
+      "Bitte konfigurieren Sie die Zugangsdaten und laden Sie die Analyse erneut."
+    ))
+  }
   if (grepl("Regionaldatenbank", message, fixed = TRUE) &&
       grepl("authentication|required environment variables|missing or empty",
             message, ignore.case = TRUE)) {
@@ -669,7 +718,7 @@
   }
   if (grepl("Regionaldatenbank", message, fixed = TRUE)) {
     return(paste(
-      "Die demographischen Daten konnten nicht geladen werden.",
+      "Die demografischen Daten f\u00fcr die Typologie konnten nicht geladen werden.",
       "Bitte Zugang und Dienstverf\u00fcgbarkeit pr\u00fcfen und erneut versuchen."
     ))
   }
@@ -680,6 +729,14 @@
     ))
   }
   paste0(source, " konnte nicht geladen werden. Bitte erneut versuchen.")
+}
+
+.shiny_app_display_error <- function(error, previous_result_visible) {
+  paste0(
+    error,
+    if (isTRUE(previous_result_visible))
+      " Die zuvor geladene Analyse bleibt angezeigt."
+  )
 }
 
 .shiny_reference_years <- function(period_row) {
@@ -703,7 +760,7 @@
     format(range$end_date,"%d.%m.%Y")," \u00b7 ",iso)
   typology <- if(identical(typology_mode,"dissertation"))
     "Typologie: Historische Referenztypologie (2017\u20132020)" else paste0(
-      "Typologie: Dynamisch \u00b7 Referenzzeitraum ",min(demographic_years),
+      "Typologie: Aktualisiert \u00b7 Referenzzeitraum ",min(demographic_years),
       "\u2013",max(demographic_years)," \u00b7 k=",as.integer(k))
   list(title=title,subtitle=subtitle,typology=typology)
 }
@@ -724,7 +781,7 @@
     reason = if (identical(setdiff(typology_ids, surveillance_ids), "16056")) {
       "Reviewed historical 401-to-current 400 compatibility; Eisenach remains fit provenance only"
     } else {
-      "Exact canonical geography compatibility for the Shiny PoC"
+      "Exact canonical geography compatibility for the Shiny application"
     }
   )
 }
@@ -800,9 +857,17 @@
 
 .shiny_demography_status <- function(demographic) {
   if (identical(demographic$source_mode, "snapshot")) {
+    statuses <- demographic$snapshot_provenance$source_data_status
+    typology_date <- format(max(.validate_snapshot_statuses(
+      statuses[names(statuses) != "annual_average_population"]
+    )$parsed), "%d.%m.%Y")
+    population_date <- format(.validate_snapshot_statuses(
+      statuses, "annual_average_population"
+    )$parsed[[which(names(statuses) == "annual_average_population")]],
+    "%d.%m.%Y")
     return(paste0(
-      "Gepr\u00fcfter Snapshot \u2013 Datenstand ",
-      demographic$snapshot_provenance$source_status_display_date
+      "Gepr\u00fcfter Snapshot \u2013 Typologie-Datenstand ", typology_date,
+      "; Jahresdurchschnittsbev\u00f6lkerung ", population_date
     ))
   }
   statuses <- .shiny_app_source_status(demographic$source)
@@ -892,33 +957,105 @@
   combined
 }
 
-.shiny_fetch_analysis_bundle <- function(pathogen, years, resources) {
+.shiny_limit_surveillance_range <- function(bundle, range) {
+  if (is.null(range)) return(bundle)
+  keep <- bundle$data$date >= range$start_date &
+    bundle$data$date <= range$end_date
+  bundle$data <- bundle$data[keep, , drop = FALSE]
+  if (!nrow(bundle$data)) {
+    stop("SurvStat returned no observations in the effective analysis range.",
+         call. = FALSE)
+  }
+  bundle
+}
+
+.shiny_population_for_reporting_years <- function(years, source_mode) {
+  candidates <- sort(unique(c(years, years - 1L)))
+  candidates <- candidates[candidates >= 2022L]
+  if (identical(source_mode, "snapshot")) {
+    snapshot <- regionalepi_demographic_snapshot()
+    candidates <- intersect(
+      candidates, snapshot$provenance$covered_reporting_years
+    )
+    if (!length(candidates)) {
+      stop("The reviewed snapshot contains no acceptable annual-average population denominator.",
+           call. = FALSE)
+    }
+    population <- .demographic_snapshot_average_population(snapshot, candidates)
+  } else {
+    population <- fetch_regional_average_population(candidates)
+  }
+  available <- sort(unique(population$data$year))
+  denominator <- vapply(years, function(year) {
+    if (year %in% available) year else if ((year - 1L) %in% available) {
+      year - 1L
+    } else NA_integer_
+  }, integer(1L))
+  names(denominator) <- as.character(years)
+  supported <- years[!is.na(denominator)]
+  if (!length(supported)) {
+    stop("No reporting year has an available same-year or preceding-year annual-average population denominator.",
+         call. = FALSE)
+  }
+  provisional <- denominator[!is.na(denominator) & denominator < years]
+  list(
+    population = population,
+    provisional = provisional,
+    supported_years = supported,
+    unsupported_years = years[is.na(denominator)]
+  )
+}
+
+.shiny_fetch_analysis_bundle <- function(
+    pathogen, years, resources, source_mode = "snapshot",
+    effective_range = NULL) {
   years <- sort(unique(as.integer(years)))
-  unsupported <- setdiff(years, 2022:2026)
-  if (length(unsupported)) {
+  if (any(years < 2022L)) {
     stop(
-      "Final Paper-2 analysis requires official annual-average population and is supported only for 2022-2025; 2026 is available only as an explicit provisional display.",
+      "Dynamic incidence based on official annual-average population is supported from reporting year 2022 onward.",
       call. = FALSE
     )
   }
-  if (!.shiny_regional_credentials_available()) {
+  if (!source_mode %in% c("snapshot", "live")) {
+    stop("Unsupported annual-average population source mode.", call. = FALSE)
+  }
+  if (identical(source_mode, "live") &&
+      !.shiny_regional_credentials_available()) {
     stop(
-      "Annual-average-population incidence requires configured Regionaldatenbank credentials.",
+      "Dynamic annual-average-population incidence requires configured Regionaldatenbank credentials.",
       call. = FALSE
     )
   }
-  provisional <- if (2026L %in% years) c("2026" = 2025L) else integer()
-  population_years <- sort(unique(c(intersect(years, 2022:2025),
-                                    unname(provisional))))
   source_time <- system.time(source <- .shiny_fetch_surveillance_bundle(
     pathogen, years, resources
   ))[["elapsed"]]
-  population_time <- system.time(population <-
-    fetch_regional_average_population(population_years))[["elapsed"]]
+  source <- .shiny_limit_surveillance_range(source, effective_range)
+  observed_years <- if (is.data.frame(source$data) && nrow(source$data)) {
+    sort(unique(source$data$reporting_year))
+  } else years
+  population_time <- system.time(selection <-
+    .shiny_population_for_reporting_years(observed_years, source_mode))[["elapsed"]]
+  if (length(selection$unsupported_years)) {
+    source$data <- source$data[
+      source$data$reporting_year %in% selection$supported_years, , drop = FALSE
+    ]
+  }
   derivation_time <- system.time(result <- prepare_analysis_incidence(
-    source, population, provisional
+    source, selection$population, selection$provisional
   ))[["elapsed"]]
   result$resolution <- source$resolution
+  result$diagnostics$population_source_mode <- source_mode
+  result$diagnostics$unsupported_reporting_years <- selection$unsupported_years
+  result$provenance$population_source_mode <- source_mode
+  if (!is.null(effective_range)) {
+    result$provenance$analysis_range <- list(
+      observation_window_start = effective_range$nominal_start_date,
+      observation_window_end = effective_range$nominal_end_date,
+      analysis_as_of_date = effective_range$analysis_as_of_date,
+      effective_analysis_start = effective_range$start_date,
+      effective_analysis_end = effective_range$end_date
+    )
+  }
   result$timings <- c(source$timings, source_bundle = source_time,
                       population_retrieval = population_time,
                       incidence_derivation = derivation_time)
@@ -951,6 +1088,8 @@
   list(
     surveillance_data_status = paste(sort(unique(source_status)), collapse = ","),
     population_data_status = paste(sort(unique(population_status)), collapse = ","),
+    population_source_mode = bundle$diagnostics$population_source_mode %||%
+      "not_applicable",
     incidence_status = status,
     provisional_denominator_year = provisional_year
   )
@@ -990,11 +1129,13 @@
   packages[!vapply(packages, checker, logical(1L), quietly = TRUE)]
 }
 
-#' Run the regionalepi Shiny proof of concept
+#' Run the regionalepi Shiny application
 #'
-#' Launches the installed, deliberately narrow interactive demonstration. Live
-#' demographic queries require the Regionaldatenbank credential environment
-#' variables; SurvStat incidence is fetched from the official live service.
+#' Launches the installed interactive application. The bundled demographic
+#' snapshot supplies typology indicators and annual-average population for
+#' dynamic incidence by default. Optional live retrieval of both demographic
+#' components uses the Regionaldatenbank credential environment variables;
+#' SurvStat surveillance is fetched from the official live service.
 #'
 #' @param ... Additional arguments passed to [shiny::runApp()].
 #' @return The value returned by `shiny::runApp()`, invisibly.
@@ -1003,7 +1144,7 @@ run_regionalepi_app <- function(...) {
   missing <- .shiny_missing_dependencies()
   if (length(missing)) {
     stop(
-      "The regionalepi Shiny PoC requires optional package(s): ",
+      "The regionalepi Shiny application requires optional package(s): ",
       paste(missing, collapse = ", "), ". Install them before launching.",
       call. = FALSE
     )

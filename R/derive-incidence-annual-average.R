@@ -111,7 +111,7 @@ validate_annual_average_incidence <- function(x) {
 #'
 #' This function creates the distinct field `incidence_annual_average`. It does
 #' not create or modify the source-provided `incidence` field used by historical
-#' dissertation reproduction.
+#' historical reference reproduction.
 #'
 #' @param cases A result with `data`, `diagnostics`, and `provenance` containing
 #'   validated canonical source-provided SurvStat cases.

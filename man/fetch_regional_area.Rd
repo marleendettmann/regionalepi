@@ -7,7 +7,7 @@
 fetch_regional_area(reference_dates, regions = NULL)
 }
 \arguments{
-\item{reference_dates}{Unique 31 December dates from 1995 through 2024.}
+\item{reference_dates}{Unique 31 December dates from 1995 through 2025.}
 
 \item{regions}{\code{NULL} or unique five-character district identifiers.}
 }
@@ -21,4 +21,19 @@ source unit \code{qkm} to square kilometres without conversion or rounding.
 \details{
 Regionaldatenbank city-state keys \code{02} and \code{11} are
 deterministically expanded to AGS \code{02000} and \code{11000}.
+}
+\section{Data source and license}{
+
+Data are obtained from Regionaldatenbank Deutschland, provided by the
+Statistische Ämter des Bundes und der Länder, under Datenlizenz Deutschland
+– Namensnennung – Version 2.0 (\code{dl-de/by-2-0}). regionalepi selects and
+validates the reviewed source table and measure. Returned provenance retains
+source table and measure, retrieval time, source data status, and available
+source notes. Selection and normalization do not relicense the source data;
+GPL-3 applies to regionalepi package code.
+}
+
+\references{
+\href{https://www.regionalstatistik.de/}{Regionaldatenbank Deutschland},
+\href{https://www.govdata.de/dl-de/by-2-0}{Datenlizenz Deutschland – Namensnennung – Version 2.0}
 }

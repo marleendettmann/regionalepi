@@ -92,6 +92,26 @@ test_that("area adapter preserves positive qkm values and compact provenance", {
   expect_false("source_notes" %in% names(result$data))
 })
 
+test_that("area adapter includes the reviewed 2025 availability bound", {
+  transport <- function(table, reference_dates, regions, credentials) {
+    expect_identical(table, "11111-01-01-4")
+    expect_identical(reference_dates, as.Date("2025-12-31"))
+    regional_long_json(table, c("11111", "KREISE", "FLC006"), c(
+      "31.12.2025;02000; Hamburg;755,09",
+      "31.12.2025;16063; Wartburgkreis;1266,96"
+    ))
+  }
+  result <- with_regional_table_transport(
+    transport,
+    fetch_regional_area(as.Date("2025-12-31"), c("02000", "16063"))
+  )
+  expect_identical(unique(result$data$reference_date), as.Date("2025-12-31"))
+  expect_true(all(is.finite(result$data$area_km2) & result$data$area_km2 > 0))
+  expect_identical(result$diagnostics$source_table, "11111-01-01-4")
+  expect_identical(result$diagnostics$source_measure, "FLC006")
+  expect_error(fetch_regional_area(as.Date("2026-12-31")), "1995-2025")
+})
+
 test_that("internal age adapter maps exact five-year intervals", {
   result <- with_regional_table_transport(
     demographic_transport,
@@ -151,4 +171,23 @@ test_that("shared transport errors cannot expose credentials", {
     error = conditionMessage
   )
   expect_false(grepl("synthetic-user|synthetic-password", message))
+})
+
+test_that("demographic HTTP transport applies the reviewed timeout", {
+  testthat::local_mocked_bindings(
+    req_perform = function(request) {
+      expect_identical(request$options$timeout_ms, 120000)
+      structure(list(), class = "synthetic_response")
+    },
+    resp_body_string = function(response) {
+      expect_s3_class(response, "synthetic_response")
+      "synthetic response"
+    },
+    .package = "httr2"
+  )
+  result <- regionalepi:::.regional_http_transport(
+    "12411-07-01-4", as.Date("2025-12-31"), "07315",
+    list(username = "synthetic-user", password = "synthetic-password")
+  )
+  expect_identical(result, "synthetic response")
 })

@@ -2,7 +2,7 @@
 % Please edit documentation in R/epidemiology-periods.R
 \name{dissertation_influenza_periods}
 \alias{dissertation_influenza_periods}
-\title{Frozen dissertation Influenza waves}
+\title{Frozen historical-reference Influenza waves}
 \usage{
 dissertation_influenza_periods()
 }
@@ -11,5 +11,5 @@ A reviewed period resource with \code{periods}, \code{season_review}, and
 \code{provenance}.
 }
 \description{
-Frozen dissertation Influenza waves
+Frozen historical-reference Influenza waves
 }

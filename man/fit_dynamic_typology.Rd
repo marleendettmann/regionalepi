@@ -27,6 +27,6 @@ the original and standardized matrix, provenance, and specifications.
 \description{
 Fits deterministic k-means to a complete reviewed demographic indicator
 set. Algorithmic cluster numbers are preserved; neutral \code{C01}, \code{C02}, ...
-identifiers are deterministic only within a fit and carry no dissertation
-or natural-language meaning.
+identifiers are deterministic only within a fit and carry no historical
+reference or natural-language meaning.
 }

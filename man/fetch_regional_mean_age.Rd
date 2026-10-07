@@ -23,3 +23,18 @@ Regionaldatenbank represents the district-equivalent city states
 Hamburg and Berlin with regional keys \code{02} and \code{11} in this table family;
 these are deterministically expanded to AGS \code{02000} and \code{11000}.
 }
+\section{Data source and license}{
+
+Data are obtained from Regionaldatenbank Deutschland, provided by the
+Statistische Ämter des Bundes und der Länder, under Datenlizenz Deutschland
+– Namensnennung – Version 2.0 (\code{dl-de/by-2-0}). regionalepi selects and
+validates the reviewed source table and measure. Returned provenance retains
+source table and measure, retrieval time, source data status, and available
+source notes. Selection and normalization do not relicense the source data;
+GPL-3 applies to regionalepi package code.
+}
+
+\references{
+\href{https://www.regionalstatistik.de/}{Regionaldatenbank Deutschland},
+\href{https://www.govdata.de/dl-de/by-2-0}{Datenlizenz Deutschland – Namensnennung – Version 2.0}
+}

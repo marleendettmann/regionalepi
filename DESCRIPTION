@@ -1,5 +1,5 @@
 Package: regionalepi
-Title: Demographic Context for Regional Infectious-Disease Surveillance
+Title: Regional Infectious Disease Surveillance and Demographic Typologies
 Version: 0.1.0
 Authors@R: person(
     given = "Marleen",
@@ -7,9 +7,12 @@ Authors@R: person(
     email = "mail@marleen-dettmann.de",
     role = c("aut", "cre")
   )
-Description: Provides data contracts and a reproducible architecture for
-    contextualizing regional infectious-disease surveillance with demographic
-    and geographic data. Publication metadata are to be decided.
+Description: Provides a reproducible framework for analyzing infectious disease
+    surveillance data across German districts in relation to demographic
+    typologies. Supports historical reference and dynamic demographic
+    typologies, surveillance-data processing, incidence calculation using
+    official annual-average population data, regional comparisons, and
+    interactive exploration.
 License: GPL-3
 Copyright: 2026 Marleen Dettmann
 Depends:

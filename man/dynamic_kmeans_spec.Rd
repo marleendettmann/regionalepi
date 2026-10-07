@@ -13,5 +13,5 @@ A validated \code{dynamic_kmeans_v1} specification.
 Uses an explicit seed derived from the reviewed map/reference date
 (\code{20241231}), Lloyd k-means, 50 starts, 100 iterations, and deterministic
 character \code{geo_id} ordering. These parameters are independent of the frozen
-dissertation fit.
+historical reference fit.
 }

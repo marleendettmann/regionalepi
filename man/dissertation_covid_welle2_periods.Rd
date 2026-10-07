@@ -2,7 +2,7 @@
 % Please edit documentation in R/epidemiology-periods.R
 \name{dissertation_covid_welle2_periods}
 \alias{dissertation_covid_welle2_periods}
-\title{Frozen dissertation principal COVID Welle2 intervals}
+\title{Frozen historical-reference principal COVID Welle2 intervals}
 \usage{
 dissertation_covid_welle2_periods()
 }
@@ -10,5 +10,5 @@ dissertation_covid_welle2_periods()
 A reviewed period resource.
 }
 \description{
-Frozen dissertation principal COVID Welle2 intervals
+Frozen historical-reference principal COVID Welle2 intervals
 }

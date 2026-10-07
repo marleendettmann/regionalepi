@@ -26,7 +26,7 @@ test_that("reviewed COVID activity waves and display metadata are exact", {
   expect_true(all(grepl("Bulletin 35/2025", periods$source_reference, fixed = TRUE)))
   expect_false(any(grepl("Phase 8|Wave 6|Welle 6", periods$label)))
   display <- format_epidemiological_period(periods[1, ])
-  expect_identical(display$title, "COVID-19 · RKI-Aktivitätswelle 2023/24")
+  expect_identical(display$title, "COVID-19 · COVID-19-Welle 2023/24")
   expect_identical(display$subtitle, "02.10.2023–28.01.2024 · 2023-KW 40–2024-KW 04")
   same_year <- format_epidemiological_period(period_row(start = "2020-03-02", end = "2020-05-17"))
   expect_identical(same_year$subtitle, "02.03.2020–17.05.2020 · 2020-KW 10–20")
@@ -46,6 +46,16 @@ test_that("season review represents zero, one, and multiple waves", {
   expect_identical(resource$season_review$wave_count, c(1L, 1L, 1L, 0L, 1L, 2L, 1L, 1L, 1L))
   expect_false("2020/21" %in% resource$periods$season_id)
   expect_identical(sum(resource$periods$season_id == "2022/23"), 2L)
+  expect_identical(format(resource$periods$start_date), c(
+    "2017-12-25", "2019-01-07", "2020-01-06", "2022-04-25",
+    "2022-10-24", "2023-02-27", "2023-12-11", "2024-12-16",
+    "2025-11-24"
+  ))
+  expect_identical(format(resource$periods$end_date), c(
+    "2018-04-08", "2019-04-07", "2020-03-22", "2022-05-22",
+    "2023-01-08", "2023-04-09", "2024-03-24", "2025-04-06",
+    "2026-03-08"
+  ))
 })
 
 test_that("assignment uses inclusive dates and reports outside observations", {
@@ -94,4 +104,12 @@ test_that("frozen dissertation boundaries are exact", {
     "2020-05-17", "2021-02-28", "2021-06-13", "2021-10-03",
     "2021-12-26", "2022-02-27", "2022-05-29"
   ))
+  expect_true(all(grepl("03_Diss_SurvStat.Rmd", covid$source_reference,
+    fixed = TRUE)))
+  expect_true(all(grepl("Epidemiologisches Bulletin 38/2022",
+    covid$source_reference, fixed = TRUE)))
+  expect_true(all(grepl("EB-38-2022-Phaseneinteilung.pdf?sequence=1",
+    covid$source_reference, fixed = TRUE)))
+  expect_identical(dissertation_covid_welle2_periods()$provenance$semantics,
+    "principal_Welle2_not_broader_Phase")
 })

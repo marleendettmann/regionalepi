@@ -5,6 +5,7 @@
 
 # RStudio
 .Rproj.user/
+*.Rproj
 
 # R package build/check artifacts
 *.Rcheck/

@@ -4,3 +4,5 @@
 ^CITATION\.cff$
 ^\.env$
 ^\.env\..*$
+^.*\.Rproj$
+^\.Rproj\.user$

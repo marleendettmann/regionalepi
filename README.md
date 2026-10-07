@@ -1,98 +1,145 @@
 # regionalepi
 
-`regionalepi` is an early-stage research R package for reproducible demographic
-contextualization of regional infectious-disease surveillance data.
+`regionalepi` is an R package for reproducible analysis of regional
+infectious-disease surveillance in Germany using demographic indicators and
+typologies.
+It provides tools to construct demographic regional typologies for German
+districts, link district assignments to other data, and analyse
+infectious-disease surveillance by demographic type and time. The package
+supports both exact reproduction of a historical reference typology and the
+fitting of updated demographic typologies.
 
-The package defines canonical data contracts, deterministic geographic
-resolution, and a documented non-geometric 2024 geography resource derived
-from BKG VG-Hist with reviewed SurvStat directives. Official source-data
-attribution is installed in `NOTICE`. The regionalepi package code is licensed
-under GPL-3. Third-party data and bundled resources remain subject to their
-respective source licenses and terms; see `NOTICE` and source provenance. No
-SurvStat observation data are distributed with the package, and GPL-3 grants no
-rights over data retrieved at runtime.
+## Scientific approach
 
-Reproducible development inputs are kept in Git under `data-raw`, while ignored
-local source files and all `data-raw` materials are excluded from built source
-packages. The package contains the narrow frozen dissertation reproduction, a
-separate reviewed dynamic typology path, a visualization-only map resource,
-and a first small Shiny proof of concept. It contains no runtime spatial
-processing or general-purpose clustering framework.
+The typology uses population density, mean age, and the youth dependency ratio.
 
-SurvStat counts and source-provided incidence use separate canonical contracts.
-`read_survstat()` remains the additive count reader;
-`read_survstat_incidence()` supports only the two reviewed incidence layouts
-and preserves blank rates as missing. Reviewed incidence assembly replaces
-explicit source units with separately queried replacement observations without
-summing or averaging rates.
+The historical reference typology uses demographic data from 2017--2020 and
+reproduces the three-cluster regional typology developed by
+[Dettmann (2026)](https://doi.org/10.17169/refubium-51449). This workflow is
+provided for exact historical reproduction.
 
-`fetch_survstat_incidence()` is the first narrow live adapter for the official
-RKI SurvStat SOAP service. It retrieves only source-provided weekly incidence
-for explicit reporting years, either for Kreis rows or one exactly selected
-Bundesland. The adapter discovers exact source members, preserves blank cells
-as missing, records the live cube status and member identifiers, and performs
-neither geographic resolution nor incidence calculation. Its return contract
-is the same as the local incidence reader, so reviewed Berlin replacement and
-the existing downstream analysis remain separate steps.
+Updated typologies can be fitted for demographic periods covered by the
+package data. The bundled demographic snapshot currently supports 2017--2020
+and 2022--2025. These fits support `k = 2` through `5`; identifiers such as
+`C01` and `C02` apply only to the individual fit and are not stable categories
+across settings. For updated typologies, `k = 3` is retained as an
+interpretative reference for comparison with the historical three-cluster
+structure; this does not imply that three clusters are statistically optimal.
 
-Reviewed source spatial relations support additive aggregation of the 12
-SurvStat Berlin Bezirk identities to canonical Berlin without inventing a
-territorial vintage. Historical vintage harmonization remains a separate
-operation and contract.
+The historical and updated workflows also use different incidence measures.
+Exact historical reproduction uses the source-provided historical SurvStat
+incidence. Current analyses calculate incidence from reported SurvStat cases
+and the official annual-average population for the reporting year.
 
-`regionalepi_map_geometry()` supplies a separate visualization-only 2024
-district resource derived from BKG VG2500. It contains GeoJSON-compatible
-EPSG:4326 MultiPolygons, canonical reviewed names, complete BKG attribution,
-and no population-area semantics. Ordinary loading and validation require no
-`sf`; the reproducible development builder uses `sf` only as a suggested
-dependency.
+## Data sources
 
-`fetch_regional_population()` retrieves reviewed district total-population
-data for 2017-2025 from Regionaldatenbank table `12411-01-01-4`. It requires
-the ordinary environment variables `REGIONALSTATISTIK_USER` and
-`REGIONALSTATISTIK_PASSWORD`; the package does not parse `.env` or accept
-credentials as function arguments. Narrow companion adapters retrieve
-source-provided mean age and youth dependency quotients and district area.
-Population density is derived without rounding, and complete annual indicators
-may be summarized with an unweighted arithmetic mean. Geographic vintage
-remains unresolved; no historical harmonization is inferred from observation
-dates.
+Surveillance data come from SurvStat@RKI 2.0, provided by the Robert
+Koch-Institut. The bundled Shiny application is configured for the exact
+SurvStat pathogen captions
+`"Influenza, saisonal"`, `"COVID-19"`, and
+`"Norovirus-Gastroenteritis"`. These are reviewed Shiny configurations, not a
+general restriction of the package API. Other SurvStat pathogens can be
+processed programmatically where they satisfy the package's surveillance and
+geography contracts, but they have not necessarily undergone pathogen-specific
+validation in `regionalepi`. Influenza and COVID-19 include additional
+methodological review and epidemiological period definitions. Norovirus is
+included in the Shiny application and covered by regression tests, but has not
+undergone the same depth of pathogen-specific methodological review.
+Surveillance data are retrieved live; query time and the source data status
+reported by SurvStat are retained with the results.
 
-`fetch_regional_average_population()` separately retrieves official district
-annual-average population for the reviewed 2022--2025 years from table
-`12411-05-01-4`, measure `BEV028`. The source defines this measure from 2012
-onward as the simple arithmetic mean of population at the beginning and end of
-the reporting year. It has its own validated year-based contract and does not
-reinterpret the 31 December population adapter. No incidence is calculated.
+Demographic data come from Regionaldatenbank Deutschland, provided by the
+Statistische Ämter des Bundes und der Länder. The package includes a reviewed
+snapshot for reproducible offline analysis. It contains the source data needed
+for the 2017--2020 and 2022--2025 demographic reference periods and supplies
+the typology indicators used by the Shiny application by default, together
+with official annual-average population for reporting years 2022--2025.
+Snapshot mode therefore supports the complete default dynamic analysis without
+Regionaldatenbank credentials. Public package functions can retrieve population
+stock, annual-average population, area, mean age, and youth dependency directly
+from Regionaldatenbank Deutschland; see `?fetch_regional_population`,
+`?fetch_regional_average_population`, and the related `?fetch_regional_*` help
+pages. Live retrieval of the typology data and annual-average population is
+optional and requires `REGIONALSTATISTIK_USER` and
+`REGIONALSTATISTIK_PASSWORD`.
 
-`fit_dissertation_typology()` consumes the complete 2017--2020 indicator
-summary and reproduces the dissertation's explicit base-R scaling and frozen
-three-center k-means. Historical labels require an explicit reproduction mode.
-`compare_typology()` safely aligns arbitrary raw cluster numbers to a reviewed
-historical partition by evaluating all six permutations.
+District identities, map geometry, and Länder boundaries use BKG resources
+with the common geographic reference date 31 December 2024. Source attribution
+and licensing details are recorded in the installed `NOTICE` file.
 
-The methodological concept follows the demographic regional typology developed
-by [Dettmann (2026)](https://doi.org/10.17169/refubium-51449).
+## Getting started
 
-The separate `demographic_structure_v1` indicator set and
-`dynamic_kmeans_v1` fitting specification support deterministic exploratory
-demographic typologies for `k = 2` through `5`. Dynamic fits retain raw
-k-means numbers, add only fit-local neutral `C01`, `C02`, ... identifiers, and
-return original-scale and standardized cluster profiles. They never apply the
-frozen dissertation labels or generate natural-language cluster names.
+The following workflow prepares the bundled 2022--2025 demographic data and
+fits a three-cluster updated typology entirely offline:
 
-Reviewed period resources represent RKI Influenza waves and frozen
-dissertation COVID waves as inclusive date intervals. Seasons may have zero,
-one, or multiple waves; boundaries are not inferred from SurvStat. Canonical-ID
-typology attachment validates reviewed geography differences. Weekly summaries
-calculate median district incidence plus the empirical first and third
-quartiles (R quantile type 7). Missing incidence remains distinct from zero;
-the IQR describes observed district incidence and is not a confidence interval.
-No pooled cluster incidence is calculated.
+```r
+snapshot <- regionalepi_demographic_snapshot()
 
-See `docs/architecture.md` and `docs/data-contracts.md` for the v0.1 design.
+demography <- prepare_demographic_snapshot(
+  snapshot = snapshot,
+  reference_years = 2022:2025
+)
 
-## Shiny proof of concept
+fit <- fit_dynamic_typology(
+  demography$summary,
+  k = 3L
+)
+
+head(fit$assignments)
+fit$profiles
+
+clusters <- fit$assignments[c("geo_id", "display_cluster_id")]
+head(clusters)
+```
+
+The fitted result contains district assignments and cluster profiles on both
+the original indicator scales and the standardized scale. `clusters` provides
+the demographic regional type for each district through the five-character
+district identifier `geo_id`. After the package's geography-resolution step,
+compatible district-level data use the same five-character district identifier
+`geo_id`, allowing these assignments to be joined to surveillance or other
+district data.
+
+The package also exposes public functions for retrieving SurvStat observations,
+preparing incidence based on official annual-average population, attaching a
+demographic typology, assigning stored epidemiological periods where available,
+and summarizing incidence by demographic regional type and time. See
+`?fetch_survstat_cases`, `?prepare_analysis_incidence`, `?attach_typology`,
+`?assign_epidemiological_periods`, and `?summarize_incidence_by_typology`.
+
+### Programmatic surveillance
+
+Surveillance retrieval can also be started directly from R. The following is a
+live, network-dependent request using an exact SurvStat pathogen caption; it
+does not require Regionaldatenbank credentials:
+
+```r
+influenza_cases <- fetch_survstat_cases(
+  pathogen = "Influenza, saisonal",
+  reporting_years = 2025L,
+  geography = "kreis",
+  query_id = "example-influenza-2025"
+)
+
+head(influenza_cases$data[c(
+  "geo_name", "reporting_year", "reporting_week", "cases"
+)])
+```
+
+The returned source labels must first be resolved to district `geo_id`s and,
+where necessary, aggregated to the analysis geography. Incidence can then be
+prepared, linked to `clusters`, assigned to epidemiological periods, and
+summarized by demographic type and time. The required geography resources and
+validation rules are described in the architecture and data-contract
+documentation. This workflow can be used directly from R without the Shiny
+application.
+
+## Shiny application
+
+The package can be used directly from R. The Shiny application is an optional
+interactive interface built on the package's analytical workflows; some of its
+data-retrieval coordination and visualization preparation remain
+application-internal.
 
 Install the optional `shiny` and `leaflet` packages, then launch the installed
 application with:
@@ -101,150 +148,83 @@ application with:
 regionalepi::run_regionalepi_app()
 ```
 
-The app does not query live services on startup. Select the reviewed settings
-and press **Analyse laden / aktualisieren**. Regionaldatenbank queries require
-`REGIONALSTATISTIK_USER` and `REGIONALSTATISTIK_PASSWORD` in the process
-environment; SurvStat@RKI must be reachable. Credentials and live responses
-are not persisted. Results are cached only in the active Shiny session.
+The application supports exploration of historical and updated demographic
+typologies, cluster profiles and stability, district distributions and maps,
+weekly infectious-disease activity, Kreis × Woche incidence, national and
+regional comparisons, and individual districts.
 
-The default path uses the 2022--2024 demographic reference period,
-`demographic_structure_v1`, `dynamic_kmeans_v1`, `k = 3`, the reviewed VG2500
-2024 map, reviewed Berlin replacement, and SurvStat case counts. Empty cells in
-the reviewed complete count exports are interpreted as structural zeros after
-exact source-total reconciliation. The normal dynamic analysis derives the
-**Inzidenz auf Basis der durchschnittlichen Jahresbevölkerung** from
-Regionaldatenbank table `12411-05-01-4`; a displayed 2026 result is explicitly
-provisional and uses the 2025 denominator. Weekly summaries are medians of
-district incidence by cluster. Cluster IDs such as `C01` are fit-local neutral
-identifiers and must not be interpreted as stable categories across settings.
+SurvStat observations are retrieved live after the user starts an analysis.
+Demographic indicators for the typology and official annual-average population
+use the bundled snapshot by default. Live retrieval of the typology data and
+annual-average population from the Regionaldatenbank is optional and requires
+configured credentials. SurvStat
+observations remain live in either mode. Results are cached only for the current
+session, and source responses are not persisted. Changing tabs, selecting a
+district, or zooming and moving the map does not itself trigger another source
+retrieval.
 
-The interface offers two explicitly distinct typology modes. Dynamic fits use
-neutral fit-local IDs and a neutral deterministic palette. Dissertation mode
-reproduces the frozen 2017--2020 fit without refitting and uses the historical
-ClD/ClJ/ClA labels and core palette. Its 401-to-current-400 surveillance
-compatibility remains explicit.
+Regional comparisons include the four Großregionen used by the RKI
+Arbeitsgemeinschaft Influenza (AGI), the documented 12-group Länder
+aggregation, and all 16 Länder. These groups provide descriptive comparisons
+of district incidence; they are not separate source geographies or official
+regional incidence measures. The AGI grouping is documented at
+<https://influenza.rki.de/Glossar.aspx>.
 
-COVID choices separate the frozen dissertation/RKI pandemic periods from the
-reviewed post-pandemic RKI activity waves 2023/24 and 2024/25. RKI phase 8 is
-not exposed as a closed interval because no sufficiently authoritative closing
-boundary was established. The epidemiological view displays weekly cluster
-medians with empirical IQR and an unweighted distribution of one period median
-per district. It performs no inference and does not pool district-week values.
-Post-2023 COVID reports require caution because testing and reporting conditions
-changed.
+## Methodological notes
 
-This remains a development application, not a production service. It has no
-disk cache, background jobs, automatic cluster naming, pooled incidence,
-arbitrary indicator selection, export workflow, deployment infrastructure, or
-inferential main-UI tests. A historical peak-week reproduction is deferred.
-BKG attribution is rendered from map-resource provenance.
+For current dynamic analyses, weekly district incidence is calculated as:
 
-### SurvStat reported-case context
+```text
+reported cases / official annual-average population × 100,000
+```
 
-`fetch_survstat_cases()` retrieves the reviewed web count member
-`[Measures].[FallCount_71_Web]` (`Anzahl.71s`) as additive weekly reported
-cases. It shares the narrow query semantics of the source-provided incidence
-adapter, but never calculates or replaces incidence. Source null cells remain
-missing and explicit numeric zero remains zero.
+A derived incidence value is considered final when the official annual-average
+population for the same reporting year is available. If only the immediately
+preceding year's official population is available, the derived incidence is
+marked provisional; older denominators are rejected. The reporting and
+denominator years remain visible with the result. Running observation windows
+are limited by an explicit analysis cutoff, which remains separate from the
+SurvStat source-data status.
 
-`assemble_surveillance_cases()` applies the reviewed independent Berlin
-replacement after ordinary geography resolution. The sum of the twelve Berlin
-source units is retained only as a validation diagnostic. The final
-`combine_surveillance_incidence_counts()` operation requires exact canonical
-`geo_id`/date coverage and compatible query provenance, and preserves both
-source measures verbatim. Counts are contextual: cluster totals depend on
-cluster size and population and are not comparable as rates.
+Missing and zero observations are kept distinct. In reviewed complete local
+SurvStat case-count exports, empty cells are interpreted as zero reported cases
+only when the complete source matrix reconciles exactly with its totals; their
+derived incidence is therefore zero. This is `regionalepi`'s documented
+interpretation of the export structure, not an explicit statement by the RKI.
+Null case values returned by the API and genuinely missing observations remain
+missing (`NA`).
 
-`derive_incidence_annual_average()` is a separate scientific-core operation.
-It divides canonical source-provided cases by official annual-average
-population for the identical character AGS and reporting year and retains full
-precision in `incidence_annual_average`. It performs no standardization,
-weighting, or rounding. `prepare_analysis_incidence()` is the single explicit
-boundary that supplies this measure to current Paper-2 and normal Shiny
-analyses while preserving the original SurvStat incidence for provenance and
-audit. Final analyses are limited to 2022--2025. A Shiny view that includes
-2026 is explicitly provisional and records 2025 as its population denominator;
-it is never presented as final 2026 annual-average population.
+Weekly typology summaries use the unweighted median of district incidence.
+Their empirical first and third quartiles describe the observed district
+distribution and are not confidence intervals. The package does not calculate
+a pooled or population-weighted cluster incidence.
 
-Empty result cells in the reviewed SurvStat case-count exports are interpreted
-as structural zero counts, an interpretation strongly supported by their
-complete matrix structure and exact source-total reconciliation. This is not a
-claim of explicit RKI confirmation and is not described as imputing missing
-values. Structural zero cases yield zero derived incidence; explicitly missing
-cases remain `NA`. Historical dissertation reproduction continues to consume
-the separately preserved historical source-provided incidence.
+Where Berlin source observations occur at a finer spatial resolution, they are
+handled through documented aggregation or replacement rules before analysis.
+Epidemiological periods are supplied as reviewed date intervals rather than
+being inferred from the observed incidence curves.
 
-### Research-v0.1 generalization and freeze
+## Documentation
 
-Norovirus-Gastroenteritis is the third supported Shiny pathogen and reuses the
-same strict SurvStat incidence/count, geography-resolution, Berlin-replacement,
-and visualization pipeline. Its reviewed observation frame runs inclusively
-from ISO week 27 of one reporting year through ISO week 26 of the next. This is
-a season-spanning comparison frame used in RKI reporting, not an encoded
-Norovirus wave; no reviewed national Norovirus wave catalogue is provided.
+- `?regionalepi` introduces the scientific workflows, incidence definitions,
+  data sources, and executable package examples.
+- [`docs/architecture.md`](docs/architecture.md) describes processing order,
+  geography handling, source adapters, and the Shiny/backend separation.
+- [`docs/data-contracts.md`](docs/data-contracts.md) documents fields,
+  validation rules, missing-value policies, and versioned specifications.
+- [`docs/regionaldatenbank.md`](docs/regionaldatenbank.md) describes the
+  Regionaldatenbank tables, credentials, population bases, and attribution.
+- `?fetch_survstat_cases`, `?fetch_survstat_incidence`, and the
+  `?fetch_regional_*` help pages document live data retrieval.
 
-Bundesland is an administrative comparison dimension over the unchanged
-national district typology. State composition reports shares of canonical
-districts, not population. The epidemiological state view compares one
-district-level median of weekly incidence per district from the selected
-analysis contract for the same national cluster. The normal dynamic path uses
-incidence based on annual-average population; historical dissertation mode uses
-the preserved source-provided SurvStat incidence. The view neither calculates a
-state incidence nor supports causal state-effect interpretation. State display
-changes never fetch data or refit the typology.
+## Citation and licenses
 
-Functional Research-v0.1 scope is frozen after this generalization. Rotavirus,
-vaccination coverage, further pathogens, AGI presets, arbitrary state groups,
-state-specific or regional typology fits, within-state cluster comparison, new
-demographic indicators, spatial-dependence models, advanced state-map
-interaction, and Professional/Explorer deployment functionality are explicitly
-deferred. This is a scope statement, not a package-version release.
+Use `citation("regionalepi")` for the package citation. The regionalepi source
+code is licensed under GPL-3.
 
-The region-centred analysis can display four reviewed Großregionen, 12
-aggregated-Land groups, or all 16 canonical Länder. Its focal view shows
-national-cluster composition, weekly focal-region cluster medians, an overall
-context against Germany and up to two regions, and district drill-down. Every
-curve is a descriptive median of district incidence from the selected analysis
-contract, never an official regional incidence. Dynamic/current analysis uses
-incidence based on annual-average population; historical dissertation mode uses
-source-provided SurvStat incidence. The four combinations in the 12-group level are
-Brandenburg/Berlin, Niedersachsen/Bremen, Schleswig-Holstein/Hamburg, and
-Rheinland-Pfalz/Saarland; all other Länder remain separate. This composition
-corresponds to the grouping documented by the RKI Arbeitsgemeinschaft
-Influenza. regionalepi reuses the composition identically across pathogens only
-for descriptive comparison and does not claim it as a new geography, a source
-query level, or a pathogen-specific epidemiological region. The official
-composition is documented at <https://influenza.rki.de/Glossar.aspx>. The four
-Großregionen—Süden, Mitte (West), Norden (West), and Osten—correspond to the
-four AGI-Großregionen documented there, but remain neutral comparison groups
-inside regionalepi.
-
-The regional absolute cluster time course is complemented by a secondary
-relative-activity heatmap. For every week and national cluster it subtracts
-the median incidence of all observed districts in the selected region from
-the cluster's median district incidence in that region. Positive and negative
-values therefore describe activity above and below the contemporaneous focal-
-region district median; they do not define formal wave onset, lead/lag,
-transmission direction, causation, or significance. Missing incidence remains
-distinct from observed zero. Both cluster and regional-reference completeness
-are retained in hover. Regional-context comparisons use deterministic colour
-lightness and line types; Großregionen allow all three non-focal comparisons,
-whereas the 12- and 16-group levels remain capped at two.
-
-The Research-v0.1 Shiny information architecture retains five top-level
-destinations. Demographic typology is divided into cluster profiles, stability,
-and district distributions; methodology and provenance are divided into
-method, data sources, current definitions, and reproducibility. Optional
-Regionaldatenbank credentials are configured only through
-`REGIONALSTATISTIK_USER` and `REGIONALSTATISTIK_PASSWORD`; the app never offers
-secret input fields or displays their values.
-
-### Reviewed demographic snapshot
-
-Ordinary Shiny use defaults to the immutable reviewed Regionaldatenbank
-snapshot returned by `regionalepi_demographic_snapshot()`. It covers
-2017--2020 and 2022--2024 and stores source-provided mean age and youth
-dependency plus population and area. Density, period summaries, and typologies
-remain reproducible ordinary derivations. The default therefore needs no
-Regionaldatenbank credentials; explicit live mode remains available under the
-advanced settings and never mutates the bundled snapshot. SurvStat stays live.
+SurvStat observations remain subject to the RKI data-usage conditions and
+source-attribution requirements. Regionaldatenbank data retain the applicable
+Datenlizenz Deutschland – Namensnennung – Version 2.0. BKG resources retain
+their respective source terms. See `inst/NOTICE` and the source provenance
+recorded by the package for details. GPL-3 does not relicense these third-party
+data or resources.

@@ -32,13 +32,15 @@
   value_semantics = "additive"
 )
 
-#' Fetch source-provided incidence from the official SurvStat service
+#' Fetch source-provided incidence from SurvStat@RKI
 #'
-#' Retrieves weekly source-provided incidence through the official RKI SOAP
-#' service. The adapter is deliberately limited to explicit reporting years and
-#' either Kreis output or one explicitly filtered Bundesland. It performs no
-#' incidence calculation, geographic resolution, or Berlin-specific canonical
-#' mapping.
+#' Retrieves weekly source-provided incidence from SurvStat@RKI 2.0, provided
+#' by the Robert Koch-Institut (RKI). The adapter is deliberately limited to
+#' explicit reporting years and either Kreis output or one explicitly filtered
+#' Bundesland. It does not calculate or replace this incidence and performs no
+#' geographic resolution or Berlin-specific canonical mapping. This source
+#' measure is distinct from incidence calculated by
+#' [derive_incidence_annual_average()].
 #'
 #' The returned observations use the same `surveillance_incidence` contract as
 #' [read_survstat_incidence()]. Missing source cells remain `NA_real_`; numeric
@@ -46,7 +48,11 @@
 #' retrieval time, cube data status, endpoint, query settings, and source-member
 #' identifiers.
 #'
-#' @param pathogen One exact reviewed SurvStat disease member label.
+#' @param pathogen One exact, case-sensitive SurvStat disease-member caption.
+#'   The reviewed Research-v0.1 captions are `"Influenza, saisonal"`,
+#'   `"COVID-19"`, and `"Norovirus-Gastroenteritis"`. No case folding, aliases,
+#'   or fuzzy matching are applied. The source member ID is discovered from the
+#'   live hierarchy and retained in provenance.
 #' @param reporting_years Non-empty unique explicit reporting years.
 #' @param geography Exactly `"kreis"` or `"bundesland"`.
 #' @param geography_filter `NULL` for Kreis output; one exact SurvStat
@@ -57,6 +63,32 @@
 #'   the SurvStat cube used by this adapter.
 #' @return An ordinary list with canonical `data`, `diagnostics`, and
 #'   query-level `provenance`.
+#' @section Data source and attribution:
+#' The data provider is the Robert Koch-Institut (RKI), through SurvStat@RKI
+#' 2.0. Retrieved observations remain subject to the RKI data-usage statement:
+#' <https://survstat.rki.de/Content/Instruction/DataUsage.aspx>.
+#'
+#' The RKI proposes the citation: `"Robert Koch-Institut: SurvStat@RKI 2.0,
+#' https://survstat.rki.de, Abfragedatum: <Datum der Abfrage>"`.
+#'
+#' Query date (`retrieved_at`) and source data status are retained as distinct
+#' provenance concepts. The GPL-3 license applies to regionalepi package code;
+#' it does not relicense observations retrieved from SurvStat@RKI.
+#' @examples
+#' \dontrun{
+#' influenza_incidence <- fetch_survstat_incidence(
+#'   pathogen = "Influenza, saisonal", reporting_years = 2025L,
+#'   geography = "kreis", query_id = "influenza-incidence-2025"
+#' )
+#' covid19_incidence <- fetch_survstat_incidence(
+#'   pathogen = "COVID-19", reporting_years = 2025L,
+#'   geography = "kreis", query_id = "covid19-incidence-2025"
+#' )
+#' norovirus_incidence <- fetch_survstat_incidence(
+#'   pathogen = "Norovirus-Gastroenteritis", reporting_years = 2025L,
+#'   geography = "kreis", query_id = "norovirus-incidence-2025"
+#' )
+#' }
 #' @export
 fetch_survstat_incidence <- function(
     pathogen, reporting_years, geography = c("kreis", "bundesland"),
@@ -69,17 +101,34 @@ fetch_survstat_incidence <- function(
   )
 }
 
-#' Fetch reported case counts from the official SurvStat service
+#' Fetch reported case counts from SurvStat@RKI
 #'
-#' Retrieves the reviewed additive weekly count measure `Anzahl.71s`. It uses
-#' the same narrow pathogen, year, reference-definition, reporting-path and
-#' geography scope as [fetch_survstat_incidence()], but never calculates or
-#' replaces incidence. Source null cells remain `NA_real_` and numeric zero
-#' remains zero.
+#' Retrieves the reviewed additive weekly case-count measure `Anzahl.71s` from
+#' SurvStat@RKI 2.0, provided by the Robert Koch-Institut (RKI). It uses the
+#' same narrow pathogen, year, reference-definition, reporting-path and
+#' geography scope as [fetch_survstat_incidence()], but performs no incidence
+#' calculation. Source null cells remain `NA_real_` and numeric zero remains
+#' zero.
 #'
 #' @inheritParams fetch_survstat_incidence
 #' @return An ordinary list with validated additive surveillance `data`,
 #'   `diagnostics`, and query-level `provenance`.
+#' @inheritSection fetch_survstat_incidence Data source and attribution
+#' @examples
+#' \dontrun{
+#' influenza_cases <- fetch_survstat_cases(
+#'   pathogen = "Influenza, saisonal", reporting_years = 2025L,
+#'   geography = "kreis", query_id = "influenza-cases-2025"
+#' )
+#' covid19_cases <- fetch_survstat_cases(
+#'   pathogen = "COVID-19", reporting_years = 2025L,
+#'   geography = "kreis", query_id = "covid19-cases-2025"
+#' )
+#' norovirus_cases <- fetch_survstat_cases(
+#'   pathogen = "Norovirus-Gastroenteritis", reporting_years = 2025L,
+#'   geography = "kreis", query_id = "norovirus-cases-2025"
+#' )
+#' }
 #' @export
 fetch_survstat_cases <- function(
     pathogen, reporting_years, geography = c("kreis", "bundesland"),

@@ -2,7 +2,7 @@
 % Please edit documentation in R/epidemiology-analysis.R
 \name{dissertation_surveillance_compatibility}
 \alias{dissertation_surveillance_compatibility}
-\title{Dissertation typology/surveillance compatibility}
+\title{Historical reference typology/surveillance compatibility}
 \usage{
 dissertation_surveillance_compatibility()
 }
@@ -10,5 +10,5 @@ dissertation_surveillance_compatibility()
 The reviewed 401-to-400 compatibility specification.
 }
 \description{
-Dissertation typology/surveillance compatibility
+Historical reference typology/surveillance compatibility
 }

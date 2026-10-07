@@ -2,7 +2,7 @@
 % Please edit documentation in R/fetch-survstat-api.R
 \name{fetch_survstat_cases}
 \alias{fetch_survstat_cases}
-\title{Fetch reported case counts from the official SurvStat service}
+\title{Fetch reported case counts from SurvStat@RKI}
 \usage{
 fetch_survstat_cases(
   pathogen,
@@ -15,7 +15,11 @@ fetch_survstat_cases(
 )
 }
 \arguments{
-\item{pathogen}{One exact reviewed SurvStat disease member label.}
+\item{pathogen}{One exact, case-sensitive SurvStat disease-member caption.
+The reviewed Research-v0.1 captions are \code{"Influenza, saisonal"},
+\code{"COVID-19"}, and \code{"Norovirus-Gastroenteritis"}. No case folding, aliases,
+or fuzzy matching are applied. The source member ID is discovered from the
+live hierarchy and retained in provenance.}
 
 \item{reporting_years}{Non-empty unique explicit reporting years.}
 
@@ -36,9 +40,39 @@ An ordinary list with validated additive surveillance \code{data},
 \code{diagnostics}, and query-level \code{provenance}.
 }
 \description{
-Retrieves the reviewed additive weekly count measure \code{Anzahl.71s}. It uses
-the same narrow pathogen, year, reference-definition, reporting-path and
-geography scope as \code{\link[=fetch_survstat_incidence]{fetch_survstat_incidence()}}, but never calculates or
-replaces incidence. Source null cells remain \code{NA_real_} and numeric zero
-remains zero.
+Retrieves the reviewed additive weekly case-count measure \code{Anzahl.71s} from
+SurvStat@RKI 2.0, provided by the Robert Koch-Institut (RKI). It uses the
+same narrow pathogen, year, reference-definition, reporting-path and
+geography scope as \code{\link[=fetch_survstat_incidence]{fetch_survstat_incidence()}}, but performs no incidence
+calculation. Source null cells remain \code{NA_real_} and numeric zero remains
+zero.
+}
+\section{Data source and attribution}{
+
+The data provider is the Robert Koch-Institut (RKI), through SurvStat@RKI
+2.0. Retrieved observations remain subject to the RKI data-usage statement:
+\url{https://survstat.rki.de/Content/Instruction/DataUsage.aspx}.
+
+The RKI proposes the citation: \code{"Robert Koch-Institut: SurvStat@RKI 2.0, https://survstat.rki.de, Abfragedatum: <Datum der Abfrage>"}.
+
+Query date (\code{retrieved_at}) and source data status are retained as distinct
+provenance concepts. The GPL-3 license applies to regionalepi package code;
+it does not relicense observations retrieved from SurvStat@RKI.
+}
+
+\examples{
+\dontrun{
+influenza_cases <- fetch_survstat_cases(
+  pathogen = "Influenza, saisonal", reporting_years = 2025L,
+  geography = "kreis", query_id = "influenza-cases-2025"
+)
+covid19_cases <- fetch_survstat_cases(
+  pathogen = "COVID-19", reporting_years = 2025L,
+  geography = "kreis", query_id = "covid19-cases-2025"
+)
+norovirus_cases <- fetch_survstat_cases(
+  pathogen = "Norovirus-Gastroenteritis", reporting_years = 2025L,
+  geography = "kreis", query_id = "norovirus-cases-2025"
+)
+}
 }

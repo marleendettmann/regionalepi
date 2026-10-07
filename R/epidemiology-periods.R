@@ -99,7 +99,7 @@ validate_epidemiological_periods <- function(x) {
   )
 }
 
-#' Frozen dissertation Influenza waves
+#' Frozen historical-reference Influenza waves
 #'
 #' @return A reviewed period resource with `periods`, `season_review`, and
 #'   `provenance`.
@@ -122,7 +122,7 @@ dissertation_influenza_periods <- function() {
   ))
 }
 
-#' Frozen dissertation principal COVID Welle2 intervals
+#' Frozen historical-reference principal COVID Welle2 intervals
 #'
 #' @return A reviewed period resource.
 #' @export
@@ -139,7 +139,11 @@ dissertation_covid_welle2_periods <- function() {
   periods <- do.call(rbind, lapply(bounds, function(x) .period_frame(
     "dissertation_covid_welle2_v1", paste0("covid_wave_", x[[1L]]),
     "COVID-19", NA_character_, "covid_wave", x[[4L]], x[[2L]], x[[3L]],
-    "dissertation_v1", "03_Diss_SurvStat.Rmd; RKI retrospective phase classification",
+    "dissertation_v1", paste(
+      "03_Diss_SurvStat.Rmd; Robert Koch-Institut, Epidemiologisches Bulletin 38/2022:",
+      "retrospective phase classification of the COVID-19 pandemic in Germany;",
+      "https://edoc.rki.de/bitstream/handle/176904/10260/EB-38-2022-Phaseneinteilung.pdf?sequence=1"
+    ),
     variant_context = if (x[[1L]] %in% c("3", "4a", "4b", "5a", "5b"))
       sub("^[^/]+/ ", "", x[[4L]]) else NA_character_,
     historical_context = "Dissertation / RKI-Pandemieperioden",
@@ -172,16 +176,16 @@ rki_covid_activity_waves <- function() {
   periods <- rbind(
     .period_frame(
       "covid_rki_activity_waves_v1", "covid_activity_2023_24", "COVID-19",
-      "2023/24", "covid_activity_wave", "RKI-Aktivit\u00e4tswelle 2023/24",
+      "2023/24", "covid_activity_wave", "COVID-19-Welle 2023/24",
       "2023-10-02", "2024-01-28", "covid_rki_activity_waves_v1", source,
-      historical_context = "RKI-gepr\u00fcfte post-pandemische Aktivit\u00e4tswelle",
+      historical_context = "Definierte post-pandemische COVID-19-Welle (RKI)",
       evidence_class = "REVIEWED_RKI_ACTIVITY_WAVE"
     ),
     .period_frame(
       "covid_rki_activity_waves_v1", "covid_activity_2024_25", "COVID-19",
-      "2024/25", "covid_activity_wave", "RKI-Aktivit\u00e4tswelle 2024/25",
+      "2024/25", "covid_activity_wave", "COVID-19-Welle 2024/25",
       "2024-05-27", "2025-01-26", "covid_rki_activity_waves_v1", source,
-      historical_context = "RKI-gepr\u00fcfte post-pandemische Aktivit\u00e4tswelle",
+      historical_context = "Definierte post-pandemische COVID-19-Welle (RKI)",
       evidence_class = "REVIEWED_RKI_ACTIVITY_WAVE"
     )
   )

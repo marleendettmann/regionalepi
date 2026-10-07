@@ -134,12 +134,13 @@
   }))
 }
 
-#' Fit the frozen dissertation typology
+#' Fit the frozen historical reference typology
 #'
-#' Constructs the three-indicator 2017--2020 dissertation matrix, explicitly
-#' reproduces base R sample-standard-deviation scaling, and fits the frozen
-#' three-cluster k-means. Historical labels are applied only when explicitly
-#' requested for reproduction of the historical fitted solution.
+#' Constructs the three-indicator 2017--2020 matrix used for the historical
+#' reference typology, explicitly reproduces base R sample-standard-deviation
+#' scaling, and fits the frozen three-cluster k-means. Historical labels are
+#' applied only when explicitly requested for reproduction of the historical
+#' fitted solution.
 #'
 #' @param indicator_summary Result returned by [summarize_indicator_period()].
 #' @param specification The exact frozen [dissertation_typology_spec()].

@@ -15,7 +15,7 @@ summarize_period_incidence_by_district(data, na_policy = "omit")
 A list with \code{data}, \code{diagnostics}, and \code{provenance}.
 }
 \description{
-Produces exactly one unweighted district-specific median of weekly
-district incidence supplied by the selected analysis contract. District-week observations are not pooled across
-districts.
+Calculates one unweighted median of weekly incidence for each district, using
+the incidence measure in the supplied analysis data. District-week
+observations are not pooled across districts.
 }

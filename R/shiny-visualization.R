@@ -1,9 +1,8 @@
 .profile_description_spec <- function() list(
-  specification_id = "dynamic_profile_descriptions_v1",
-  moderate_threshold = 0.5, strong_threshold = 1.0,
-  maximum_indicators = 2L, tie_method = "indicator_order",
-  positive = c(moderate = "h\u00f6here", strong = "deutlich h\u00f6here"),
-  negative = c(moderate = "niedrigere", strong = "deutlich niedrigere")
+  specification_id = "dynamic_profile_descriptions_v2",
+  mild_threshold = 0.25, moderate_threshold = 0.5, strong_threshold = 1.0,
+  maximum_indicators = 3L, tie_method = "indicator_order",
+  degree = c(mild = "leicht ", moderate = "", strong = "deutlich ")
 )
 
 .shiny_profile_descriptions <- function(profiles, mode = "dynamic") {
@@ -14,14 +13,19 @@
   descriptions <- vapply(rows, function(x) {
     x$order <- match(x$indicator_id, display$indicator_id)
     x <- x[order(-abs(x$standardized_center), x$order), , drop = FALSE]
-    x <- x[abs(x$standardized_center) >= spec$moderate_threshold, , drop = FALSE]
+    x <- x[abs(x$standardized_center) >= spec$mild_threshold, , drop = FALSE]
     if (!nrow(x)) return("durchschnittliches Profil")
     x <- utils::head(x, spec$maximum_indicators)
     parts <- vapply(seq_len(nrow(x)), function(i) {
       z <- x$standardized_center[[i]]
-      strength <- if (abs(z) >= spec$strong_threshold) "strong" else "moderate"
-      word <- if (z > 0) spec$positive[[strength]] else spec$negative[[strength]]
-      paste(word, display$label[match(x$indicator_id[[i]], display$indicator_id)])
+      strength <- if (abs(z) >= spec$strong_threshold) "strong" else
+        if (abs(z) >= spec$moderate_threshold) "moderate" else "mild"
+      adjective <- switch(x$indicator_id[[i]],
+        population_density = if (z > 0) "h\u00f6here" else "niedrigere",
+        mean_age = if (z > 0) "h\u00f6heres" else "niedrigeres",
+        youth_dependency_ratio = if (z > 0) "h\u00f6herer" else "niedrigerer")
+      paste0(spec$degree[[strength]], adjective, " ",
+        display$label[match(x$indicator_id[[i]], display$indicator_id)])
     }, character(1L))
     paste(parts, collapse = ", ")
   }, character(1L))
@@ -45,6 +49,13 @@
     if (!inherits(custom_dates, "Date") || length(custom_dates) != 2L || anyNA(custom_dates))
       stop("Custom analysis range must contain two dates.", call. = FALSE)
     start <- custom_dates[[1L]]; end <- custom_dates[[2L]]
+    if (!identical(start, .iso_week_monday(
+          as.integer(format(start, "%G")), as.integer(format(start, "%V")))) ||
+        !identical(end, .iso_week_monday(
+          as.integer(format(end, "%G")), as.integer(format(end, "%V"))) + 6L)) {
+      stop("Custom analysis ranges must use complete ISO calendar weeks.",
+           call. = FALSE)
+    }
     label <- "Benutzerdefinierter Analysezeitraum"
   } else {
     start <- window$start_date; end <- window$end_date
@@ -55,6 +66,105 @@
                "gew\u00e4hlten Beobachtungszeitraums."), call. = FALSE)
   list(mode = mode, label = label, start_date = start, end_date = end,
        start_iso = .iso_week_label(start), end_iso = .iso_week_label(end))
+}
+
+.shiny_iso_week_display <- function(date) {
+  sprintf("%s \u2013 KW %02d", format(date, "%G"), as.integer(format(date, "%V")))
+}
+
+.shiny_custom_week_choices <- function(window, as_of_date) {
+  validate_observation_windows(window)
+  if (nrow(window) != 1L) stop("Custom week choices require one window.", call. = FALSE)
+  as_of_date <- .shiny_analysis_as_of_date(function() as_of_date)
+  last <- window$end_date
+  if (window$end_date > as_of_date) {
+    if (as_of_date < window$start_date) return(stats::setNames(character(), character()))
+    last <- .iso_week_monday(as.integer(format(as_of_date, "%G")),
+                             as.integer(format(as_of_date, "%V")))
+  }
+  mondays <- seq(window$start_date, last, by = "week")
+  stats::setNames(.iso_week_label(mondays), vapply(mondays,
+    .shiny_iso_week_display, character(1L)))
+}
+
+.shiny_reconcile_custom_weeks <- function(window, start_week = NULL,
+                                          end_week = NULL, as_of_date,
+                                          changed = NULL) {
+  choices <- .shiny_custom_week_choices(window, as_of_date)
+  if (!length(choices)) stop("No ISO calendar week is available at the analysis cutoff.",
+                             call. = FALSE)
+  values <- unname(choices)
+  start_valid <- length(start_week) == 1L && !is.na(start_week) &&
+    start_week %in% values
+  end_valid <- length(end_week) == 1L && !is.na(end_week) && end_week %in% values
+  if (start_valid && end_valid) {
+    start <- start_week
+    end <- end_week
+  } else {
+    start <- values[[1L]]
+    end <- utils::tail(values, 1L)
+  }
+  if (match(start, values) > match(end, values)) {
+    if (identical(changed, "end")) start <- end else end <- start
+  }
+  list(choices = choices, start_week = start, end_week = end)
+}
+
+.shiny_select_custom_week_range <- function(window, start_week, end_week,
+                                            as_of_date) {
+  selection <- .shiny_reconcile_custom_weeks(
+    window, start_week, end_week, as_of_date)
+  values <- unname(selection$choices)
+  mondays <- seq(window$start_date, by = "week", length.out = length(values))
+  start <- mondays[[match(selection$start_week, values)]]
+  end <- mondays[[match(selection$end_week, values)]] + 6L
+  range <- .shiny_select_analysis_range(window, "custom",
+    custom_dates = as.Date(c(start, end)))
+  range$selected_start_iso <- selection$start_week
+  range$selected_end_iso <- selection$end_week
+  range
+}
+
+.shiny_analysis_as_of_date <- function(clock = Sys.Date) {
+  value <- clock()
+  if (!inherits(value, "Date") || length(value) != 1L || is.na(value)) {
+    stop("Analysis cutoff must be one complete Date.", call. = FALSE)
+  }
+  value
+}
+
+.shiny_effective_analysis_range <- function(range, as_of_date) {
+  as_of_date <- .shiny_analysis_as_of_date(function() as_of_date)
+  if (as_of_date < range$start_date) {
+    stop("Der gew\u00e4hlte Beobachtungszeitraum hat am Analyse-Stichtag noch nicht begonnen.",
+         call. = FALSE)
+  }
+  effective <- range
+  effective$nominal_start_date <- range$start_date
+  effective$nominal_end_date <- range$end_date
+  effective$analysis_as_of_date <- as_of_date
+  effective$end_date <- min(range$end_date, as_of_date)
+  effective$end_iso <- .iso_week_label(effective$end_date)
+  effective$is_truncated <- effective$end_date < range$end_date
+  effective
+}
+
+.shiny_early_window_note <- function(window, effective_range) {
+  if (!is.data.frame(window) || nrow(window) != 1L ||
+      !isTRUE(effective_range$is_truncated) ||
+      is.null(effective_range$analysis_as_of_date)) return(NULL)
+  elapsed_days <- as.numeric(difftime(
+    effective_range$analysis_as_of_date, window$start_date, units = "days"))
+  weeks <- as.integer(elapsed_days %/% 7L) + 1L
+  if (weeks < 1L || weeks > 5L) return(NULL)
+  label <- sub(" \\(laufend\\)$", "", window$label)
+  unit <- if (weeks == 1L) "Kalenderwoche" else "Kalenderwochen"
+  paste0(
+    "Der Beobachtungszeitraum ", label, " hat in KW ",
+    window$start_iso_week, " begonnen und umfasst bis zum Analyse-Stichtag erst ",
+    weeks, " ", unit, ". Zeitliche Verl\u00e4ufe sind daher noch eingeschr\u00e4nkt ",
+    "interpretierbar."
+  )
 }
 
 .shiny_attach_typology_range <- function(bundle, fit, range) {
@@ -165,7 +275,7 @@
   )
   composition$hover <- sprintf(
     paste0(
-      "%s<br>Nationaler Cluster: %s<br>Kreise im Cluster: %d",
+      "%s<br>Bundesweit bestimmter Regionaltyp: %s<br>Kreise im Cluster: %d",
       "<br>Kreise im Land: %d<br>Anteil der Kreise: %.1f%%"
     ),
     composition$comparison_name, composition$cluster_id,
@@ -189,7 +299,9 @@
       labels = function(value) paste0(round(100 * value), "%"),
       limits = c(0, 1), expand = c(0, 0)
     ) +
-    ggplot2::labs(x = NULL, y = "Anteil der Kreise", fill = "Nationaler Cluster") +
+    ggplot2::labs(
+      x = NULL, y = "Anteil der Kreise", fill = "Demografischer Regionaltyp"
+    ) +
     ggplot2::theme_minimal() +
     ggplot2::theme(legend.position = "bottom")
   plotly::ggplotly(graph, tooltip = "text", source = "state-composition")
@@ -249,7 +361,8 @@
     data$comparison_display, levels = rev(states))
   data$hover <- sprintf(
     paste0(
-      "%s<br>AGS: %s<br>Bundesland: %s<br>Nationaler Cluster: %s",
+      "%s<br>AGS: %s<br>Bundesland: %s",
+      "<br>Bundesweit bestimmter Regionaltyp: %s",
       "<br>Median der w\u00f6chentlichen Kreisinzidenz: %s",
       "<br>Gemeldete F\u00e4lle: %s<br>Beobachtete/erwartete Wochen: %d/%d"
     ),
@@ -375,6 +488,14 @@
     stop("Displayed week count must be one non-negative whole number.", call. = FALSE)
   }
   if (n_weeks <= 60L) 1 else 0
+}
+
+.shiny_signed_heatmap_colours <- function() {
+  c("#5F627B", "#F7F7F7", "#C86600")
+}
+
+.shiny_incidence_heatmap_colours <- function() {
+  c("#F7F7F9", "#DADAE4", "#9C9EB5", "#5F627B", "#DD7F02")
 }
 
 .shiny_heatmap_grid <- function(data, row, column, value, text = NULL,
@@ -514,7 +635,7 @@
     x = grid$columns,
     y = labels$pair_label[match(grid$rows, as.character(labels$pair_key))],
     z = grid$z, type = "heatmap", zmid = 0,
-    colors = c("#2166AC", "#F7F7F7", "#B2182B"), text = grid$text,
+    colors = .shiny_signed_heatmap_colours(), text = grid$text,
     hoverinfo = "text", source = "pairwise", connectgaps = FALSE,
     xgap = .shiny_weekly_heatmap_xgap(length(grid$columns)), ygap = 1
   ) |>
@@ -568,6 +689,15 @@
       anchors[[target]] <- c(ClD = "dense", ClJ = "family_youth",
                               ClA = "older_low_density")[[
         colour_policy$anchor_alignment$mapping[[anchor_id]]]]
+    }
+    branches <- colour_policy$branch_alignment
+    if (!is.null(branches) && length(branches)) {
+      for (target in names(branches)) {
+        anchors[[target]] <- paste0(c(
+          ClD = "dense", ClJ = "family_youth", ClA = "older_low_density"
+        )[[colour_policy$anchor_alignment$mapping[[branches[[target]]]]]],
+        "_branch")
+      }
     }
   }
   labels <- if (identical(mode, "dissertation"))
@@ -681,7 +811,7 @@
   x <- audit$weeks$date; y <- audit$districts$row_position
   xgap <- .shiny_weekly_heatmap_xgap(nrow(audit$weeks))
   figure <- plotly::plot_ly(x = x, y = y, z = audit$incidence,
-    type = "heatmap", colors = c("#F7FBFF", "#6BAED6", "#08306B"),
+    type = "heatmap", colors = .shiny_incidence_heatmap_colours(),
     text = audit$hover, hoverinfo = "text", customdata = audit$customdata,
     source = source, connectgaps = FALSE, xgap = xgap, ygap = 0,
     colorbar = list(title = "Inzidenz"))

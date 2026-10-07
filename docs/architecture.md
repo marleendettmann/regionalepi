@@ -1,7 +1,8 @@
 # Architecture
 
-`regionalepi` separates source-specific acquisition from canonical data,
-geographic processing, derived calculations, and client applications.
+`regionalepi` keeps source-specific data retrieval separate from data
+preparation, geographic processing, derived measures, and user-facing
+applications.
 
 The intended future processing order is:
 
@@ -34,7 +35,7 @@ The dissertation definitions are preserved as versioned reference
 specifications. They are examples that support reproducibility, not fixed
 package-wide defaults.
 
-The dissertation typology references authoritative `dissertation_v1`
+The historical reference typology references authoritative `dissertation_v1`
 specifications for `population_density`, `mean_age`, and
 `youth_dependency_ratio`. The youth ratio's age boundaries are defined only by
 its indicator specification.
@@ -149,8 +150,9 @@ for the reviewed 2024 resolution case. It contains the BKG VG-Hist district
 register applicable on 2024-12-31, exact reviewed SurvStat aliases, reviewed
 Berlin Bezirk source identities, and compact dataset-level provenance.
 It also contains a separate reviewed Bundesland incidence alias and versioned
-12-row incidence assembly specification. Those data express the Berlin PoC;
-the reader, resolver, and assembly function contain no Berlin-specific branch.
+12-row incidence assembly specification. Those data express the Berlin
+incidence analysis; the reader, resolver, and assembly function contain no
+Berlin-specific branch.
 
 The reproducible builder and reviewed inputs are kept in Git under `data-raw`.
 The official GeoPackage stays ignored under `data-raw/local`, and `data-raw` is
@@ -173,7 +175,7 @@ SurvStat Berlin Bezirk identities to canonical Berlin `11000`.
 `harmonize_vintage()` remains a separate historical operation using explicit
 source and target vintages and `geography_relations`.
 
-## Regionaldatenbank demographic context adapters v0.1
+## Regionaldatenbank demographic-data adapters v0.1
 
 `fetch_regional_population(reference_dates, regions = NULL)` retrieves only
 reviewed Regionaldatenbank table `12411-01-01-4` (statistic `12411`) for
@@ -223,8 +225,8 @@ markers remain errors.
 `derive_population_density()` joins population and area only by exact AGS and
 reference date, requires compatible names, levels, and NA-aware vintages, and
 divides without rounding. `summarize_indicator_period()` accepts only complete
-annual observations and an unweighted arithmetic mean. Dissertation workflow
-code obtains 2017--2020 and the method from `dissertation_typology_spec()`.
+annual observations and an unweighted arithmetic mean. The historical reference
+workflow obtains 2017--2020 and the method from `dissertation_typology_spec()`.
 Neither function harmonizes geography, infers `geo_vintage`, or calculates
 incidence.
 
@@ -238,15 +240,17 @@ contract or itself calculate incidence.
 `derive_incidence_annual_average()` calculates the distinct
 `incidence_annual_average` field from SurvStat cases and the matching official
 reporting-year annual-average population without rounding or weighting.
+The reviewed demographic snapshot carries that denominator for 2022--2025;
+optional live mode retrieves the same contract from table `12411-05-01-4`.
 `prepare_analysis_incidence()` is the explicit current-analysis boundary: it
 preserves the source-provided rate as `incidence_source` and supplies the
-derived value to the established downstream `incidence` field. Final Paper-2
-analysis supports 2022--2025. A Shiny-only 2026 display requires an explicit
-2025 denominator mapping and records `incidence_status = "provisional"`.
-Historical dissertation reproduction bypasses this boundary and continues to
+derived value to the established downstream `incidence` field. Equal reporting
+and population years are final; an available denominator from exactly the
+preceding year is provisional. Larger lags are rejected.
+Historical reference reproduction bypasses this boundary and continues to
 use source-provided SurvStat incidence.
 
-## Dissertation typology reproduction
+## Historical reference typology reproduction
 
 The methodological concept follows the demographic regional typology developed
 by [Dettmann (2026)](https://doi.org/10.17169/refubium-51449).
@@ -291,7 +295,7 @@ numbers plus deterministic fit-local `C01`, `C02`, ... display IDs. Those IDs
 are ordered lexicographically by standardized centers in indicator-set order
 and have meaning only when qualified by `fit_id`. Profiles retain original
 means/medians, standardized centers, neutral ranks, sizes, and small-cluster
-flags. No dissertation or generated natural-language labels are applied.
+flags. No historical reference or generated natural-language labels are applied.
 
 `compare_dynamic_partitions()` reports only same-unit contingency, cluster
 sizes, and adjusted Rand index. It accepts differing `k` without forcing a
@@ -312,13 +316,13 @@ preserves query provenance. Weekly contextualization calculates the median
 distribution of district incidences, not a pooled rate. Missing incidence is
 never converted to zero by the production path.
 
-Frozen resources preserve the dissertation's three Influenza intervals and
+Frozen resources preserve the three historical-reference Influenza intervals and
 principal COVID `Welle2` intervals. The current reviewed RKI resource covers
 2017/18 through 2025/26, including wave-free 2020/21, the late low 2021/22
 wave, and both 2022/23 waves. Automatic wave detection and inferential tests
 remain future blocks.
 
-## Shiny proof of concept
+## Shiny application
 
 The package-owned application under `inst/shiny/regionalepi` is a thin client
 of the existing backend. `run_regionalepi_app()` locates the installed app and
@@ -337,7 +341,7 @@ The server orchestrates, but does not reproduce, Regionaldatenbank retrieval,
 indicator derivation and summarization, dynamic fitting, SurvStat retrieval,
 reviewed geography resolution, Berlin incidence replacement, period
 assignment, canonical-ID typology attachment, or median-incidence summary.
-The default 2022--2024 path has exact 400-unit map compatibility. The reviewed
+The default 2022--2025 path has exact 400-unit map compatibility. The reviewed
 2017--2020 path retains its 401-unit fit and reports `16056` as the expected
 fit-only identifier while rendering the compatible 400 current map units.
 
@@ -347,13 +351,16 @@ The bundled demographic snapshot is an explicit immutable Regionaldatenbank
 source state, not an opaque or silently stale cache. Normalized components
 preserve values, table/measure provenance, component retrieval times, the
 reviewed source-status compatibility rule, population bases, and a
-deterministic checksum. It covers exactly 2017--2020 and 2022--2024.
-Population density, period summaries, and typologies are not stored: the
-snapshot is reconstructed into the existing validated source results and then
-uses the ordinary derivation pipeline.
+deterministic checksum. It covers exactly 2017--2020 and 2022--2025.
+It additionally carries official annual-average population for reporting years
+2022--2025 as a distinct source component. Population density, period summaries,
+typologies, and incidence are not stored: the snapshot is reconstructed into
+the existing validated source results and then uses the ordinary derivation
+pipeline.
 
-Shiny defaults to this snapshot without credentials. Explicit live mode uses
-the existing authenticated adapters only in session memory. A refresh means a
+Shiny defaults to this snapshot without credentials for typology data and the
+dynamic-incidence denominator. Explicit live mode uses the existing
+authenticated adapters only in session memory. A refresh means a
 reviewed development/release build of a new version; Shiny never overwrites
 package data. SurvStat retrieval remains live and separate.
 
@@ -361,12 +368,12 @@ package data. SurvStat retrieval remains live and separate.
 
 The persistent analysis sidebar feeds four display sections; changing tabs or
 the selected map district does not enter any retrieval or fitting dependency.
-The default remains the reviewed 2022--2024 snapshot, dynamic k = 3 typology,
-and live SurvStat. Explicit dissertation mode instead uses the unchanged frozen
+The default remains the reviewed 2022--2025 snapshot, dynamic k = 3 typology,
+and live SurvStat. Explicit historical reference mode instead uses the unchanged frozen
 2017--2020 fit, historical ClD/ClJ/ClA labels and core palette, and the reviewed
 401-to-current-400 compatibility with `16056` retained as fit-only provenance.
 
-COVID selection keeps frozen dissertation/RKI pandemic periods separate from
+COVID selection keeps frozen historical-reference/RKI pandemic periods separate from
 `covid_rki_activity_waves_v1`, which contains only the reviewed post-pandemic
 2023/24 and 2024/25 RKI activity waves. Phase 8 is historical context only:
 its 2022-KW22 start is documented, but no unreviewed closing boundary is
@@ -409,6 +416,11 @@ following year, never "official season". Reviewed activity waves are overlays,
 and recent data may remain visible without a completed official wave. Any later
 custom interval must be labelled user-defined rather than an RKI wave.
 
+Running windows retain their full nominal boundaries. Before retrieval, an
+injectable analysis cutoff limits the effective request range; it is not a
+SurvStat availability or completeness statement. The effective cutoff,
+SurvStat data status, and retrieval time remain separate provenance concepts.
+
 The preferred primary weekly heatmap estimand is cluster median incidence minus
 the all-district median for the same week. Its diverging colours mean below or
 above the contemporaneous all-district level; differences remain stable when
@@ -434,17 +446,17 @@ an anchor colour only when at least 80 percent of its members come from the
 same k = 3 anchor, that anchor is also its nearest standardized center, and the
 distance is below 0.75. A coarse mixture uses the existing additional purple;
 this does not assert a historical identity. For k = 3 the three unchanged
-dissertation colours are aligned one-to-one through the reviewed defining
+historical reference colours are aligned one-to-one through the reviewed defining
 features population density, youth dependency, and mean age. For k = 4 or 5,
 one-to-one maximum district overlap with the k = 3 anchors retains visual
 continuity; standardized center distance breaks overlap ties, and remaining
 clusters receive the additional purple and muted-rose colours. Every colour is
-unique within a fit. C01/C02/C03 alone never determine colour or dissertation
+unique within a fit. C01/C02/C03 alone never determine colour or historical reference
 semantics, and the procedure does not make k-means hierarchical.
 
 The Shiny client constructs one fit-local display-metadata table before any
 view is rendered. It is the sole source of cluster order, labels, profile
-descriptions, colours, and displayed district counts. Frozen dissertation
+descriptions, colours, and displayed district counts. Frozen historical reference
 display order is `ClD`, `ClJ`, `ClA`; dynamic display IDs remain fit-local.
 Display metadata never changes analytical assignments.
 
@@ -479,7 +491,7 @@ national. State composition uses district counts. Epidemiological comparison
 uses one median of weekly district incidence from the selected analysis
 contract and selected period, grouped for display by state and one national
 cluster. Dynamic/current analysis uses annual-average-population incidence;
-dissertation mode uses historical source incidence. It does not
+historical reference mode uses historical source incidence. It does not
 construct state incidence, perform inference, or imply causal state effects.
 Cluster selection is downstream display state and enters no retrieval or
 typology cache key.
@@ -511,7 +523,7 @@ canonical districts. Regional time courses are medians and empirical IQRs of
 observed district incidences from the selected analysis contract, with expected,
 observed, and missing district counts retained. They are not official regional
 incidences. Dynamic/current analysis uses annual-average-population incidence;
-historical dissertation mode uses the preserved source incidence.
+historical reference mode uses the preserved source incidence.
 National standardization, fitting, cluster assignments, profiles, IDs, and
 colours remain unchanged by every regional control.
 
@@ -575,7 +587,7 @@ a non-binding architectural option and does not alter the Research-v0.1
 package boundary or license.
 
 The reviewed historical pandemic observation frame is a neutral data and
-display context that makes all approved dissertation COVID periods selectable;
+display context that makes all approved historical-reference COVID periods selectable;
 it does not define a COVID season or alter any period boundary. Typology mode
 and epidemiological interval remain independent. Transition diagnostics compare
 actual canonical district memberships for dynamic k = 2, 4, and 5 against the
