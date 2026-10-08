@@ -13,7 +13,7 @@
     "snapshot_version", "source", "source_data_status",
     "source_status_compatibility", "source_status_display_date", "source_tables",
     "source_measures", "covered_reference_dates", "covered_reporting_years",
-    "population_basis",
+    "population_basis", "denominator_geography_harmonization",
     "component_provenance", "prior_snapshot_id", "refresh_semantics"
   )
   x[intersect(fields, names(x))]
@@ -169,9 +169,11 @@
       "the reviewed snapshot must cover 2017-2020 and 2022-2025 exactly")
   }
   reporting_years <- sort(unique(compact$annual_average_population$year))
-  if (!identical(reporting_years, 2022:2025)) {
+  if (!identical(reporting_years, 2022:2025) &&
+      !identical(reporting_years, 2017:2025)) {
     .stop_contract("demographic snapshot",
-      "annual-average population must cover reporting years 2022-2025 exactly")
+      paste("annual-average population must cover the reviewed reporting years",
+            "2022-2025 or 2017-2025 exactly"))
   }
   reference_geography <- paste(
     compact$population$geo_id[
@@ -192,6 +194,20 @@
       "annual-average population geography must match the reviewed 2025",
       "district geography for every reporting year"))
   }
+  annual_harmonization <- NULL
+  if (identical(reporting_years, 2017:2025)) {
+    values <- lapply(
+      components$annual_average_population$provenance,
+      `[[`, "geography_harmonization"
+    )
+    if (!length(values) || any(vapply(values, is.null, logical(1L))) ||
+        !all(vapply(values, identical, logical(1L), y = values[[1L]]))) {
+      .stop_contract("demographic snapshot", paste(
+        "2017-2025 annual-average population requires consistent reviewed",
+        "geography-harmonization provenance"))
+    }
+    annual_harmonization <- values[[1L]]
+  }
   identity_provenance <- list(
     snapshot_version = snapshot_version,
     source = .demographic_snapshot_source,
@@ -210,6 +226,7 @@
     covered_reporting_years = reporting_years,
     population_basis = c("census_2011", "census_2022"),
     component_provenance = lapply(components, `[[`, "provenance"),
+    denominator_geography_harmonization = annual_harmonization,
     prior_snapshot_id = prior_snapshot_id,
     refresh_semantics = paste(
       "A refresh is a reviewed development/release build of a new immutable",
@@ -426,8 +443,21 @@ validate_demographic_snapshot <- function(x) {
     x$provenance$covered_reporting_years
   } else integer()
   if (has_average && (!is.integer(reporting_years) ||
-      !identical(reporting_years, 2022:2025))) {
-    .stop_contract(contract, "covered reporting years must be 2022-2025")
+      (!identical(reporting_years, 2022:2025) &&
+       !identical(reporting_years, 2017:2025)))) {
+    .stop_contract(contract,
+                   "covered reporting years must be 2022-2025 or 2017-2025")
+  }
+  if (has_average && identical(reporting_years, 2017:2025)) {
+    harmonization <- x$provenance$denominator_geography_harmonization
+    if (!is.list(harmonization) ||
+        !identical(harmonization$method,
+                   "reviewed_additive_historical_merge") ||
+        !isTRUE(harmonization$applied_before_incidence) ||
+        !isTRUE(harmonization$additive_mass_preserved)) {
+      .stop_contract(contract,
+        "extended denominator geography-harmonization provenance is invalid")
+    }
   }
   status_check <- .validate_snapshot_statuses(
     x$provenance$source_data_status,
@@ -534,7 +564,7 @@ validate_demographic_snapshot <- function(x) {
       !identical(sort(value), reference_key)
     }, logical(1L))) ||
         !identical(unname(x$diagnostics$annual_average_population_counts),
-                   rep(400L, 4L))) {
+                   rep(400L, length(reporting_years)))) {
       .stop_contract(contract,
         paste("annual-average population geography must match the latest",
               "snapshot geography and year counts must be valid"))
@@ -561,7 +591,7 @@ regionalepi_demographic_snapshot <- function(snapshot = "reviewed_default") {
     .stop_contract("demographic snapshot accessor",
                    "unsupported snapshot; available value is reviewed_default")
   }
-  value <- .regionalepi_package_data("regionalepi_demographic_snapshot_v3")
+  value <- .regionalepi_package_data("regionalepi_demographic_snapshot_v4")
   validate_demographic_snapshot(value)
   value
 }

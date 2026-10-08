@@ -1,7 +1,7 @@
 initial_window_choices <- regionalepi:::.shiny_window_choices("Influenza, saisonal")
 pathogen_choices <- regionalepi:::.shiny_pathogen_choices()
 ui <- fluidPage(
-  tags$head(tags$title("regionalepi – Infektionsepidemiologie und demografische Regionaltypologien"), tags$style(HTML("
+  tags$head(tags$title("regionalepi: Regionale Infektionssurveillance und demografische Typologien"), tags$style(HTML("
     :root{--re-primary:#5F627B;--re-primary-hover:#4E5066;--re-primary-soft:#ECECF2;--re-action:#DD7F02;--re-action-hover:#C46F00;--re-action-text:#181D22;--re-action-soft:#FFF3E8;--re-success:#556B13;--re-success-soft:#F4F7E6;--re-warning:#8A4A06;--re-warning-soft:#FFF4E5;--re-error:#8B1E1E;--re-error-soft:#FFF2F2;--re-border:#D9DAE2;--re-bg:#FFFFFF;--re-bg-muted:#F6F6F8;--re-text:#27313A;--re-text-muted:#58616B;--re-focus:#5F627B}
     body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:15px;line-height:1.48;color:var(--re-text);background:var(--re-bg)}
     a{color:var(--re-primary)}a:hover,a:focus{color:var(--re-primary-hover)}.container-fluid>h2{font-size:26px;line-height:1.25;margin-bottom:16px}.app-note{color:var(--re-text-muted);font-size:12.5px;line-height:1.5}
@@ -24,7 +24,7 @@ ui <- fluidPage(
     @media(max-width:991px){.container-fluid>h2{font-size:22px}.panel-card{padding:14px}.leaflet{min-height:430px}}
     @media(max-width:767px){.btn-primary{width:100%}.nav-tabs{display:flex;flex-wrap:nowrap;overflow-x:auto;overflow-y:hidden}.nav-tabs>li{float:none;flex:0 0 auto}.nav-tabs>li>a{white-space:nowrap}.leaflet{min-height:400px}}
   "))),
-  titlePanel("regionalepi – Infektionsepidemiologie und demografische Regionaltypologien"),
+  titlePanel("regionalepi: Regionale Infektionssurveillance und demografische Typologien"),
   sidebarLayout(sidebarPanel(
     div(class="sidebar-section",
     div(class="sidebar-heading", "Infektionsgeschehen"),

@@ -35,12 +35,6 @@ prepare_analysis_incidence <- function(
 
   years <- sort(unique(surveillance$data$reporting_year))
   available <- sort(unique(annual_average_population$data$year))
-  if (any(years < 2022L)) {
-    .stop_contract(
-      contract,
-      "analysis is supported only from reporting year 2022 onward"
-    )
-  }
   missing_years <- union(
     setdiff(years, available), as.integer(names(mapping))
   )

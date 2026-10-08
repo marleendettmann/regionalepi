@@ -615,8 +615,54 @@
   stop("Unsupported typology mode.", call. = FALSE)
 }
 
+.shiny_historical_semantic_mapping <- function(frozen) {
+  indicator_order <- frozen$matrix$indicator_order
+  centers <- frozen$diagnostics$centers
+  defining_indicators <- c(
+    ClD = "population_density",
+    ClJ = "youth_dependency_ratio",
+    ClA = "mean_age"
+  )
+  positions <- stats::setNames(
+    match(defining_indicators, indicator_order), names(defining_indicators)
+  )
+  if (anyNA(positions) || nrow(centers) != 3L) {
+    stop("Historical Shiny fit does not provide the reviewed profile anchors.",
+         call. = FALSE)
+  }
+  raw_ids <- vapply(positions, function(position) {
+    values <- centers[, position]
+    winners <- which(values == max(values))
+    if (length(winners) != 1L) {
+      stop("Historical Shiny profile anchors are not unique.", call. = FALSE)
+    }
+    as.integer(rownames(centers)[winners])
+  }, integer(1L))
+  if (anyNA(raw_ids) || anyDuplicated(raw_ids)) {
+    stop("Historical Shiny profile anchors do not identify three clusters.",
+         call. = FALSE)
+  }
+  labels <- c(
+    ClD = "dichte Regionen",
+    ClJ = "familiengepr\u00e4gte Regionen",
+    ClA = "\u00e4ltere, l\u00e4ndliche Regionen"
+  )
+  data.frame(
+    raw_cluster = unname(raw_ids),
+    cluster_code = names(raw_ids),
+    cluster_label = unname(labels[names(raw_ids)]),
+    stringsAsFactors = FALSE
+  )
+}
+
 .shiny_dissertation_fit <- function(summary) {
-  frozen <- fit_dissertation_typology(summary, label_mapping = "historical_reference")
+  frozen <- fit_dissertation_typology(summary, label_mapping = "none")
+  applied_mapping <- .shiny_historical_semantic_mapping(frozen)
+  position <- match(frozen$data$raw_cluster, applied_mapping$raw_cluster)
+  frozen$data$cluster_code <- applied_mapping$cluster_code[position]
+  frozen$data$cluster_label <- applied_mapping$cluster_label[position]
+  frozen$diagnostics$label_mapping <- "historical_reference"
+  frozen$diagnostics$applied_mapping <- applied_mapping
   assignments <- data.frame(
     fit_id = "dissertation_v1_historical_reference",
     geo_id = frozen$data$geo_id, raw_cluster = frozen$data$raw_cluster,
@@ -1031,9 +1077,9 @@
 
 .shiny_population_for_reporting_years <- function(years, source_mode) {
   candidates <- sort(unique(c(years, years - 1L)))
-  candidates <- candidates[candidates >= 2022L]
+  candidates <- candidates[candidates >= 2017L]
+  snapshot <- regionalepi_demographic_snapshot()
   if (identical(source_mode, "snapshot")) {
-    snapshot <- regionalepi_demographic_snapshot()
     candidates <- intersect(
       candidates, snapshot$provenance$covered_reporting_years
     )
@@ -1044,6 +1090,16 @@
     population <- .demographic_snapshot_average_population(snapshot, candidates)
   } else {
     population <- fetch_regional_average_population(candidates)
+    if (any(population$data$year <= 2020L)) {
+      relations <- snapshot$provenance$denominator_geography_harmonization$relations
+      target <- snapshot$data$population[
+        snapshot$data$population$reference_date == as.Date("2025-12-31"),
+        c("geo_id", "geo_name"), drop = FALSE
+      ]
+      population <- .harmonize_reviewed_annual_average_population(
+        population, relations, target
+      )
+    }
   }
   available <- sort(unique(population$data$year))
   denominator <- vapply(years, function(year) {
@@ -1070,12 +1126,6 @@
     pathogen, years, resources, source_mode = "snapshot",
     effective_range = NULL) {
   years <- sort(unique(as.integer(years)))
-  if (any(years < 2022L)) {
-    stop(
-      "Dynamic incidence based on official annual-average population is supported from reporting year 2022 onward.",
-      call. = FALSE
-    )
-  }
   if (!source_mode %in% c("snapshot", "live")) {
     stop("Unsupported annual-average population source mode.", call. = FALSE)
   }

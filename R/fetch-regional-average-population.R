@@ -8,7 +8,7 @@
 #' Fetch official district annual-average population
 #'
 #' Retrieves total annual-average population from Regionaldatenbank table
-#' `12411-05-01-4`, measure `BEV028`, for requested reporting years from 2022
+#' `12411-05-01-4`, measure `BEV028`, for requested reporting years from 2017
 #' onward. Years not yet supplied by the source are omitted. The source defines
 #' this measure, from 2012 onward, as the simple
 #' arithmetic mean of population at the beginning and end of the reporting
@@ -28,7 +28,7 @@
 #' available source notes. Selection and normalization do not relicense the
 #' source data; GPL-3 applies to regionalepi package code.
 #' @param years A non-empty vector of unique whole reporting years in the
-#'   reviewed range beginning in 2022.
+#'   reviewed range beginning in 2017.
 #' @param regions `NULL` or a non-empty character vector of unique
 #'   five-character district identifiers.
 #' @return An ordinary list with validated `data`, `diagnostics`, and
@@ -58,8 +58,8 @@ fetch_regional_average_population <- function(years, regions = NULL) {
   if (anyDuplicated(years)) {
     .stop_contract(contract, "`years` must not contain duplicates")
   }
-  if (any(years < 2022L)) {
-    .stop_contract(contract, "`years` must be 2022 or later")
+  if (any(years < 2017L)) {
+    .stop_contract(contract, "`years` must be 2017 or later")
   }
   if (!is.null(regions) &&
       (!is.character(regions) || !length(regions) || anyNA(regions) ||
@@ -243,15 +243,23 @@ fetch_regional_average_population <- function(years, regions = NULL) {
 
 .annual_average_population_basis <- function(years, source_notes, contract) {
   evidence <- paste(source_notes, collapse = "\n")
-  has_basis <- grepl("Mai 2022", evidence, fixed = TRUE) &&
+  has_census_2022 <- grepl("Mai 2022", evidence, fixed = TRUE) &&
     grepl("Zensus vom 15. Mai 2022", evidence, fixed = TRUE)
-  if (!has_basis) {
+  has_census_2011 <- grepl("2011 bis 2021", evidence, fixed = TRUE) &&
+    grepl("Zensus vom 09. Mai 2011", evidence, fixed = TRUE)
+  needs_census_2011 <- any(years <= 2021L)
+  needs_census_2022 <- any(years >= 2022L)
+  if ((needs_census_2011 && !has_census_2011) ||
+      (needs_census_2022 && !has_census_2022)) {
     .stop_contract(
       contract,
-      "source notes do not establish the reviewed Census 2022 population basis"
+      paste(
+        "source notes do not establish the reviewed Census 2011/2022",
+        "population basis for all requested years"
+      )
     )
   }
-  rep("census_2022", length(years))
+  ifelse(years <= 2021L, "census_2011", "census_2022")
 }
 
 .regional_average_population_result <- function(response, years, regions,
@@ -323,7 +331,10 @@ fetch_regional_average_population <- function(years, regions = NULL) {
         "From 2012, the simple arithmetic mean of population at the beginning",
         "and end of the reporting year."
       ),
-      population_basis = "Census 2022 basis explicitly established by source notes.",
+      population_basis = paste(
+        "Census 2011 progression basis for 2017-2021 and Census 2022",
+        "progression basis from 2022, as established by source notes."
+      ),
       data_status = parsed$data_status,
       retrieved_at = retrieved_at,
       source_notes = parsed$source_notes,

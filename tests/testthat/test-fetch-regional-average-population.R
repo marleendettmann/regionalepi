@@ -205,11 +205,11 @@ test_that("annual-average population rejects duplicate and invalid values", {
 
 test_that("annual-average request and contract reject unsafe inputs", {
   check <- regionalepi:::.validate_regional_average_population_request
-  expect_identical(check(c(2025, 2022), NULL)$years, c(2022L, 2025L))
+  expect_identical(check(c(2025, 2017), NULL)$years, c(2017L, 2025L))
   expect_error(check(character(), NULL), "whole numbers")
   expect_error(check(2022.5, NULL), "whole numbers")
   expect_error(check(c(2022, 2022), NULL), "duplicates")
-  expect_error(check(2021, NULL), "2022 or later")
+  expect_error(check(2016, NULL), "2017 or later")
   expect_error(check(2022, 7315), "five-character")
   expect_error(check(2022, "7315"), "five-character")
 
@@ -222,6 +222,30 @@ test_that("annual-average request and contract reject unsafe inputs", {
   expect_error(validate_annual_average_population(rbind(x, x[1L, ])), "unique")
   expect_error(validate_annual_average_population(transform(
     x, population_measure = "year_end_population")), "annual_average_population")
+})
+
+test_that("annual-average population basis is year-aware and source-supported", {
+  notes <- paste(
+    "Die Berichtsjahre 2011 bis 2021 basieren auf den Ergebnissen des",
+    "Zensus vom 09. Mai 2011. Ab dem Berichtsmonat Mai 2022 basieren die",
+    "Fortschreibungszahlen auf dem Zensus vom 15. Mai 2022."
+  )
+  basis <- regionalepi:::.annual_average_population_basis(
+    2017:2022, notes, "synthetic contract"
+  )
+  expect_identical(basis, c(rep("census_2011", 5L), "census_2022"))
+  expect_error(
+    regionalepi:::.annual_average_population_basis(
+      2017:2021, "Zensus vom 15. Mai 2022", "synthetic contract"
+    ),
+    "do not establish"
+  )
+  expect_error(
+    regionalepi:::.annual_average_population_basis(
+      2022L, "Zensus vom 09. Mai 2011", "synthetic contract"
+    ),
+    "do not establish"
+  )
 })
 
 test_that("annual-average transport errors never expose credentials", {

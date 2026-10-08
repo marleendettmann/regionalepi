@@ -42,14 +42,15 @@ Run `Rscript data-raw/build-demographic-snapshot.R` from the package root with
 the external Regionaldatenbank credential environment configured. The builder
 uses the existing narrow adapters, retrieves the contiguous 2017--2025 range
 required by the API, and stores only reviewed years 2017--2020 and 2022--2025.
-It also retrieves official annual-average population for 2022--2025 through
-the existing `12411-05-01-4` / `BEV028` adapter. It validates component
-contracts, exact annual geography, reviewed source statuses, and the
+It also retrieves official annual-average population for 2017--2025 through
+the existing `12411-05-01-4` / `BEV028` adapter and applies the reviewed
+2017--2020 Eisenach-to-Wartburgkreis additive denominator relation. It validates
+component contracts, exact annual geography, reviewed source statuses, and the
 deterministic checksum. Raw envelopes and credentials are never written.
 
 The current installed resource is
-`data/regionalepi_demographic_snapshot_v3.rda`; the immutable v2 and v1
-resources are retained, with v2 recorded as its predecessor. A refresh is a reviewed
+`data/regionalepi_demographic_snapshot_v4.rda`; immutable versions 1--3 are
+retained, with v3 recorded as its predecessor. A refresh is a reviewed
 development/release build of a new immutable version; Shiny live retrieval
 never updates these resources.
 

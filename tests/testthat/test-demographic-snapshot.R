@@ -16,12 +16,12 @@ test_that("reviewed demographic snapshot contract and resource are complete", {
     as.Date(c(sprintf("%d-12-31", 2017:2020),
               sprintf("%d-12-31", 2022:2025))))
   expect_identical(unname(snapshot$diagnostics$component_row_counts),
-                   c(rep(3204L, 4L), 1600L))
+                   c(rep(3204L, 4L), 3600L))
   expect_identical(unname(snapshot$diagnostics$geographic_unit_counts),
                    c(rep(401L, 4L), rep(400L, 4L)))
-  expect_identical(snapshot$provenance$covered_reporting_years, 2022:2025)
+  expect_identical(snapshot$provenance$covered_reporting_years, 2017:2025)
   expect_identical(unname(
-    snapshot$diagnostics$annual_average_population_counts), rep(400L, 4L))
+    snapshot$diagnostics$annual_average_population_counts), rep(400L, 9L))
 })
 
 test_that("snapshot geography is exact across components and dates", {
@@ -43,9 +43,9 @@ test_that("snapshot geography is exact across components and dates", {
   }
 })
 
-test_that("snapshot v3 preserves its predecessor and historical observations", {
+test_that("snapshot v4 preserves v3 and historical observations", {
   current <- regionalepi_demographic_snapshot()
-  prior <- get("regionalepi_demographic_snapshot_v2",
+  prior <- get("regionalepi_demographic_snapshot_v3",
                envir = asNamespace("regionalepi"))
   expect_invisible(validate_demographic_snapshot(prior))
   expect_identical(current$provenance$prior_snapshot_id,
@@ -59,16 +59,120 @@ test_that("snapshot v3 preserves its predecessor and historical observations", {
     expect_identical(current$data[[component]][current_rows, , drop = FALSE],
                      prior$data[[component]][prior_rows, , drop = FALSE])
   }
+
+  current_fit <- fit_dynamic_typology(
+    prepare_demographic_snapshot(current, 2022:2025)$summary, k = 3L
+  )
+  prior_fit <- fit_dynamic_typology(
+    prepare_demographic_snapshot(prior, 2022:2025)$summary, k = 3L
+  )
+  expect_identical(current_fit$assignments, prior_fit$assignments)
+  expect_identical(current_fit$profiles, prior_fit$profiles)
 })
 
-test_that("snapshot v3 identity reflects normalized deterministic content", {
+test_that("immutable predecessor snapshot identities remain unchanged", {
+  expected <- c(
+    regionalepi_demographic_snapshot_v1 =
+      "226cad40cdae697965a9723917477541",
+    regionalepi_demographic_snapshot_v2 =
+      "9b340e48a4a716826d7615a0e6888012",
+    regionalepi_demographic_snapshot_v3 =
+      "996c38455f53c59ce7be766c035e2246"
+  )
+  for (name in names(expected)) {
+    snapshot <- get(name, envir = asNamespace("regionalepi"))
+    expect_identical(snapshot$provenance$content_checksum, expected[[name]])
+    expect_invisible(validate_demographic_snapshot(snapshot))
+  }
+})
+
+test_that("extended snapshot preserves typology coverage and adds reviewed denominators", {
+  prior <- regionalepi_demographic_snapshot()
+  reconstructed <- regionalepi:::.snapshot_reconstruct_components(prior)
+  annual <- regionalepi:::.demographic_snapshot_average_population(
+    prior, 2022:2025
+  )
+  template <- annual$data[annual$data$year == 2022L, , drop = FALSE]
+  historical <- do.call(rbind, lapply(2017:2021, function(year) {
+    value <- template
+    value$year <- year
+    value$population_basis <- "census_2011"
+    if (year <= 2020L) {
+      eisenach <- value[value$geo_id == "16063", , drop = FALSE]
+      eisenach$geo_id <- "16056"
+      eisenach$geo_name <- "Eisenach, kreisfreie Stadt"
+      eisenach$population <- 42000 + year - 2017L
+      value <- rbind(value, eisenach)
+    }
+    value
+  }))
+  annual$data <- rbind(historical, annual$data)
+  rownames(annual$data) <- NULL
+  relations <- data.frame(
+    year = 2017:2020, from_geo_id = "16056", to_geo_id = "16063",
+    relation_type = "historical_merge", source = "synthetic",
+    note = "synthetic reviewed relation", stringsAsFactors = FALSE
+  )
+  target <- prior$data$population[
+    prior$data$population$reference_date == as.Date("2025-12-31"),
+    c("geo_id", "geo_name"), drop = FALSE
+  ]
+  source_counts <- table(annual$data$year)
+  source_totals <- tapply(annual$data$population, annual$data$year, sum)
+  expect_identical(as.integer(source_counts), c(rep(401L, 4L), rep(400L, 5L)))
+  annual <- regionalepi:::.harmonize_reviewed_annual_average_population(
+    annual, relations, target
+  )
+  expect_identical(as.integer(table(annual$data$year)), rep(400L, 9L))
+  expect_identical(tapply(annual$data$population, annual$data$year, sum),
+                   source_totals)
+  expect_false("16056" %in% annual$data$geo_id)
+  expect_identical(
+    annual$data$population[
+      annual$data$year == 2021L & annual$data$geo_id == "16063"
+    ],
+    template$population[template$geo_id == "16063"]
+  )
+  annual_sets <- split(annual$data$geo_id, annual$data$year)
+  expect_true(all(vapply(annual_sets, setequal, logical(1L), y = target$geo_id)))
+  components <- list(
+    mean_age = reconstructed$mean_age,
+    youth_dependency = reconstructed$youth,
+    population = reconstructed$population,
+    area = reconstructed$area,
+    annual_average_population = annual
+  )
+  build <- function() regionalepi:::.build_demographic_snapshot(
+    components,
+    snapshot_version = "synthetic_extended_v4",
+    prior_snapshot_id = prior$provenance$snapshot_id
+  )
+  first <- build()
+  second <- build()
+  expect_identical(validate_demographic_snapshot(first), first)
+  expect_identical(first$provenance$covered_reporting_years, 2017:2025)
+  expect_identical(first$provenance$prior_snapshot_id,
+                   prior$provenance$snapshot_id)
+  expect_identical(first$provenance$content_checksum,
+                   second$provenance$content_checksum)
+  expect_identical(
+    first$provenance$covered_reference_dates,
+    prior$provenance$covered_reference_dates
+  )
+  expect_identical(
+    unname(first$diagnostics$annual_average_population_counts),
+    rep(400L, 9L)
+  )
+})
+
+test_that("snapshot v4 identity reflects normalized deterministic content", {
   current <- regionalepi_demographic_snapshot()
-  prior <- get("regionalepi_demographic_snapshot_v2",
+  prior <- get("regionalepi_demographic_snapshot_v3",
                envir = asNamespace("regionalepi"))
   expect_identical(current$provenance$content_checksum,
-                   "996c38455f53c59ce7be766c035e2246")
+                   "d16ef9d0b03bb97035ef179a964839b8")
   expect_identical(current$provenance$snapshot_id,
-                   "regionalepi_demography_996c38455f53c59c")
+                   "regionalepi_demography_d16ef9d0b03bb970")
   expect_identical(current$provenance$prior_snapshot_id,
                    prior$provenance$snapshot_id)
   expect_identical(current$provenance$source_data_status, c(
@@ -76,7 +180,7 @@ test_that("snapshot v3 identity reflects normalized deterministic content", {
     youth_dependency = "06.10.2026 / 23:58:08",
     population = "06.10.2026 / 23:58:23",
     area = "06.10.2026 / 23:58:37",
-    annual_average_population = "06.10.2026 / 23:58:49"
+    annual_average_population = "08.10.2026 / 13:28:08"
   ))
   expect_true(all(vapply(current$data, function(x) {
     identical(rownames(x), as.character(seq_len(nrow(x))))
@@ -87,11 +191,11 @@ test_that("snapshot v3 identity reflects normalized deterministic content", {
 test_that("snapshot annual-average population is reviewed and distinct", {
   snapshot <- regionalepi_demographic_snapshot()
   result <- regionalepi:::.demographic_snapshot_average_population(
-    snapshot, 2022:2025
+    snapshot, 2017:2025
   )
   expect_identical(validate_annual_average_population(result$data), result$data)
-  expect_identical(sort(unique(result$data$year)), 2022:2025)
-  expect_identical(as.integer(table(result$data$year)), rep(400L, 4L))
+  expect_identical(sort(unique(result$data$year)), 2017:2025)
+  expect_identical(as.integer(table(result$data$year)), rep(400L, 9L))
   expect_true(all(result$data$source_table == "12411-05-01-4"))
   expect_true(all(result$data$population_measure ==
     "annual_average_population"))
@@ -109,7 +213,7 @@ test_that("snapshot annual-average population is reviewed and distinct", {
   provenance <- result$provenance[[
     "regional_average_population_12411-05-01-4_bev028"]]
   expect_identical(provenance$source_measure, "BEV028")
-  expect_identical(provenance$data_status, "06.10.2026 / 23:58:49")
+  expect_identical(provenance$data_status, "08.10.2026 / 13:28:08")
   expect_s3_class(provenance$retrieved_at, "POSIXct")
   expect_match(provenance$copyright,
     "Datenlizenz Deutschland", fixed = TRUE)

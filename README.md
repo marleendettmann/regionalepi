@@ -53,7 +53,7 @@ Statistische Ämter des Bundes und der Länder. The package includes a reviewed
 snapshot for reproducible offline analysis. It contains the source data needed
 for the 2017--2020 and 2022--2025 demographic reference periods and supplies
 the typology indicators used by the Shiny application by default, together
-with official annual-average population for reporting years 2022--2025.
+with official annual-average population for reporting years 2017--2025.
 Snapshot mode therefore supports the complete default dynamic analysis without
 Regionaldatenbank credentials. Public package functions can retrieve population
 stock, annual-average population, area, mean age, and youth dependency directly
@@ -62,6 +62,11 @@ from Regionaldatenbank Deutschland; see `?fetch_regional_population`,
 pages. Live retrieval of the typology data and annual-average population is
 optional and requires `REGIONALSTATISTIK_USER` and
 `REGIONALSTATISTIK_PASSWORD`.
+
+The annual-average population uses the Census 2011 progression basis for
+2017--2021 and the Census 2022 progression basis from 2022. This changes the
+population-estimation basis, not the incidence formula; comparisons across the
+2021/2022 transition should acknowledge the methodological discontinuity.
 
 District identities, map geometry, and Länder boundaries use BKG resources
 with the common geographic reference date 31 December 2024. Source attribution

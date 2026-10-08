@@ -8,7 +8,7 @@ fetch_regional_average_population(years, regions = NULL)
 }
 \arguments{
 \item{years}{A non-empty vector of unique whole reporting years in the
-reviewed range beginning in 2022.}
+reviewed range beginning in 2017.}
 
 \item{regions}{\code{NULL} or a non-empty character vector of unique
 five-character district identifiers.}
@@ -19,7 +19,7 @@ dataset-level \code{provenance}.
 }
 \description{
 Retrieves total annual-average population from Regionaldatenbank table
-\code{12411-05-01-4}, measure \code{BEV028}, for requested reporting years from 2022
+\code{12411-05-01-4}, measure \code{BEV028}, for requested reporting years from 2017
 onward. Years not yet supplied by the source are omitted. The source defines
 this measure, from 2012 onward, as the simple
 arithmetic mean of population at the beginning and end of the reporting

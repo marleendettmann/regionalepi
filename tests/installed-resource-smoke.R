@@ -34,12 +34,12 @@ snapshot <- regionalepi::regionalepi_demographic_snapshot()
 regionalepi::validate_demographic_snapshot(snapshot)
 stopifnot(
   identical(snapshot$provenance$snapshot_id,
-            "regionalepi_demography_996c38455f53c59c"),
+            "regionalepi_demography_d16ef9d0b03bb970"),
   identical(snapshot$diagnostics$checksum_verified, TRUE),
   identical(snapshot$diagnostics$component_row_counts,
             c(mean_age = 3204L, youth_dependency = 3204L,
               population = 3204L, area = 3204L,
-              annual_average_population = 1600L))
+              annual_average_population = 3600L))
 )
 
 if (requireNamespace("shiny", quietly = TRUE)) {
@@ -59,16 +59,57 @@ if (requireNamespace("shiny", quietly = TRUE)) {
                 "regionalepi_geography_resources_2024"),
       identical(nrow(regionalepi::regionalepi_state_comparison_groups()), 16L),
       identical(regionalepi::regionalepi_demographic_snapshot()$provenance$snapshot_id,
-                "regionalepi_demography_996c38455f53c59c")
+                "regionalepi_demography_d16ef9d0b03bb970")
     )
   })
 }
 
 demographic <- regionalepi:::.shiny_fetch_snapshot_demography(2022:2025)
 fit <- regionalepi:::.shiny_fit_typology(demographic$summary, "dynamic", 3L)
+historical_window_ids <- paste0("influenza_", 2017:2021, "_", 18:22)
+for (window_id in historical_window_ids) {
+  window <- regionalepi:::.shiny_selected_window(
+    "Influenza, saisonal", window_id
+  )
+  reporting_years <- seq.int(
+    as.integer(format(window$start_date, "%Y")),
+    as.integer(format(window$end_date, "%Y"))
+  )
+  population <- regionalepi:::.shiny_population_for_reporting_years(
+    reporting_years, "snapshot"
+  )
+  stopifnot(
+    identical(population$supported_years, reporting_years),
+    !length(population$unsupported_years),
+    !length(population$provisional)
+  )
+}
 reference <- regionalepi:::.shiny_fit_typology(
   regionalepi:::.shiny_fetch_snapshot_demography(2017:2020)$summary,
   "dissertation", 3L
+)
+reference_map <- regionalepi:::.shiny_map_assignments(map, reference)
+reference_metadata <- regionalepi:::.shiny_cluster_display_metadata(
+  reference, "dissertation", "neutral", NULL, reference_map$data$geo_id
+)
+known_ids <- c("11000", "12073", "14521", "03453", "03460", "16063")
+known_clusters <- c("ClD", "ClA", "ClA", "ClJ", "ClJ", "ClA")
+stopifnot(
+  identical(as.integer(table(factor(
+    reference$assignments$display_cluster_id,
+    levels = c("ClD", "ClJ", "ClA")
+  ))), c(63L, 213L, 125L)),
+  identical(as.integer(table(factor(
+    reference_map$data$display_cluster_id,
+    levels = c("ClD", "ClJ", "ClA")
+  ))), c(63L, 213L, 124L)),
+  identical(reference_metadata$n_districts, c(63L, 213L, 124L)),
+  identical(
+    reference_map$data$display_cluster_id[
+      match(known_ids, reference_map$data$geo_id)
+    ],
+    known_clusters
+  )
 )
 stability_fits <- lapply(2:5, function(k) {
   regionalepi:::.shiny_fit_typology(demographic$summary, "dynamic", k)

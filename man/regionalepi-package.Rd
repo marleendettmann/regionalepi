@@ -88,6 +88,11 @@ explicitly provisional, using the immediately preceding year's available
 official annual-average population as the denominator. Older denominators
 are rejected. The population reference year and provisional status are
 retained in the result provenance.
+Annual-average population for 2017--2021 uses the Census 2011 progression
+basis; values from 2022 use the Census 2022 progression basis. This is a
+change in the population-estimation basis, not in the incidence formula.
+Comparisons across the 2021/2022 transition should acknowledge this
+methodological discontinuity.
 
 Source-provided SurvStat incidence is retained separately for provenance,
 methodological comparison, and historical reproduction. The derived measure

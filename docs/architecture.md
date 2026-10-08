@@ -231,7 +231,7 @@ Neither function harmonizes geography, infers `geo_vintage`, or calculates
 incidence.
 
 `fetch_regional_average_population()` is a separate narrow adapter for table
-`12411-05-01-4`, measure `BEV028`, and reporting years 2022--2025. Its validated
+`12411-05-01-4`, measure `BEV028`, and reporting years from 2017. Its validated
 contract is keyed by character district identifier and reporting year and keeps
 the source table, measure, Census population basis, retrieval time, and data
 status in provenance. It does not reinterpret the 31 December population
@@ -240,7 +240,7 @@ contract or itself calculate incidence.
 `derive_incidence_annual_average()` calculates the distinct
 `incidence_annual_average` field from SurvStat cases and the matching official
 reporting-year annual-average population without rounding or weighting.
-The reviewed demographic snapshot carries that denominator for 2022--2025;
+The reviewed demographic snapshot carries that denominator for 2017--2025;
 optional live mode retrieves the same contract from table `12411-05-01-4`.
 `prepare_analysis_incidence()` is the explicit current-analysis boundary: it
 preserves the source-provided rate as `incidence_source` and supplies the
@@ -351,9 +351,13 @@ The bundled demographic snapshot is an explicit immutable Regionaldatenbank
 source state, not an opaque or silently stale cache. Normalized components
 preserve values, table/measure provenance, component retrieval times, the
 reviewed source-status compatibility rule, population bases, and a
-deterministic checksum. It covers exactly 2017--2020 and 2022--2025.
+deterministic checksum. Its typology components cover exactly 2017--2020 and
+2022--2025.
 It additionally carries official annual-average population for reporting years
-2022--2025 as a distinct source component. Population density, period summaries,
+2017--2025 as a distinct source component. The 2017--2020 denominator is
+additively harmonized from Eisenach and Wartburgkreis to the reviewed current
+400-district analysis geography before incidence calculation; 2021 is already
+provided on that geography. Population density, period summaries,
 typologies, and incidence are not stored: the snapshot is reconstructed into
 the existing validated source results and then uses the ordinary derivation
 pipeline.

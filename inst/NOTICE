@@ -65,8 +65,9 @@ Population density and incidence are derived in regionalepi through their
 separate validated contracts.
 
 Modified by regionalepi: selected reviewed tables, years, and district rows;
-normalized identifiers and field names; population density is derived by
-regionalepi.
+normalized identifiers and field names; 2017--2020 annual-average population
+is additively harmonized from Eisenach to Wartburgkreis for the current
+district analysis geography; population density is derived by regionalepi.
 
 These data are provided by the Statistische Ämter des Bundes und der Länder.
 The reviewed service responses retained in resource and result provenance state

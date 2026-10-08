@@ -11,7 +11,7 @@ approved reference dates 2017-12-31 through 2025-12-31.
 
 `fetch_regional_average_population()` is a separate narrow adapter for table
 `12411-05-01-4`, statistic `12411`, measure `BEV028`, sex `Insgesamt`, and
-reporting years 2022--2025. It returns official reporting-year annual-average
+reporting years from 2017. It returns official reporting-year annual-average
 population under its own validated contract. Provenance retains the table,
 measure, year, Census population basis, retrieval time, data status, source
 notes, and attribution. This adapter does not calculate incidence and does not
@@ -68,7 +68,11 @@ establish a canonical territorial register vintage, so adapter-produced
 The installed demographic snapshot contains reviewed observations from tables
 `12411-07-01-4`, `12411-08-01-4`, `12411-01-01-4`, `11111-01-01-4`, and
 `12411-05-01-4`. The last component is the distinct official annual-average
-population for reporting years 2022--2025. Optional live retrieval uses the
-same narrow adapters and source definitions. The snapshot is a selected and
-normalized resource; population density and incidence remain ordinary package
-derivations.
+population for reporting years 2017--2025. Values for 2017--2021 use the
+Census 2011 progression basis; values from 2022 use the Census 2022 progression
+basis. This is a change in the population-estimation basis, not in the incidence
+formula. The 2017--2020 additive denominator is harmonized through the reviewed
+Eisenach-to-Wartburgkreis relation before incidence is calculated; the source
+already provides the current 400-district set in 2021. Optional live retrieval
+uses the same narrow adapters and source definitions. Population density and
+incidence remain ordinary package derivations.

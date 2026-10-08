@@ -36,7 +36,9 @@ analysis_population <- function(years = 2022L) {
   data$population <- c(100, 1000)
   data$population_measure <- "annual_average_population"
   data$population_reference <- "reporting_year_annual_average"
-  data$population_basis <- "census_2022"
+  data$population_basis <- ifelse(
+    data$year <= 2021L, "census_2011", "census_2022"
+  )
   data$source <- "Regionaldatenbank Deutschland"
   data$source_table <- "12411-05-01-4"
   data$retrieved_at <- as.POSIXct("2026-09-14", tz = "UTC")
@@ -96,12 +98,11 @@ test_that("final analysis refuses unavailable population without fallback", {
     ),
     "must be present"
   )
-  expect_error(
-    prepare_analysis_incidence(
-      analysis_incidence_bundle(2021L), analysis_population(2021L)
-    ),
-    "from reporting year 2022"
+  historical <- prepare_analysis_incidence(
+    analysis_incidence_bundle(2017L), analysis_population(2017L)
   )
+  expect_true(all(historical$data$incidence_status == "final"))
+  expect_true(all(historical$data$population_year == 2017L))
   expect_true(all(prepare_analysis_incidence(
     analysis_incidence_bundle(2026L), analysis_population(2026L)
   )$data$incidence_status == "final"))
