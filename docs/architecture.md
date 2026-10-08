@@ -373,9 +373,10 @@ package data. SurvStat retrieval remains live and separate.
 The persistent analysis sidebar feeds four display sections; changing tabs or
 the selected map district does not enter any retrieval or fitting dependency.
 The default remains the reviewed 2022--2025 snapshot, dynamic k = 3 typology,
-and live SurvStat. Explicit historical reference mode instead uses the unchanged frozen
-2017--2020 fit, historical ClD/ClJ/ClA labels and core palette, and the reviewed
-401-to-current-400 compatibility with `16056` retained as fit-only provenance.
+and live SurvStat. The application uses dynamic typologies for regular
+surveillance analysis. The unchanged frozen 2017--2020 fit, historical
+ClD/ClJ/ClA labels, and reviewed 401-to-current-400 compatibility remain
+available through the package's historical reproduction API.
 
 COVID selection keeps frozen historical-reference/RKI pandemic periods separate from
 `covid_rki_activity_waves_v1`, which contains only the reviewed post-pandemic
@@ -494,8 +495,8 @@ fits for k = 2--5, the frozen historical fit, display IDs, and colours remain
 national. State composition uses district counts. Epidemiological comparison
 uses one median of weekly district incidence from the selected analysis
 contract and selected period, grouped for display by state and one national
-cluster. Dynamic/current analysis uses annual-average-population incidence;
-historical reference mode uses historical source incidence. It does not
+cluster. Shiny analysis uses annual-average-population incidence. The separate
+historical reproduction API continues to use historical source incidence. It does not
 construct state incidence, perform inference, or imply causal state effects.
 Cluster selection is downstream display state and enters no retrieval or
 typology cache key.
@@ -526,8 +527,8 @@ official COVID-19 or Norovirus regions. Regional composition is a share of
 canonical districts. Regional time courses are medians and empirical IQRs of
 observed district incidences from the selected analysis contract, with expected,
 observed, and missing district counts retained. They are not official regional
-incidences. Dynamic/current analysis uses annual-average-population incidence;
-historical reference mode uses the preserved source incidence.
+incidences. Shiny analysis uses annual-average-population incidence; the
+separate historical reproduction API uses the preserved source incidence.
 National standardization, fitting, cluster assignments, profiles, IDs, and
 colours remain unchanged by every regional control.
 
@@ -567,10 +568,11 @@ display summaries. Functional Research-v0.1 is frozen after this temporal and
 regional-UX consolidation.
 
 The final Research-v0.1 Shiny information architecture is presentation-only.
-The five top-level destinations remain unchanged. Demographic typology uses
-nested profile, stability, and district-distribution views. Methodology and
-provenance use nested method, source, current-status, and reproducibility views,
-so ordinary analysis pages do not lead with technical identifiers. The map uses
+It has four top-level destinations: demographic typology, infection analysis,
+regional analysis, and methodology/data. Demographic typology uses nested
+profile, stability, and district-distribution views. Methodology and provenance
+are presented on one page, with technical provenance available on demand, so
+ordinary analysis pages do not lead with technical identifiers. The map uses
 the existing reviewed VG2500 source for a district/Land/Germany boundary
 hierarchy; its German exterior outline is derived by the reviewed state-resource
 builder and has no analytical role.
@@ -589,6 +591,17 @@ POST-v0.1: a genuinely domain-independent regional-typology core may be
 evaluated for extraction as a separate permissively licensed package. This is
 a non-binding architectural option and does not alter the Research-v0.1
 package boundary or license.
+
+## Scientific export boundary
+
+Shiny downloads serialize only already prepared demographic state, the cached
+transition result, or an explicitly loaded surveillance result. Export handlers
+must not call source adapters, refit typologies, or recompute the transition.
+The internal export layer produces whitelisted result tables and integrated
+metadata, methodology, source, and licensing sheets. Excel is written with the
+single lightweight `writexl` dependency; CSV and PNG use session-scoped
+temporary download files. Direct browser-widget, PDF, and SVG rendering remain
+outside version 0.1.
 
 The reviewed historical pandemic observation frame is a neutral data and
 display context that makes all approved historical-reference COVID periods selectable;

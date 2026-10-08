@@ -2,8 +2,12 @@ citHeader("To cite regionalepi in publications, use:")
 
 bibentry(
   bibtype = "Manual",
-  title = "regionalepi: Regional Infectious Disease Surveillance and Demographic Typologies",
+  title = "regionalepi: Regionale Infektionssurveillance und demografische Typologien",
   author = person("Marleen", "Dettmann"),
   year = "2026",
-  note = paste("R package version", meta$Version)
+  note = paste("R-Paket, Version", meta$Version),
+  textVersion = paste0(
+    "Dettmann, M. (2026). regionalepi: Regionale Infektionssurveillance und ",
+    "demografische Typologien (Version ", meta$Version, "). R-Paket."
+  )
 )

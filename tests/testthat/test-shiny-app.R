@@ -101,10 +101,8 @@ test_that("loaded analysis context preserves typology and incidence semantics", 
   )
   expect_identical(
     regionalepi:::.shiny_loaded_analysis_context(result),
-    paste0(
-      "Aktualisierte Typologie (C01 / C02 / C03 / C04; k = 4) · ",
-      "Inzidenz auf Basis der durchschnittlichen Jahresbevölkerung"
-    )
+    paste0("Demografische Typologie · 2022–2025 · k=4 · ",
+      "Inzidenz auf Basis der durchschnittlichen Jahresbevölkerung")
   )
   expect_true(regionalepi:::.shiny_loaded_analysis_is_provisional(result))
   expect_false(regionalepi:::.shiny_loaded_selection_changed(
@@ -643,7 +641,7 @@ test_that("population-density scaling is display-only and log-safe", {
   server_text <- paste(readLines(file.path(regionalepi:::.shiny_app_dir(),
     "server.R"),warn=FALSE),collapse="\n")
   expect_match(ui_text,"Skalierung Bevölkerungsdichte",fixed=TRUE)
-  expect_match(ui_text,'c("Original"="original","Logarithmisch"="log10")',
+  expect_match(ui_text,'c("Original" = "original", "Logarithmisch" = "log10")',
     fixed=TRUE)
   expect_match(ui_text,paste("Die Skalierung betrifft ausschließlich die",
     "Bevölkerungsdichte. Durchschnittsalter und Jugendquotient werden stets",
@@ -703,6 +701,30 @@ test_that("finite-n display geometry follows the reviewed thresholds", {
   expect_false(any(!is.finite(layers$points$value)))
 })
 
+test_that("weekly district distributions preserve ISO week support and missingness", {
+  data<-data.frame(
+    date=as.Date(rep(c("2026-07-20","2026-07-27"),each=6)),
+    geo_id=rep(sprintf("%05d",1:6),2),
+    geo_name=rep(paste("Kreis",1:6),2),
+    cluster_id=rep(c("C01","C01","C02","C02","C03","C03"),2),
+    incidence=c(0,1,NA,3,4,5,10,11,12,13,14,15),
+    cases=c(0,1,NA,3,4,5,10,11,12,13,14,15),
+    stringsAsFactors=FALSE)
+  result<-regionalepi:::.shiny_week_distribution(data,
+    as.Date("2026-07-20"),c("C01","C02","C03"))
+  expect_identical(result$date,as.Date("2026-07-20"))
+  expect_identical(nrow(result$data),6L)
+  expect_identical(result$support$observed_districts,c(2L,1L,2L))
+  expect_identical(result$support$missing_districts,c(0L,1L,0L))
+  expect_identical(result$support$zero_districts,c(1L,0L,0L))
+  expect_true(0%in%result$data$incidence)
+  expect_true(anyNA(result$data$incidence))
+  expect_identical(levels(result$data$cluster_display),
+    c("C01 (n=2)","C02 (n=1)","C03 (n=2)"))
+  expect_error(regionalepi:::.shiny_week_distribution(data,
+    as.Date("2026-08-03"),c("C01","C02","C03")),"not part")
+})
+
 test_that("final distribution and weekly heatmap grammar is explicit", {
   expect_identical(regionalepi:::.shiny_weekly_heatmap_xgap(0L),1)
   expect_identical(regionalepi:::.shiny_weekly_heatmap_xgap(60L),1)
@@ -720,8 +742,7 @@ test_that("final distribution and weekly heatmap grammar is explicit", {
   ui_text <- paste(readLines(file.path(app,"ui.R"),warn=FALSE),collapse="\n")
   server_text <- paste(readLines(file.path(app,"server.R"),warn=FALSE),
     collapse="\n")
-  expect_match(ui_text,"Violinplots erst ab mindestens 10 verfügbaren Kreisen",
-    fixed=TRUE)
+  expect_match(server_text,".shiny_adaptive_distribution_layers",fixed=TRUE)
   expect_match(server_text,"Deutschlandreferenz<br>Nationaler Regionaltyp",
     fixed=TRUE)
   expect_match(server_text,"shape=23,size=3.5,fill=\"white\"",fixed=TRUE)
@@ -998,6 +1019,118 @@ test_that("navigation is display-only and absent from analytical cache keys", {
   expect_false(any(grepl("overview|typology|epidemiology|methods", keys)))
   ui_text <- paste(readLines(file.path(regionalepi:::.shiny_app_dir(), "ui.R"), warn = FALSE), collapse = "\n")
   expect_match(ui_text, 'id="analysis_section"', fixed = TRUE)
+})
+
+test_that("Pass-3c navigation has four main areas and preserves reference APIs", {
+  ui_text<-paste(readLines(file.path(regionalepi:::.shiny_app_dir(),"ui.R"),
+    warn=FALSE),collapse="\n")
+  main_labels<-c("Demografische Typologie","Infektionsgeschehen",
+    "Regionale Analyse","Methodik und Daten")
+  expect_true(all(vapply(main_labels,function(label)
+    grepl(paste0('tabPanel("',label,'"'),ui_text,fixed=TRUE),logical(1L))))
+  expect_false(grepl('tabPanel("Übersicht"',ui_text,fixed=TRUE))
+  expect_false(grepl('tabPanel("Referenzanalyse"',ui_text,fixed=TRUE))
+  expect_match(ui_text,"Karte und Kreise",fixed=TRUE)
+  expect_match(ui_text,"Veränderungen 2017–2025",fixed=TRUE)
+  expect_match(ui_text,"Übergangsmatrix",fixed=TRUE)
+  expect_match(ui_text,"transition_sankey",fixed=TRUE)
+  expect_match(ui_text,"transition_map",fixed=TRUE)
+  expect_match(ui_text,"transition_district_detail",fixed=TRUE)
+  expect_match(ui_text,
+    "Ein Wechsel der Clusterzuordnung bedeutet nicht automatisch, dass sich die demografische Struktur eines Kreises grundlegend verändert hat. Die Zuordnung hängt auch von der Verteilung aller Kreise und den neu berechneten Clusterzentren ab.",
+    fixed=TRUE)
+  expect_false("Norovirus-Gastroenteritis"%in%
+    unname(regionalepi:::.shiny_reference_pathogen_choices()))
+  influenza<-regionalepi:::.shiny_reference_selection(
+    "Influenza, saisonal","influenza_2017_18")
+  expect_identical(influenza$window$observation_window_id,"influenza_2017_18")
+  expect_true(all(influenza$periods$period_id%in%"influenza_2017_18"))
+  expect_error(regionalepi:::.shiny_reference_selection(
+    "Norovirus-Gastroenteritis"),"Unsupported")
+  expect_true(is.function(regionalepi::fit_dissertation_typology))
+})
+
+test_that("Pass-2b regional navigation and demographic foundation are explicit", {
+  app<-regionalepi:::.shiny_app_dir()
+  ui_text<-paste(readLines(file.path(app,"ui.R"),warn=FALSE),collapse="\n")
+  server_text<-paste(readLines(file.path(app,"server.R"),warn=FALSE),
+    collapse="\n")
+  regional_start<-regexpr('tabsetPanel(id = "regional_view"',ui_text,
+    fixed=TRUE)[[1L]]
+  methods_start<-regexpr('tabPanel("Methodik und Daten"',ui_text,
+    fixed=TRUE)[[1L]]
+  regional_ui<-substr(ui_text,regional_start,methods_start-1L)
+  positions<-vapply(c("Zeitverlauf","Demografische Zusammensetzung","Kreise"),
+    function(label)regexpr(paste0('tabPanel("',label,'"'),regional_ui,
+      fixed=TRUE)[[1L]],integer(1L))
+  expect_true(all(positions>0L))
+  expect_identical(order(positions),1:3)
+  expect_match(regional_ui,'tabsetPanel(id = "regional_view",\n        tabPanel("Zeitverlauf"',
+    fixed=TRUE)
+  expect_false(grepl('tabPanel("Demografische Struktur"',regional_ui,
+    fixed=TRUE))
+  expect_match(ui_text,'h4("Demografische Grundlage")',fixed=TRUE)
+  expect_match(ui_text,'actionLink("show_typology", "Typologie ändern")',
+    fixed=TRUE)
+  expect_match(server_text,
+    'updateTabsetPanel(session,"analysis_section",selected="typology")',
+    fixed=TRUE)
+  expect_match(server_text,
+    'updateTabsetPanel(session,"typology_view",selected="map_districts")',
+    fixed=TRUE)
+})
+
+test_that("Pass-3c consolidates distributions and methodology", {
+  app<-regionalepi:::.shiny_app_dir()
+  ui_text<-paste(readLines(file.path(app,"ui.R"),warn=FALSE),collapse="\n")
+  server_text<-paste(readLines(file.path(app,"server.R"),warn=FALSE),
+    collapse="\n")
+  expect_match(ui_text,".status-info",fixed=TRUE)
+  expect_match(server_text,
+    'p(class="status-info",paste(sprintf(',fixed=TRUE)
+  expect_match(server_text,
+    'p(class="status-info",paste("Fr\u00fcher Beobachtungsstand:",early))',
+    fixed=TRUE)
+  expect_match(server_text,
+    '"Laufender Beobachtungszeitraum: bis zum aktuellen Analyse-Stichtag."',
+    fixed=TRUE)
+  expect_false(grepl(
+    'running_notice<-if(isTRUE(r$is_truncated))if(is.null(early))',
+    server_text,fixed=TRUE))
+  expect_false(grepl('tabPanel("Referenzanalyse"',ui_text,fixed=TRUE))
+  expect_false(grepl("reference_state",server_text,fixed=TRUE))
+  expect_match(ui_text,'"Ausgewählte ISO-Kalenderwoche" = "week"',fixed=TRUE)
+  expect_match(ui_text,'uiOutput("distribution_week_control")',fixed=TRUE)
+  expect_match(server_text,"output$weekly_distribution_plot",fixed=TRUE)
+  expect_match(server_text,"output$analysis_week_distribution_png",fixed=TRUE)
+  expect_match(server_text,"output$methods_page",fixed=TRUE)
+  expect_match(server_text,'h3("Vergleichbarkeit mit früheren Auswertungen")',
+    fixed=TRUE)
+  expect_match(server_text,
+    "Die demografische Typologie für 2017–2020 reproduziert die Kreiszuordnungen der ursprünglichen Dissertationstypologie.",
+    fixed=TRUE)
+  expect_match(server_text,"output$comparability_note",fixed=TRUE)
+  expect_match(server_text,'strong("R-Paket")',fixed=TRUE)
+  expect_match(server_text,'strong("Wissenschaftliche Grundlage")',fixed=TRUE)
+  expect_match(server_text,".regionalepi_package_citation()",fixed=TRUE)
+  expect_match(server_text,".regionalepi_dissertation_citation()",fixed=TRUE)
+  expect_match(server_text,'tags$summary("Technische Provenienz")',fixed=TRUE)
+})
+
+test_that("typology configuration identity includes scientific and provenance dimensions", {
+  current<-regionalepi:::.shiny_typology_configuration("2022–2025",3L,"snapshot")
+  expect_named(current,c("configuration_id","specification_id","indicator_ids",
+    "reference_years","source_identity","k","fitting_specification_id",
+    "fitting_specification_version","fit_parameters"))
+  key<-regionalepi:::.shiny_typology_configuration_key(current,"snapshot-v4")
+  expect_false(identical(key,regionalepi:::.shiny_typology_configuration_key(
+    regionalepi:::.shiny_typology_configuration("2017–2020",3L,"snapshot"),
+    "snapshot-v4")))
+  expect_false(identical(key,regionalepi:::.shiny_typology_configuration_key(
+    regionalepi:::.shiny_typology_configuration("2022–2025",4L,"snapshot"),
+    "snapshot-v4")))
+  expect_false(identical(key,regionalepi:::.shiny_typology_configuration_key(
+    current,"other-provenance")))
 })
 
 test_that("map join is identifier-only and handles reviewed historical difference", {
@@ -1485,14 +1618,11 @@ test_that("running-window load cannot reuse a stale Influenza period", {
     expect_identical(state$result$analysis_range$nominal_end_date,
       as.Date("2027-05-23"))
     expect_match(rendered(output$range_status),
-      paste("Laufender Beobachtungszeitraum: Die Analyse ist auf den aktuellen",
-        "Analyse-Stichtag begrenzt. Der von SurvStat ausgewiesene Datenstand wird",
-        "davon getrennt dokumentiert. Der Beobachtungszeitraum 2026/27 hat in KW 40",
-        "begonnen und umfasst bis zum Analyse-Stichtag erst 2 Kalenderwochen.",
-        "Zeitliche Verläufe sind daher noch eingeschränkt interpretierbar."),
+      "Laufender Beobachtungszeitraum: bis zum aktuellen Analyse-Stichtag.",
       fixed=TRUE)
-    expect_identical(length(gregexpr("status-quality",
-      rendered(output$range_status),fixed=TRUE)[[1L]]),1L)
+    expect_match(rendered(output$range_status),"status-info",fixed=TRUE)
+    expect_false(grepl("erst 2 Kalenderwochen",
+      rendered(output$range_status),fixed=TRUE))
     plot_note <- rendered(output$incidence_early_window_note)
     expect_match(plot_note,paste(
       "Früher Beobachtungsstand: Der Beobachtungszeitraum 2026/27 hat in KW 40",
@@ -1566,9 +1696,10 @@ test_that("Shiny app exposes staged progress and caches fitted map widgets", {
   expect_match(server_text, "Inzidenz auf Basis der durchschnittlichen Jahresbevölkerung", fixed = TRUE)
   expect_match(server_text, "Vorläufig: Für Berichtsjahr %d wird die zuletzt verfügbare amtliche durchschnittliche Jahresbevölkerung %d als Bezugsbevölkerung verwendet.", fixed = TRUE)
   expect_false(grepl("incidence_selector|Inzidenz auswählen", ui_text))
-  expect_match(server_text, ".shiny_fetch_surveillance_bundle", fixed = TRUE)
+  expect_false(grepl(".shiny_fetch_surveillance_bundle",server_text,
+    fixed=TRUE))
   expect_match(server_text, "mkey <- paste0(\"map:\"", fixed = TRUE)
-  expect_true(grepl("fetch_surveillance_bundle", server_text, fixed = TRUE))
+  expect_false(grepl("fetch_surveillance_bundle",server_text,fixed=TRUE))
   expect_match(server_text, ".shiny_surveillance_cache_match", fixed = TRUE)
   expect_match(ui_text, "Erweiterte Einstellungen", fixed = TRUE)
   expect_match(ui_text,
@@ -1586,7 +1717,7 @@ test_that("Shiny app exposes staged progress and caches fitted map widgets", {
   )
   expect_match(ui_text, "Regionale Analyse", fixed = TRUE)
   expect_match(ui_text, "Räumliche Vergleichsebene", fixed = TRUE)
-  expect_match(ui_text, '"Großregionen"="grossregion"', fixed = TRUE)
+  expect_match(ui_text, '"Großregionen" = "grossregion"', fixed = TRUE)
   expect_match(ui_text, '"grossregion"', fixed = TRUE)
   expect_false(grepl("Regionaltyp im regionalen Vergleich",ui_text,fixed=TRUE))
   expect_match(server_text,
@@ -1595,7 +1726,7 @@ test_that("Shiny app exposes staged progress and caches fitted map widgets", {
   expect_match(ui_text, "sind nicht als kausale Effekte", fixed = TRUE)
   expect_match(server_text, "Infektionsgeschehen nach demografischem Regionaltyp", fixed = TRUE)
   expect_match(server_text, ".summarize_weekly_regional_incidence", fixed = TRUE)
-  expect_match(ui_text, "entsprechen nicht den Inzidenzen", fixed = TRUE)
+  expect_match(ui_text, "bereits geladene reguläre Analyse", fixed = TRUE)
   expect_match(server_text,
     "Für Norovirus sind keine vordefinierten epidemiologischen Zeiträume hinterlegt.",
     fixed = TRUE)
@@ -1627,17 +1758,12 @@ test_that("Shiny demographic snapshot is default and live mode is explicit", {
   expect_match(html,
     "regionalepi: Regionale Infektionssurveillance und demografische Typologien",
     fixed = TRUE)
-  expect_match(html,
-    '<div class="sidebar-heading">Infektionsgeschehen</div>', fixed = TRUE)
-  expect_match(html,
-    '<div class="sidebar-heading">Demografische Typologie</div>', fixed = TRUE)
-  expect_match(html,
-    '<div class="sidebar-heading">Daten &amp; Aktualisierung</div>', fixed = TRUE)
+  expect_match(html,"Demografische Typologie",fixed=TRUE)
+  expect_match(html,"Infektionsgeschehen",fixed=TRUE)
+  expect_false(grepl("Referenzanalyse",html,fixed=TRUE))
   expect_match(ui_text, "--re-primary:#5F627B", fixed = TRUE)
   expect_match(ui_text, "--re-action:#DD7F02", fixed = TRUE)
-  expect_match(ui_text, "accent-color:var(--re-primary)", fixed = TRUE)
-  expect_match(ui_text, ".progress-bar{background-color:var(--re-primary)}",
-    fixed = TRUE)
+  expect_match(ui_text,"--re-primary-soft:#ECECF2",fixed=TRUE)
 
   testthat::local_mocked_bindings(
     .shiny_fetch_demography = function(...) stop("live retrieval used"),
@@ -1784,9 +1910,7 @@ test_that("regional relative-activity and legend UI semantics are explicit", {
   app<-regionalepi:::.shiny_app_dir()
   ui_text<-paste(readLines(file.path(app,"ui.R"),warn=FALSE),collapse="\n")
   server_text<-paste(readLines(file.path(app,"server.R"),warn=FALSE),collapse="\n")
-  expect_match(ui_text,"Relative Aktivität innerhalb der ausgewählten Region",fixed=TRUE)
-  expect_match(ui_text,"vom Median aller beobachteten Kreise",fixed=TRUE)
-  expect_match(ui_text,"keinen formalen Wellenbeginn",fixed=TRUE)
+  expect_match(server_text,"regional_relative_activity",fixed=TRUE)
   expect_match(ui_text,"Vordefinierter epidemiologischer Zeitraum",fixed=TRUE)
   expect_false(grepl("Geprüfter epidemiologischer Zeitraum",ui_text,fixed=TRUE))
   expect_match(server_text,".regional_relative_activity",fixed=TRUE)
@@ -1810,7 +1934,7 @@ test_that("final user-facing terminology is localized and current", {
   expect_match(server_text,
     "Start- und End-KW können innerhalb des Beobachtungszeitraums gewählt werden.",
     fixed = TRUE)
-  expect_match(server_text, '"provisional","vorläufig"', fixed = TRUE)
+  expect_match(server_text, "Vorläufig: Für Berichtsjahr %d", fixed = TRUE)
   expect_match(visualization_text, "Bundesweit bestimmter Regionaltyp: %s",
     fixed = TRUE)
   expect_match(visualization_text, "Demografischer Regionaltyp", fixed = TRUE)
@@ -1822,51 +1946,40 @@ test_that("Pass-B nested information architecture and theme are explicit", {
   ui_text <- paste(readLines(file.path(app,"ui.R"),warn=FALSE),collapse="\n")
   server_text <- paste(readLines(file.path(app,"server.R"),warn=FALSE),
     collapse="\n")
-  expect_match(ui_text,'tabsetPanel(id="typology_view"',fixed=TRUE)
+  expect_match(ui_text,'tabsetPanel(id = "typology_view"',fixed=TRUE)
   expect_match(ui_text,'tabPanel("Clusterprofile"',fixed=TRUE)
-  expect_match(ui_text,'tabPanel("Stabilität der Typologie"',fixed=TRUE)
-  expect_match(ui_text,'tabPanel("Verteilungen der Kreise"',fixed=TRUE)
-  expect_match(ui_text,"Für die historische Referenztypologie ist die Drei-Cluster-Lösung fest definiert",fixed=TRUE)
-  expect_match(ui_text,'tabsetPanel(id="methods_view"',fixed=TRUE)
-  expect_match(ui_text,'tabPanel("Methodik"',fixed=TRUE)
-  expect_match(ui_text,'tabPanel("Datenquellen"',fixed=TRUE)
+  expect_match(ui_text,'tabPanel("Stabilität"',fixed=TRUE)
+  expect_match(ui_text,'h4("Verteilungen der Kreise")',fixed=TRUE)
+  expect_match(ui_text,'tabPanel("Veränderungen 2017–2025"',fixed=TRUE)
   expect_match(ui_text,'tabPanel("Methodik und Daten"',fixed=TRUE)
-  expect_match(ui_text,'tabPanel("Datenstand und Definitionen"',fixed=TRUE)
-  expect_match(ui_text,'tabPanel("Reproduzierbarkeit"',fixed=TRUE)
-  expect_match(ui_text,"Relative Aktivität im bundesweiten Vergleich",fixed=TRUE)
+  expect_match(ui_text,'uiOutput("methods_page")',fixed=TRUE)
+  expect_false(grepl('tabsetPanel(id = "methods_view"',ui_text,fixed=TRUE))
+  expect_match(ui_text,"Paarweise Clusterunterschiede",fixed=TRUE)
   expect_match(ui_text,"Regionengruppen aus Ländern",fixed=TRUE)
   expect_match(ui_text,"--re-primary:#5F627B",fixed=TRUE)
   expect_match(ui_text,"--re-action:#DD7F02",fixed=TRUE)
   expect_match(ui_text,"--re-action-hover:#C46F00",fixed=TRUE)
-  expect_match(ui_text,"--re-action-text:#181D22",fixed=TRUE)
-  expect_match(ui_text,
-    ".btn-primary:focus{box-shadow:0 0 0 3px rgba(95,98,123,.32)}",
-    fixed=TRUE)
+  expect_match(ui_text,"color:#181D22",fixed=TRUE)
   expect_false(grepl("#4183C4",ui_text,fixed=TRUE))
   expect_match(ui_text,
-    "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif",
+    "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif",
     fixed=TRUE)
-  expect_match(server_text,"output$methods_methodology",fixed=TRUE)
-  expect_match(server_text,"output$methods_sources",fixed=TRUE)
-  expect_match(server_text,"output$methods_status",fixed=TRUE)
-  expect_match(server_text,"output$methods_reproducibility",fixed=TRUE)
+  expect_match(server_text,"output$methods_page",fixed=TRUE)
+  expect_match(server_text,'tags$summary("Technische Provenienz")',fixed=TRUE)
   expect_match(server_text,"Die methodische Konzeption basiert auf der demografischen Regionaltypologie von ",fixed=TRUE)
-  expect_match(server_text,"Die historische Referenztypologie reproduziert",fixed=TRUE)
-  expect_match(server_text,"Indikatoren, Clusterzahl und Berechnungsverfahren sind für diese Reproduktion fest vorgegeben.",fixed=TRUE)
+  expect_match(server_text,"Die demografische Typologie für 2017–2020 reproduziert die Kreiszuordnungen der ursprünglichen Dissertationstypologie.",fixed=TRUE)
   expect_gte(length(gregexpr("https://doi.org/10.17169/refubium-51449",
-    server_text,fixed=TRUE)[[1L]]),3L)
+    server_text,fixed=TRUE)[[1L]]),2L)
   expect_false(grepl("Paper 1",server_text,fixed=TRUE))
-  expect_match(server_text,"REGIONALSTATISTIK_USER=...",fixed=TRUE)
-  expect_match(server_text,"REGIONALSTATISTIK_PASSWORD=...",fixed=TRUE)
+  expect_match(server_text,"REGIONALSTATISTIK_USER",fixed=TRUE)
+  expect_match(server_text,"REGIONALSTATISTIK_PASSWORD",fixed=TRUE)
   expect_match(server_text,"Methodik und Daten → Datenquellen → Regionaldatenbank",fixed=TRUE)
-  expect_match(server_text,paste("Die verwendeten Kreisidentitäten,",
-    "Kartengeometrien und Ländergrenzen beziehen sich auf den geografischen",
-    "Referenzstand"),fixed=TRUE)
+  expect_match(server_text,"Geografischer Referenzstand:",fixed=TRUE)
   expect_match(server_text,
-    'format(cache$map$provenance$source_vintage,"%d.%m.%Y")',fixed=TRUE)
+    'format(cache$map$provenance$source_vintage)',fixed=TRUE)
   expect_false(grepl("Die kanonischen Kreisidentitäten",server_text,fixed=TRUE))
   expect_false(grepl("Methodik & Daten",paste(ui_text,server_text),fixed=TRUE))
-  expect_match(server_text,"Sie erlauben keine kausalen Aussagen",fixed=TRUE)
+  expect_match(server_text,"erlauben keine kausalen Aussagen",fixed=TRUE)
   expect_false(grepl('uiOutput("provenance")',ui_text,fixed=TRUE))
 })
 
@@ -2061,6 +2174,8 @@ test_that("linked display state reuses one source bundle and one typology fit", 
       if (is.list(x) && "html" %in% names(x)) return(x$html)
       paste(as.character(x), collapse = "")
     }
+    rendered_text <- function(x) trimws(gsub("\\s+", " ",
+      gsub("<[^>]+>", " ", rendered(x))))
     session$setInputs(pathogen="Influenza, saisonal",window_id="influenza_2025_26",
       range_mode="window",
       typology_mode="dynamic",demographic_period="2022–2025",
@@ -2075,12 +2190,29 @@ test_that("linked display state reuses one source bundle and one typology fit", 
     expect_false(identical(state$result$bundle$data$incidence,
       state$result$bundle$data$incidence_source))
     expect_match(rendered(output$regional_analysis_context),
-      "Aktualisierte Typologie (C01 / C02 / C03; k = 3)", fixed = TRUE)
+      "Demografische Typologie · 2022–2025 · k=3", fixed = TRUE)
     expect_match(rendered(output$regional_analysis_context),
       "Inzidenz auf Basis der durchschnittlichen Jahresbevölkerung",
       fixed = TRUE)
-    expect_match(rendered(output$analysis_heading), "Aktualisierte Typologie", fixed = TRUE)
-    expect_match(rendered(output$analysis_heading), "k = 3", fixed = TRUE)
+    expect_match(rendered(output$analysis_heading), "Demografische Typologie", fixed = TRUE)
+    expect_match(rendered(output$analysis_heading), "k=3", fixed = TRUE)
+    expect_match(rendered_text(output$active_demographic_status),
+      "Demografische Typologie · 2022–2025 · k=3",fixed=TRUE)
+    expect_match(rendered_text(output$active_demographic_status),
+      "Für die angezeigte Analyse verwendet:",fixed=TRUE)
+    expect_no_error(output$analysis_xlsx)
+    expect_no_error(output$analysis_weekly_csv)
+    expect_no_error(output$analysis_district_csv)
+    expect_no_error(output$analysis_weekly_png)
+    expect_no_error(output$analysis_district_png)
+    selected_week<-as.character(exploration()$expected_dates[[1L]])
+    session$setInputs(district_distribution_scope="week",
+      distribution_week=selected_week)
+    session$flushReact()
+    expect_no_error(output$weekly_distribution_status)
+    expect_no_error(output$weekly_distribution_plot)
+    expect_no_error(output$analysis_week_distribution_png)
+    expect_identical(calls,1L)
     expect_false(grepl("Vorläufig:", rendered(output$analysis_wide_status), fixed = TRUE))
     fit_id <- state$result$fit$provenance$fit_id
     fixed_incidence <- state$result$bundle$data$incidence
@@ -2094,8 +2226,14 @@ test_that("linked display state reuses one source bundle and one typology fit", 
       "Auswahl geändert – Analyse aktualisieren", fixed = TRUE)
     expect_match(rendered(output$analysis_wide_status),
       "zuvor geladenen Analyse", fixed = TRUE)
+    expect_match(rendered_text(output$active_demographic_status),
+      "Demografische Typologie · 2022–2025 · k=4",fixed=TRUE)
+    expect_match(rendered_text(output$active_demographic_status),
+      "Für die angezeigte Analyse verwendet:",fixed=TRUE)
+    expect_match(rendered_text(output$active_demographic_status),
+      "Demografische Typologie · 2022–2025 · k=3",fixed=TRUE)
     expect_match(rendered(output$regional_analysis_context),
-      "C01 / C02 / C03; k = 3", fixed = TRUE)
+      "Demografische Typologie · 2022–2025 · k=3", fixed = TRUE)
     expect_identical(state$result$bundle$data$incidence, fixed_incidence)
     expect_identical(state$result$fit$assignments, fixed_assignments)
     expect_identical(exploration()$weekly, fixed_weekly)
@@ -2118,20 +2256,16 @@ test_that("linked display state reuses one source bundle and one typology fit", 
     expect_match(rendered(output$analysis_wide_status),
       "Vorläufig: Für Berichtsjahr 2026 wird die zuletzt verfügbare amtliche durchschnittliche Jahresbevölkerung 2025 als Bezugsbevölkerung verwendet.",
       fixed = TRUE)
-    expect_match(rendered(output$methods_status), "2026 = vorläufig",
-      fixed = TRUE)
-    expect_false(grepl("2026 = provisional", rendered(output$methods_status),
+    expect_false(grepl("provisional", rendered(output$analysis_wide_status),
       fixed = TRUE))
     final_result <- state$result
     final_result$bundle$diagnostics$status_by_reporting_year$incidence_status <-
       "final"
     state$result <- final_result
     session$flushReact()
-    expect_no_error(output$methods_methodology)
-    expect_no_error(output$methods_sources)
-    expect_no_error(output$methods_status)
-    expect_match(rendered(output$methods_status), "2026 = final", fixed = TRUE)
-    expect_no_error(output$methods_reproducibility)
+    expect_no_error(output$methods_page)
+    expect_false(grepl("Vorläufig", rendered(output$analysis_wide_status),
+      fixed = TRUE))
     original_distribution <- output$demographic_distribution_plot
     session$setInputs(density_scale="log10")
     session$flushReact()
@@ -2185,73 +2319,81 @@ test_that("linked display state reuses one source bundle and one typology fit", 
     expect_identical(calls, 1L)
     expect_identical(state$result$fit$provenance$fit_id, fit_id)
 
+    regular_fit_id<-state$result$fit$provenance$fit_id
     session$setInputs(typology_mode="dissertation")
     session$flushReact()
-    expect_match(rendered(output$analysis_wide_status),
-      "Auswahl geändert – Analyse aktualisieren", fixed = TRUE)
-    expect_match(rendered(output$regional_analysis_context),
-      "Aktualisierte Typologie", fixed = TRUE)
-    expect_false(grepl("Historische Typologie",rendered(output$regional_analysis_context),
-      fixed = TRUE))
-    session$setInputs(load_analysis=3)
-    session$flushReact()
-    historical_fit_id <- state$result$fit$provenance$fit_id
-    expect_identical(historical_fit_id,
-      "dissertation_v1_historical_reference")
-    expect_identical(nrow(state$result$fit$assignments),401L)
-    expect_identical(nrow(state$result$map_join$data),400L)
-    expect_identical(state$result$map_join$typology_only_geo_ids,"16056")
-    expect_identical(as.integer(table(factor(
-      state$result$fit$assignments$display_cluster_id,
-      levels=c("ClD","ClJ","ClA")))),c(63L,213L,125L))
-    expect_identical(as.integer(table(factor(
-      state$result$map_join$data$display_cluster_id,
-      levels=c("ClD","ClJ","ClA")))),c(63L,213L,124L))
-    expect_identical(state$result$display_metadata$n_districts,
-      c(63L,213L,124L))
-    known_ids<-c("11000","12073","14521","03453","03460","16063")
-    known_clusters<-c("ClD","ClA","ClA","ClJ","ClJ","ClA")
-    expect_identical(state$result$map_join$data$display_cluster_id[
-      match(known_ids,state$result$map_join$data$geo_id)],known_clusters)
-    attached<-regionalepi:::.shiny_attach_typology_range(
-      state$result$bundle,state$result$fit,state$result$analysis_range)
-    expect_identical(unique(attached$cluster_id[attached$geo_id=="11000"]),"ClD")
-    expect_identical(unique(attached$cluster_id[attached$geo_id=="16063"]),"ClA")
-    expect_no_error(output$regional_composition_plot)
-    expect_no_error(output$regional_demographic_distribution_plot)
-    expect_no_error(output$regional_cluster_time_plot)
-    expect_no_error(output$regional_relative_activity_plot)
-    expect_no_error(output$regional_context_time_plot)
-    expect_no_error(output$regional_district_plot)
-    expect_identical(calls,2L)
-    expect_false("incidence_annual_average" %in% names(state$result$bundle$data))
-    expect_identical(state$result$bundle$data$incidence,grid$incidence)
-    expect_match(rendered(output$regional_analysis_context),
-      "Historische Referenztypologie (ClD / ClJ / ClA)", fixed = TRUE)
-    expect_match(rendered(output$regional_analysis_context),
-      "Historische SurvStat-Inzidenz", fixed = TRUE)
-
-    session$setInputs(typology_mode="dynamic",k="3",load_analysis=4)
-    session$flushReact()
-    expect_identical(state$result$fit$provenance$fit_id,fit_id)
+    expect_identical(state$result$fit$provenance$fit_id,regular_fit_id)
     expect_true(all(grepl("^C0[1-3]$",
       state$result$map_join$data$display_cluster_id)))
-    expect_no_error(output$regional_composition_plot)
-    expect_identical(calls,3L)
-
-    session$setInputs(typology_mode="dissertation",load_analysis=5)
-    session$flushReact()
-    expect_identical(state$result$fit$provenance$fit_id,historical_fit_id)
-    expect_setequal(unique(state$result$map_join$data$display_cluster_id),
-      c("ClD","ClJ","ClA"))
-    expect_no_error(output$regional_composition_plot)
-    expect_identical(calls,3L)
+    expect_true("incidence_annual_average"%in%names(state$result$bundle$data))
+    expect_identical(calls,1L)
 
     session$setInputs(pathogen="COVID-19",window_id="covid19_2020_21",
       range_mode="custom",custom_start_week="2020-KW20",
       custom_end_week="2021-KW20")
     session$flushReact()
     expect_null(state$result)
-    expect_identical(calls,3L)
+    expect_identical(calls,1L)
+  })
+})
+
+test_that("demographic startup is offline and independent of surveillance controls", {
+  skip_if_not_installed("shiny")
+  app<-regionalepi:::.shiny_app_dir()
+  server_environment<-new.env(parent=asNamespace("shiny"))
+  sys.source(file.path(app,"server.R"),envir=server_environment)
+  retrievals<-0L
+  testthat::local_mocked_bindings(
+    .shiny_fetch_surveillance_bundle=function(...){retrievals<<-retrievals+1L;stop("unexpected retrieval")},
+    .shiny_fetch_analysis_bundle=function(...){retrievals<<-retrievals+1L;stop("unexpected retrieval")},
+    .package="regionalepi")
+  shiny::testServer(server_environment$server,{
+    session$setInputs(demographic_period="2022–2025",k="3",
+      demographic_source="snapshot",pathogen="Influenza, saisonal",
+      window_id="influenza_2025_26",range_mode="window",
+      regional_level="grossregion")
+    session$flushReact()
+    expect_null(demographic_state$error)
+    expect_false(is.null(demographic_state$result))
+    expect_identical(demographic_state$result$demographic_years,2022:2025)
+    expect_identical(demographic_state$result$configuration$k,3L)
+    expect_false(is.null(demographic_state$transition))
+    expect_identical(demographic_state$transition_compute_count,1L)
+    transition<-demographic_state$transition$result
+    expect_identical(transition$diagnostics$compared_districts,400L)
+    expect_identical(transition$diagnostics$unchanged_districts,369L)
+    expect_identical(transition$diagnostics$changed_districts,31L)
+    transition_before<-serialize(transition,NULL)
+    expect_no_error(output$typology_xlsx)
+    expect_no_error(output$typology_csv)
+    expect_no_error(output$typology_png)
+    expect_no_error(output$transition_xlsx)
+    expect_no_error(output$transition_csv)
+    expect_no_error(output$transition_png)
+    expect_no_error(output$transition_summary)
+    expect_no_error(output$transition_matrix)
+    expect_no_error(output$transition_sankey)
+    expect_no_error(output$transition_map)
+    expect_no_error(output$transition_district_detail)
+    expect_identical(retrievals,0L)
+    fit_count<-demographic_state$fit_count
+    transition_count<-demographic_state$transition_compute_count
+    session$setInputs(show_typology=1,analysis_section="typology",
+      typology_view="map_districts")
+    session$flushReact()
+    expect_identical(demographic_state$fit_count,fit_count)
+    expect_identical(demographic_state$transition_compute_count,
+      transition_count)
+    expect_identical(retrievals,0L)
+    session$setInputs(pathogen="COVID-19",window_id="covid19_2025_26",
+      analysis_section="regional",selected_geo_id="01001",
+      transition_filter="changed",transition_matrix_mode="row_percentage")
+    session$flushReact()
+    expect_identical(demographic_state$fit_count,fit_count)
+    expect_identical(demographic_state$transition_compute_count,1L)
+    expect_identical(serialize(demographic_state$transition$result,NULL),
+      transition_before)
+    expect_identical(retrievals,0L)
+    expect_null(state$result)
   })
 })

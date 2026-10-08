@@ -14,8 +14,12 @@
       "Historische SurvStat-Inzidenz"
     ))
   }
+  period <- result$loaded_selection$demographic_period
+  if (is.null(period) || length(period) != 1L || is.na(period) || !nzchar(period)) {
+    period <- paste(range(result$demographic_years), collapse = "\u2013")
+  }
   paste0(
-    "Aktualisierte Typologie (", cluster_text, "; k = ", length(ids), ") \u00b7 ",
+    "Demografische Typologie \u00b7 ", period, " \u00b7 k=", length(ids), " \u00b7 ",
     "Inzidenz auf Basis der durchschnittlichen Jahresbev\u00f6lkerung"
   )
 }
@@ -162,6 +166,54 @@
   })
 }
 
+.shiny_reference_pathogen_choices <- function() {
+  c("Influenza" = "Influenza, saisonal", "COVID-19" = "COVID-19")
+}
+
+.shiny_reference_selection <- function(pathogen, window_id = NULL,
+                                       period_id = NULL) {
+  if (!pathogen %in% unname(.shiny_reference_pathogen_choices())) {
+    stop("Unsupported reference-analysis pathogen.", call. = FALSE)
+  }
+  if (identical(pathogen, "Influenza, saisonal")) {
+    allowed_windows <- c(
+      influenza_2017_18 = "2017/18",
+      influenza_2018_19 = "2018/19",
+      influenza_2019_20 = "2019/20"
+    )
+    periods <- dissertation_influenza_periods()
+  } else {
+    allowed_windows <- c(
+      covid19_pandemic_2020_22 = "Pandemie-Beobachtungszeitraum 2020\u20132022"
+    )
+    periods <- dissertation_covid_welle2_periods()
+  }
+  window_id <- if (length(window_id) == 1L && !is.na(window_id) &&
+      window_id %in% names(allowed_windows)) window_id else names(allowed_windows)[[1L]]
+  windows <- regionalepi_observation_windows()
+  window <- windows[
+    windows$pathogen == pathogen & windows$observation_window_id == window_id,
+    , drop = FALSE
+  ]
+  if (nrow(window) != 1L) stop("Reference-analysis window is unavailable.", call. = FALSE)
+  available <- periods$periods[
+    periods$periods$start_date >= window$start_date &
+      periods$periods$end_date <= window$end_date, , drop = FALSE
+  ]
+  if (!nrow(available)) stop("Reference-analysis period is unavailable.", call. = FALSE)
+  period_id <- if (length(period_id) == 1L && !is.na(period_id) &&
+      period_id %in% available$period_id) period_id else available$period_id[[1L]]
+  list(
+    pathogen = pathogen,
+    window = window,
+    window_choices = stats::setNames(names(allowed_windows), allowed_windows),
+    period_resource = periods,
+    periods = available,
+    period_id = period_id,
+    period_choices = stats::setNames(available$period_id, available$label)
+  )
+}
+
 .shiny_selected_period <- function(pathogen, period_id) {
   matches <- lapply(.shiny_period_resources(pathogen), function(resource) {
     row <- resource$periods[resource$periods$period_id == period_id, , drop = FALSE]
@@ -179,6 +231,69 @@
     stop("Unsupported demographic source mode.", call. = FALSE)
   }
   paste0("demography:", source_mode, ":", paste(years, collapse = "-"))
+}
+
+.shiny_typology_configuration <- function(
+    period_label, k, source_mode = "snapshot",
+    configuration_id = "reviewed_demographic_typology_v1",
+    indicator_ids = vapply(
+      demographic_structure_spec()$indicators, `[[`, character(1L),
+      "indicator_id"
+    ),
+    fitting_specification = dynamic_kmeans_spec()) {
+  years <- .shiny_demographic_periods()[[period_label]]
+  if (is.null(years)) stop("Unsupported demographic reference period.", call. = FALSE)
+  if (!source_mode %in% c("snapshot", "live"))
+    stop("Unsupported demographic source mode.", call. = FALSE)
+  k <- as.integer(k)
+  if (length(k) != 1L || is.na(k) || !k %in% 2:5)
+    stop("Unsupported dynamic cluster count.", call. = FALSE)
+  indicator_ids <- sort(unique(as.character(indicator_ids)), method = "radix")
+  if (!length(indicator_ids) || anyNA(indicator_ids) || any(!nzchar(indicator_ids)))
+    stop("Typology configuration requires indicator identities.", call. = FALSE)
+  list(
+    configuration_id = configuration_id,
+    specification_id = demographic_structure_spec()$indicator_set_id,
+    indicator_ids = indicator_ids,
+    reference_years = as.integer(years),
+    source_identity = source_mode,
+    k = k,
+    fitting_specification_id = fitting_specification$fitting_specification_id,
+    fitting_specification_version = fitting_specification$definition_version,
+    fit_parameters = fitting_specification[c(
+      "method", "algorithm", "nstart", "iter_max", "seed", "row_order"
+    )]
+  )
+}
+
+.shiny_typology_configuration_key <- function(configuration,
+                                               data_provenance_id) {
+  required <- c(
+    "configuration_id", "specification_id", "indicator_ids",
+    "reference_years", "source_identity", "k",
+    "fitting_specification_id", "fitting_specification_version",
+    "fit_parameters"
+  )
+  if (!is.list(configuration) || !all(required %in% names(configuration)) ||
+      length(data_provenance_id) != 1L || is.na(data_provenance_id) ||
+      !nzchar(data_provenance_id)) {
+    stop("Incomplete typology configuration identity.", call. = FALSE)
+  }
+  parameter_text <- paste(
+    names(configuration$fit_parameters),
+    unlist(configuration$fit_parameters, use.names = FALSE), sep = "=",
+    collapse = ","
+  )
+  paste(
+    "typology-configuration", configuration$configuration_id,
+    configuration$specification_id,
+    paste(configuration$indicator_ids, collapse = ","),
+    paste(configuration$reference_years, collapse = "-"),
+    configuration$source_identity, configuration$k,
+    configuration$fitting_specification_id,
+    configuration$fitting_specification_version, parameter_text,
+    data_provenance_id, sep = ":"
+  )
 }
 
 .shiny_surveillance_cache_key <- function(pathogen, reporting_years) {

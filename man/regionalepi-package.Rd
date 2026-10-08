@@ -105,9 +105,26 @@ is neither age-standardized nor sex-standardized.
 All principal analytical objects can be used directly from R. The package
 also includes an optional Shiny application for interactive exploration
 of demographic typologies and infectious disease surveillance. Launch it with
-\code{\link[=run_regionalepi_app]{run_regionalepi_app()}}. The application keeps historical reference and
-updated typology semantics explicit and displays the active incidence
-definition and relevant provenance information.
+\code{\link[=run_regionalepi_app]{run_regionalepi_app()}}. The application uses dynamically fitted demographic
+typologies for regular surveillance analysis and displays the active
+incidence definition and relevant provenance information. Historical
+dissertation reproduction remains available through the package API rather
+than as a separate application analysis area.
+Scientific downloads use these prepared or loaded in-session results without
+retrieving or refitting data. Excel workbooks combine result tables with
+methodology, source, licensing, and provenance information; individual
+tables are available as UTF-8 CSV and selected static scientific figures as
+PNG. PDF reports, SVG, Leaflet-map exports, and direct Plotly exports are
+deferred.
+
+Cite the package as: Dettmann, M. (2026). \emph{regionalepi: Regionale
+Infektionssurveillance und demografische Typologien} (Version 0.1.0).
+R-Paket.
+
+The scientific foundation is: Dettmann, M. (2026). \emph{Einfluss demografischer
+Faktoren auf die Ausbreitung von Infektionskrankheiten am Beispiel von
+Influenza und COVID-19}. Freie Universität Berlin.
+DOI: 10.17169/refubium-51449.
 }
 
 \section{Data sources and provenance}{

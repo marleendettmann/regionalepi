@@ -5,6 +5,8 @@ server <- function(input, output, session) {
   resources <- regionalepi:::.regionalepi_geography_resources()
   state <- reactiveValues(result=NULL,error=NULL,technical_error=NULL,busy=FALSE,
     selected_geo_id=NULL,selected_date=NULL,retrieval_count=0L)
+  demographic_state <- reactiveValues(result=NULL,error=NULL,busy=FALSE,
+    selection=NULL,fit_count=0L,transition=NULL,transition_compute_count=0L)
   session$userData$plotlyShinyEventIDs <- paste("plotly_click",
     c("demography","period","district-time","district-heat"),sep="-")
 
@@ -178,6 +180,144 @@ server <- function(input, output, session) {
     regionalepi:::.shiny_select_analysis_range(selected_window(),mode,reviewed_period())
   })
 
+  prepare_demographic_state <- function(period_label, k, source_mode) {
+    configuration <- regionalepi:::.shiny_typology_configuration(
+      period_label, k, source_mode)
+    if (identical(source_mode,"live") &&
+        !regionalepi:::.shiny_regional_credentials_available())
+      stop("Live-Abruf derzeit nicht konfiguriert. Erforderlich sind die Umgebungsvariablen REGIONALSTATISTIK_USER und REGIONALSTATISTIK_PASSWORD. Hinweise zur sicheren Einrichtung: Methodik und Daten → Datenquellen und Provenienz.",call.=FALSE)
+    years <- configuration$reference_years
+    dkey <- regionalepi:::.shiny_demographic_cache_key(period_label,source_mode)
+    if(!exists(dkey,envir=cache,inherits=FALSE)) assign(dkey,
+      if(source_mode=="snapshot") regionalepi:::.shiny_fetch_snapshot_demography(years) else regionalepi:::.shiny_fetch_demography(years),envir=cache)
+    demographic <- get(dkey,envir=cache,inherits=FALSE)
+    provenance_id <- if(identical(source_mode,"snapshot")) {
+      demographic$snapshot_provenance$snapshot_id
+    } else paste(regionalepi:::.shiny_app_source_status(demographic$source),collapse="|")
+    configuration_key <- regionalepi:::.shiny_typology_configuration_key(
+      configuration,provenance_id)
+    tkey <- paste0("fit:",configuration_key)
+    if(!exists(tkey,envir=cache,inherits=FALSE)) {
+      assign(tkey,regionalepi:::.shiny_fit_typology(
+        demographic$summary,"dynamic",configuration$k),envir=cache)
+      demographic_state$fit_count <- demographic_state$fit_count+1L
+    }
+    fit <- get(tkey,envir=cache,inherits=FALSE)
+    reference_key <- "typology:dissertation_v1:historical_reference"
+    if(!exists(reference_key,envir=cache,inherits=FALSE)) assign(reference_key,
+      regionalepi:::.shiny_fit_typology(
+        regionalepi:::.shiny_fetch_snapshot_demography(2017:2020)$summary,
+        "dissertation",3L),envir=cache)
+    stability_fits <- lapply(2:5,function(stability_k) {
+      stability_configuration <- regionalepi:::.shiny_typology_configuration(
+        period_label,stability_k,source_mode)
+      key <- paste0("fit:",regionalepi:::.shiny_typology_configuration_key(
+        stability_configuration,provenance_id))
+      if(!exists(key,envir=cache,inherits=FALSE)) {
+        assign(key,regionalepi:::.shiny_fit_typology(
+          demographic$summary,"dynamic",stability_k),envir=cache)
+        demographic_state$fit_count <- demographic_state$fit_count+1L
+      }
+      get(key,envir=cache,inherits=FALSE)
+    })
+    stability <- regionalepi:::.shiny_typology_stability(stability_fits)
+    stability_policy <- regionalepi:::.shiny_dynamic_colour_policy(
+      stability_fits[[2L]],get(reference_key,envir=cache,inherits=FALSE),
+      stability_fits[[2L]])
+    stability_metadata <- regionalepi:::.shiny_cluster_display_metadata(
+      stability_fits[[2L]],"dynamic","profile_aligned",stability_policy,
+      cache$map$features$geo_id)
+    anchor_key <- paste0("fit:",regionalepi:::.shiny_typology_configuration_key(
+      regionalepi:::.shiny_typology_configuration(period_label,3L,source_mode),
+      provenance_id))
+    if(!exists(anchor_key,envir=cache,inherits=FALSE)) {
+      assign(anchor_key,regionalepi:::.shiny_fit_typology(
+        demographic$summary,"dynamic",3L),envir=cache)
+      demographic_state$fit_count <- demographic_state$fit_count+1L
+    }
+    palette_alignment <- regionalepi:::.shiny_dynamic_colour_policy(
+      fit,get(reference_key,envir=cache,inherits=FALSE),
+      get(anchor_key,envir=cache,inherits=FALSE))
+    map_join <- regionalepi:::.shiny_map_assignments(cache$map,fit)
+    display_metadata <- regionalepi:::.shiny_cluster_display_metadata(
+      fit,"dynamic","profile_aligned",palette_alignment,map_join$data$geo_id)
+    mkey <- paste0("map:",configuration_key)
+    if(!exists(mkey,envir=cache,inherits=FALSE)) assign(mkey,
+      regionalepi:::.shiny_app_leaflet_geojson(cache$map$browser_geojson,
+        cache$map_bounds,map_join$data,"dynamic",cache$states$browser_geojson,
+        regionalepi:::.shiny_germany_outline_geojson(),"profile_aligned",
+        palette_alignment,display_metadata),envir=cache)
+    list(demographic=demographic,fit=fit,map_join=map_join,
+      map_widget=get(mkey,envir=cache,inherits=FALSE),
+      display_metadata=display_metadata,palette_variant="profile_aligned",
+      palette_alignment=palette_alignment,stability=stability,
+      stability_metadata=stability_metadata,configuration=configuration,
+      demographic_years=years,provenance_id=provenance_id,
+      cache_keys=list(demographic=dkey,typology=tkey,map=mkey))
+  }
+
+  prepare_transition_state <- function() {
+    periods<-c("2017–2020","2022–2025")
+    demographics<-lapply(regionalepi:::.shiny_demographic_periods()[periods],
+      regionalepi:::.shiny_fetch_snapshot_demography)
+    fits<-Map(function(period_label,demographic){
+      configuration<-regionalepi:::.shiny_typology_configuration(
+        period_label,3L,"snapshot")
+      provenance_id<-demographic$snapshot_provenance$snapshot_id
+      key<-paste0("fit:",regionalepi:::.shiny_typology_configuration_key(
+        configuration,provenance_id))
+      if(!exists(key,envir=cache,inherits=FALSE))assign(key,
+        regionalepi:::.shiny_fit_typology(demographic$summary,"dynamic",3L),
+        envir=cache)
+      get(key,envir=cache,inherits=FALSE)
+    },periods,demographics)
+    transition_key<-paste("transition",fits[[1L]]$provenance$fit_id,
+      fits[[2L]]$provenance$fit_id,"demographic_profile_v1",sep=":")
+    if(!exists(transition_key,envir=cache,inherits=FALSE)){
+      assign(transition_key,regionalepi::compare_dynamic_typology_transitions(
+        fits[[1L]],fits[[2L]],cache$map$features$geo_id),envir=cache)
+      demographic_state$transition_compute_count<-
+        demographic_state$transition_compute_count+1L
+    }
+    list(result=get(transition_key,envir=cache,inherits=FALSE),
+      key=transition_key,from_demographic=demographics[[1L]],
+      to_demographic=demographics[[2L]],from_fit=fits[[1L]],to_fit=fits[[2L]])
+  }
+
+  prepare_demography <- function(period_label,k,source_mode) {
+    demographic_state$error <- NULL; demographic_state$busy <- TRUE
+    on.exit(demographic_state$busy <- FALSE,add=TRUE)
+    tryCatch({
+      demographic_state$result <- prepare_demographic_state(
+        period_label,as.integer(k),source_mode)
+      demographic_state$selection <- list(demographic_period=period_label,
+        k=as.integer(k),demographic_source=source_mode)
+      if(is.null(demographic_state$transition))
+        demographic_state$transition<-prepare_transition_state()
+      if(is.null(state$selected_geo_id)||
+         !state$selected_geo_id%in%demographic_state$result$map_join$data$geo_id)
+        state$selected_geo_id <- "11000"
+      TRUE
+    },error=function(e){demographic_state$error<-conditionMessage(e);FALSE})
+  }
+
+  observeEvent(input$prepare_demography,{
+    source_mode<-input$demographic_source
+    if(is.null(source_mode)||!source_mode%in%c("snapshot","live"))source_mode<-"snapshot"
+    prepare_demography(input$demographic_period,input$k,source_mode)
+  },ignoreInit=TRUE)
+  observeEvent(list(input$demographic_period,input$k,input$demographic_source),{
+    source_mode<-input$demographic_source
+    if(is.null(source_mode)||!source_mode%in%c("snapshot","live"))source_mode<-"snapshot"
+    if(identical(source_mode,"snapshot"))
+      prepare_demography(input$demographic_period,input$k,source_mode)
+  },ignoreInit=FALSE,priority=50)
+
+  observeEvent(input$show_typology,{
+    updateTabsetPanel(session,"analysis_section",selected="typology")
+    updateTabsetPanel(session,"typology_view",selected="map_districts")
+  })
+
   observeEvent(input$selected_geo_id,{ state$selected_geo_id <- input$selected_geo_id })
   select_plotly <- function(source) observeEvent(suppressWarnings(plotly::event_data("plotly_click",source=source)),{
     event <- suppressWarnings(plotly::event_data("plotly_click",source=source))
@@ -206,69 +346,33 @@ server <- function(input, output, session) {
       years<-seq.int(
         as.integer(format(request_range$start_date,"%Y")),
         as.integer(format(request_range$end_date,"%Y")))
-      mode <- input$typology_mode; period_label <- if(mode=="dissertation") "2017–2020" else input$demographic_period
+      mode <- "dynamic"; period_label <- input$demographic_period
       source_mode <- input$demographic_source
       if(is.null(source_mode)||!source_mode%in%c("snapshot","live"))source_mode<-"snapshot"
-      if(identical(source_mode,"live") &&
-         !regionalepi:::.shiny_regional_credentials_available())
-        stop("Live-Abruf derzeit nicht konfiguriert. Erforderlich sind die Umgebungsvariablen REGIONALSTATISTIK_USER und REGIONALSTATISTIK_PASSWORD. Hinweise zur sicheren Einrichtung: Methodik und Daten → Datenquellen → Regionaldatenbank.",call.=FALSE)
-      demographic_years <- regionalepi:::.shiny_demographic_periods()[[period_label]]
-      dkey <- regionalepi:::.shiny_demographic_cache_key(period_label,source_mode)
       load_stage <- "demography"
-      if(!exists(dkey,envir=cache,inherits=FALSE)) assign(dkey,if(source_mode=="snapshot") regionalepi:::.shiny_fetch_snapshot_demography(demographic_years) else regionalepi:::.shiny_fetch_demography(demographic_years),envir=cache)
-      demographic <- get(dkey,envir=cache,inherits=FALSE); setProgress(.2,detail="Typologie wird angepasst …")
-      load_stage <- "typology"
-      tkey <- regionalepi:::.shiny_typology_cache_key(demographic$summary,if(mode=="dissertation")3L else as.integer(input$k),mode)
-      if(!exists(tkey,envir=cache,inherits=FALSE)) assign(tkey,regionalepi:::.shiny_fit_typology(demographic$summary,mode,if(mode=="dissertation")3L else as.integer(input$k)),envir=cache)
-      fit <- get(tkey,envir=cache,inherits=FALSE)
-      reference_key <- "typology:dissertation_v1:historical_reference"
-      if(!exists(reference_key,envir=cache,inherits=FALSE)) assign(reference_key,
-        regionalepi:::.shiny_fit_typology(
-          regionalepi:::.shiny_fetch_snapshot_demography(2017:2020)$summary,
-          "dissertation",3L),envir=cache)
-      stability_fits <- lapply(2:5,function(stability_k) {
-        key <- regionalepi:::.shiny_typology_cache_key(
-          demographic$summary,stability_k,"dynamic")
-        if(!exists(key,envir=cache,inherits=FALSE)) assign(key,
-          regionalepi:::.shiny_fit_typology(demographic$summary,"dynamic",stability_k),
-          envir=cache)
-        get(key,envir=cache,inherits=FALSE)
-      })
-      stability <- regionalepi:::.shiny_typology_stability(stability_fits)
-      stability_policy <- regionalepi:::.shiny_dynamic_colour_policy(
-        stability_fits[[2L]],get(reference_key,envir=cache,inherits=FALSE),
-        stability_fits[[2L]])
-      stability_metadata <- regionalepi:::.shiny_cluster_display_metadata(
-        stability_fits[[2L]],"dynamic","profile_aligned",stability_policy,
-        regionalepi::regionalepi_map_geometry()$features$geo_id)
-      palette_variant <- if(mode=="dynamic"&&as.integer(input$k)>=2L) "profile_aligned" else "neutral"
-      palette_alignment <- NULL
-      if(mode=="dynamic"&&as.integer(input$k)>=2L) {
-        anchor_key <- regionalepi:::.shiny_typology_cache_key(
-          demographic$summary,3L,"dynamic")
-        if(!exists(anchor_key,envir=cache,inherits=FALSE)) assign(anchor_key,
-          regionalepi:::.shiny_fit_typology(demographic$summary,"dynamic",3L),envir=cache)
-        palette_alignment <- regionalepi:::.shiny_dynamic_colour_policy(
-          fit,get(reference_key,envir=cache,inherits=FALSE),
-          get(anchor_key,envir=cache,inherits=FALSE))
+      pending <- list(demographic_period=period_label,k=as.integer(input$k),
+        demographic_source=source_mode)
+      if(is.null(demographic_state$result)||
+         !identical(demographic_state$selection,pending)) {
+        if(!prepare_demography(period_label,input$k,source_mode))
+          stop(demographic_state$error,call.=FALSE)
       }
-      incidence_definition <- if(mode=="dissertation") "source_survstat_incidence" else "annual_average_population_v1"
-      population_source_mode <- if(mode=="dissertation") "not_applicable" else source_mode
+      prepared <- demographic_state$result
+      demographic <- prepared$demographic; fit <- prepared$fit
+      demographic_years <- prepared$demographic_years
+      dkey <- prepared$cache_keys$demographic; tkey <- prepared$cache_keys$typology
+      palette_variant <- prepared$palette_variant
+      palette_alignment <- prepared$palette_alignment
+      stability <- prepared$stability
+      stability_metadata <- prepared$stability_metadata
+      setProgress(.2,detail="Typologie ist vorbereitet …")
+      incidence_definition <- "annual_average_population_v1"
+      population_source_mode <- source_mode
       skey <- regionalepi:::.shiny_surveillance_cache_match(cache$surveillance_index,input$pathogen,years,incidence_definition,population_source_mode,request_range$end_date)
       if(is.null(skey)) {
         load_stage <- "surveillance_analysis"
-        setProgress(.35,detail=if(mode=="dissertation") "Historische SurvStat-Inzidenzen und gemeldete Fälle werden geladen …" else "SurvStat-Fallzahlen und amtliche durchschnittliche Jahresbevölkerung werden geladen …")
-        fetched_bundle <- if(mode=="dissertation") {
-          historical<-regionalepi:::.shiny_fetch_surveillance_bundle(input$pathogen,years,resources)
-          historical<-regionalepi:::.shiny_limit_surveillance_range(historical,request_range)
-          historical$provenance$analysis_range<-list(
-            observation_window_start=request_range$nominal_start_date,
-            observation_window_end=request_range$nominal_end_date,
-            analysis_as_of_date=request_range$analysis_as_of_date,
-            effective_analysis_start=request_range$start_date,
-            effective_analysis_end=request_range$end_date)
-          historical
-        } else regionalepi:::.shiny_fetch_analysis_bundle(input$pathogen,years,resources,source_mode,request_range)
+        setProgress(.35,detail="SurvStat-Fallzahlen und amtliche durchschnittliche Jahresbevölkerung werden geladen …")
+        fetched_bundle <- regionalepi:::.shiny_fetch_analysis_bundle(input$pathogen,years,resources,source_mode,request_range)
         cache_metadata <- regionalepi:::.shiny_analysis_cache_metadata(fetched_bundle)
         skey <- do.call(regionalepi:::.shiny_surveillance_bundle_cache_key,c(list(pathogen=input$pathogen,reporting_years=years,incidence_definition=incidence_definition,effective_analysis_end=request_range$end_date),cache_metadata))
         assign(skey,fetched_bundle,envir=cache)
@@ -276,24 +380,18 @@ server <- function(input, output, session) {
         state$retrieval_count <- state$retrieval_count+1L
       }
       load_stage <- "map_and_result"
-      bundle <- get(skey,envir=cache,inherits=FALSE); map_join <- regionalepi:::.shiny_map_assignments(cache$map,fit)
-      display_metadata <- regionalepi:::.shiny_cluster_display_metadata(
-        fit,mode,palette_variant,palette_alignment,map_join$data$geo_id)
-      mkey <- paste0("map:",fit$provenance$fit_id,":",mode,":",palette_variant)
-      if(!exists(mkey,envir=cache,inherits=FALSE)) assign(mkey,regionalepi:::.shiny_app_leaflet_geojson(cache$map$browser_geojson,
-        cache$map_bounds,map_join$data,mode,cache$states$browser_geojson,
-        regionalepi:::.shiny_germany_outline_geojson(),
-        palette_variant,palette_alignment,display_metadata),envir=cache)
+      bundle <- get(skey,envir=cache,inherits=FALSE)
+      map_join <- prepared$map_join; display_metadata <- prepared$display_metadata
+      mkey <- prepared$cache_keys$map
       state$result <- list(window=window,demographic=demographic,fit=fit,bundle=bundle,map_join=map_join,
-        map_widget=get(mkey,envir=cache,inherits=FALSE),typology_mode=mode,typology_config=regionalepi:::.shiny_typology_config(mode),
+        map_widget=prepared$map_widget,typology_mode=mode,typology_config=regionalepi:::.shiny_typology_config(mode),
         demographic_years=demographic_years,palette_variant=palette_variant,
         palette_alignment=palette_alignment,display_metadata=display_metadata,
         stability=stability,stability_metadata=stability_metadata,
         reporting_years=sort(unique(bundle$data$reporting_year)),
         analysis_range=request_range,
         loaded_selection=list(typology_mode=mode,
-          demographic_period=if(mode=="dynamic")period_label else NULL,
-          k=if(mode=="dynamic")as.integer(input$k) else NULL,
+          demographic_period=period_label,k=as.integer(input$k),
           demographic_source=source_mode),
         cache_keys=list(demographic=dkey,typology=tkey,surveillance=skey,map=mkey))
       if(is.null(state$selected_geo_id)||!state$selected_geo_id%in%map_join$data$geo_id) state$selected_geo_id<-"11000"
@@ -360,7 +458,7 @@ server <- function(input, output, session) {
   output$load_status <- renderUI({if(state$busy)p("Daten werden geladen …") else if(!is.null(state$error))p(class="status-error",regionalepi:::.shiny_app_display_error(state$error,!is.null(state$result))) else if(is.null(state$result))p("Noch keine Analyse geladen.") else p(class="status-ok","Analyse geladen: ",state$result$fit$provenance$fit_id)})
   loaded_selection_changed <- reactive({
     if(is.null(state$result))return(FALSE)
-    regionalepi:::.shiny_loaded_selection_changed(state$result,input$typology_mode,
+    regionalepi:::.shiny_loaded_selection_changed(state$result,"dynamic",
       input$demographic_period,input$k,input$demographic_source)
   })
   output$analysis_wide_status <- renderUI({
@@ -371,34 +469,150 @@ server <- function(input, output, session) {
       if(regionalepi:::.shiny_loaded_analysis_is_provisional(state$result)) {
         status<-state$result$bundle$diagnostics$status_by_reporting_year
         provisional<-status[status$incidence_status=="provisional",,drop=FALSE]
-        p(class="status-quality",paste(sprintf(
+        p(class="status-info",paste(sprintf(
           "Vorläufig: Für Berichtsjahr %d wird die zuletzt verfügbare amtliche durchschnittliche Jahresbevölkerung %d als Bezugsbevölkerung verwendet.",
           provisional$reporting_year,provisional$population_year),collapse=" "))
       }
     )
   })
-  output$range_status <- renderUI({r<-if(is.null(state$result))regionalepi:::.shiny_effective_analysis_range(analysis_range(),regionalepi:::.shiny_analysis_as_of_date()) else state$result$analysis_range;w<-if(is.null(state$result))selected_window() else state$result$window;early<-regionalepi:::.shiny_early_window_note(w,r);range_display<-if(identical(r$mode,"custom"))tagList(p(class="app-note",regionalepi:::.shiny_iso_week_display(r$start_date)," bis ",regionalepi:::.shiny_iso_week_display(if(!is.null(r$nominal_end_date))r$nominal_end_date else r$end_date)),p(class="app-note",format(r$start_date,"%d.%m.%Y"),"–",format(r$end_date,"%d.%m.%Y")))else p(class="app-note",r$label,": ",format(r$start_date,"%d.%m.%Y"),"–",format(r$end_date,"%d.%m.%Y")," (",r$start_iso," bis ",r$end_iso,")");running_notice<-if(isTRUE(r$is_truncated))if(is.null(early))"Laufender Beobachtungszeitraum: Die Analyse ist auf den aktuellen Analyse-Stichtag begrenzt. Der von SurvStat ausgewiesene Datenstand wird davon getrennt dokumentiert."else paste("Laufender Beobachtungszeitraum: Die Analyse ist auf den aktuellen Analyse-Stichtag begrenzt. Der von SurvStat ausgewiesene Datenstand wird davon getrennt dokumentiert.",early)else NULL;tagList(range_display,if(!is.null(running_notice))p(class="status-quality",running_notice))})
+  output$range_status <- renderUI({r<-if(is.null(state$result))regionalepi:::.shiny_effective_analysis_range(analysis_range(),regionalepi:::.shiny_analysis_as_of_date()) else state$result$analysis_range;range_display<-if(identical(r$mode,"custom"))tagList(p(class="app-note",regionalepi:::.shiny_iso_week_display(r$start_date)," bis ",regionalepi:::.shiny_iso_week_display(if(!is.null(r$nominal_end_date))r$nominal_end_date else r$end_date)),p(class="app-note",format(r$start_date,"%d.%m.%Y"),"–",format(r$end_date,"%d.%m.%Y")))else p(class="app-note",r$label,": ",format(r$start_date,"%d.%m.%Y"),"–",format(r$end_date,"%d.%m.%Y")," (",r$start_iso," bis ",r$end_iso,")");running_notice<-if(isTRUE(r$is_truncated))"Laufender Beobachtungszeitraum: bis zum aktuellen Analyse-Stichtag."else NULL;tagList(range_display,if(!is.null(running_notice))p(class="status-info",running_notice))})
   output$demography_status <- renderUI({req(state$result);p(class="app-note","Demografie: ",regionalepi:::.shiny_demography_status(state$result$demographic))})
-  output$district_map <- leaflet::renderLeaflet({req(state$result);state$result$map_widget})
-  observe({req(state$result,state$selected_geo_id);session$sendCustomMessage("regionalepi-select",state$selected_geo_id)})
+  output$demographic_prepare_status <- renderUI({
+    if(demographic_state$busy)return(p("Typologie wird vorbereitet …"))
+    if(!is.null(demographic_state$error))return(p(class="status-error",demographic_state$error))
+    if(is.null(demographic_state$result))return(p("Typologie wird vorbereitet …"))
+    p(class="status-ok","Typologie bereit: ",
+      paste(range(demographic_state$result$demographic_years),collapse="–"),
+      " · k = ",demographic_state$result$configuration$k)
+  })
+  output$active_demographic_status <- renderUI({
+    req(demographic_state$result)
+    current<-demographic_state$result
+    loaded<-if(is.null(state$result))NULL else state$result$loaded_selection
+    tagList(p(strong(paste0("Demografische Typologie · ",
+      paste(range(current$demographic_years),collapse="–")," · k=",
+      current$configuration$k))),
+      if(!is.null(loaded))p(class="app-note",
+        strong("Für die angezeigte Analyse verwendet: "),
+        paste0("Demografische Typologie · ",loaded$demographic_period,
+          " · k=",loaded$k)))
+  })
+  demographic_palette_colours <- function(ids) {
+    metadata<-demographic_state$result$display_metadata
+    colours<-stats::setNames(metadata$display_colour,metadata$display_cluster_id)
+    colours[metadata$display_cluster_id[metadata$display_cluster_id%in%as.character(ids)]]
+  }
+  demographic_display_data <- function(data,cluster_col="cluster_id")
+    regionalepi:::.shiny_apply_display_metadata(data,
+      demographic_state$result$display_metadata,cluster_col)
+  output$district_map <- leaflet::renderLeaflet({req(demographic_state$result);demographic_state$result$map_widget})
+  observe({req(demographic_state$result,state$selected_geo_id);session$sendCustomMessage("regionalepi-select",state$selected_geo_id)})
   output$map_attribution <- renderUI({p(class="app-note",cache$map$provenance$attribution," · Ländergrenzen: ",cache$states$provenance$source_layer," · ",a(cache$map$provenance$license,href=cache$map$provenance$license_url,target="_blank"))})
 
-  output$analysis_heading <- renderUI({req(state$result);w<-state$result$window;if(state$result$typology_mode=="dissertation")context<-"Historische Referenztypologie (2017–2020) · ClD / ClJ / ClA" else {ids<-state$result$display_metadata$display_cluster_id;context<-paste0("Aktualisierte Typologie (",paste(ids,collapse=" / "),") · Referenzzeitraum ",format(min(state$result$demographic$summary$data$period_start),"%Y"),"–",format(max(state$result$demographic$summary$data$period_end),"%Y")," · k = ",length(ids)," · ",nrow(state$result$map_join$data)," Kreise")};tagList(h3("Demografische Regionaltypologie"),p(class="app-note",context),p(class="app-note","Epidemiologischer Beobachtungszeitraum: ",w$label))})
-  output$period_heading <- renderUI({req(state$result);r<-analysis_range();rp<-reviewed_period();context<-regionalepi:::.shiny_period_context(input$pathogen,r,rp,state$result$typology_mode,state$result$demographic_years,length(unique(state$result$fit$assignments$display_cluster_id)));tagList(h3(context$title),p(class="app-note",context$subtitle),p(class="app-note",context$typology),p(class="app-note",if(state$result$typology_mode=="dissertation")"Historische SurvStat-Inzidenz"else"Inzidenz auf Basis der durchschnittlichen Jahresbevölkerung"),p(class="app-note","Beobachtungskontext: ",state$result$window$label))})
-  output$cluster_summary <- renderTable({req(state$result);x<-state$result$display_metadata;data.frame(Cluster=x$display_cluster_id,`Anzahl Kreise`=x$n_districts,`Demografisches Profil`=x$profile_description,check.names=FALSE)},striped=TRUE,rownames=FALSE)
+  output$analysis_heading <- renderUI({req(demographic_state$result);x<-demographic_state$result;context<-paste0("Demografische Typologie · ",paste(range(x$demographic_years),collapse="–")," · k=",x$configuration$k);tagList(h3(context),p(class="app-note",nrow(x$map_join$data)," Kreise"))})
+  output$period_heading <- renderUI({req(state$result);r<-state$result$analysis_range;context<-regionalepi:::.shiny_period_context(state$result$window$pathogen,r,NULL,state$result$typology_mode,state$result$demographic_years,length(unique(state$result$fit$assignments$display_cluster_id)));tagList(h3(context$title),p(class="app-note",context$subtitle),p(class="app-note",context$typology),p(class="app-note","Inzidenz auf Basis der durchschnittlichen Jahresbevölkerung"),p(class="app-note","Beobachtungskontext: ",state$result$window$label))})
+  output$comparability_note <- renderUI({
+    req(state$result)
+    if(!identical(state$result$demographic_years,2017:2020))return(NULL)
+    p(class="status-info",
+      "Die Kreiszuordnungen entsprechen der ursprünglichen Typologie. Inzidenzwerte können aufgrund aktualisierter SurvStat-Daten und unterschiedlicher Bevölkerungsgrundlagen von früheren Veröffentlichungen abweichen.")
+  })
+  output$cluster_summary <- renderTable({req(demographic_state$result);x<-demographic_state$result$display_metadata;data.frame(Cluster=x$display_cluster_id,`Anzahl Kreise`=x$n_districts,`Demografisches Profil`=x$profile_description,check.names=FALSE)},striped=TRUE,rownames=FALSE)
 
-  output$profile_plot <- plotly::renderPlotly({req(state$result);p<-display_data(state$result$fit$profiles,"display_cluster_id");d<-regionalepi:::.shiny_app_indicator_display();p$label<-d$label[match(p$indicator_id,d$indicator_id)];p$text<-sprintf("Cluster: %s<br>Indikator: %s<br>z: %.2f<br>Mittelwert: %.2f<br>Median: %.2f<br>Kreise: %d",p$display_cluster_id,p$label,p$standardized_center,p$original_mean,p$original_median,p$cluster_size);wide<-stats::xtabs(standardized_center~display_cluster_id+label,p);plotly::layout(plotly::plot_ly(x=colnames(wide),y=rownames(wide),z=wide,type="heatmap",zmid=0,colors=regionalepi:::.shiny_signed_heatmap_colours(),text=matrix(p$text[match(paste(rep(rownames(wide),each=ncol(wide)),rep(colnames(wide),times=nrow(wide))),paste(p$display_cluster_id,p$label))],nrow=nrow(wide),byrow=TRUE),hoverinfo="text"),xaxis=list(title=""),yaxis=list(title="Cluster"))})
-  output$profile_table <- renderTable({req(state$result);p<-display_data(state$result$fit$profiles,"display_cluster_id");p<-p[order(p$display_order),];d<-regionalepi:::.shiny_app_indicator_display();data.frame(Cluster=p$display_cluster_id,N=p$cluster_size,Indikator=d$label[match(p$indicator_id,d$indicator_id)],Einheit=d$unit[match(p$indicator_id,d$indicator_id)],Mittelwert=round(p$original_mean,2),Median=round(p$original_median,2),check.names=FALSE)},striped=TRUE,rownames=FALSE)
-  output$cluster_warning <- renderUI({req(state$result);p(class="app-note",if(state$result$typology_mode=="dissertation")"Etablierte historische Referenzbezeichnungen; keine dynamische Umbenennung."else"Beschreibungen sind reproduzierbare Profiltexte, keine Clusteridentitäten.")})
-  output$stability_summary <- renderTable({req(state$result);x<-state$result$stability$summary;data.frame(`k=3 Referenz`="k=3",Ziel=paste0("k=",x$target_k),`Ähnlichkeit der Partitionen (ARI)`=round(x$ari,3),`Dominante Herkunft (Kreise)`=x$dominant_ancestry_districts,`Größen der Zielcluster`=x$target_cluster_sizes,check.names=FALSE)},striped=TRUE,rownames=FALSE)
-  output$stability_plot <- plotly::renderPlotly({req(state$result,state$result$typology_mode=="dynamic");regionalepi:::.shiny_stability_alluvial_widget(state$result$stability,state$result$stability_metadata)})
-  output$stability_note <- renderUI({req(state$result,state$result$typology_mode=="dynamic");tagList(p(class="app-note","k=3 ist die geprüfte interpretative Referenz, nicht ein statistisch optimales oder korrektes k. k=2, k=4 und k=5 sind unabhängig angepasste Alternativen; die Flussbreite zeigt die Neuordnung anhand der Zahl gemeinsam zugeordneter Kreise."),p(class="app-note",regionalepi:::.shiny_stability_interpretation(state$result$stability)))})
+  output$profile_plot <- plotly::renderPlotly({req(demographic_state$result);p<-demographic_display_data(demographic_state$result$fit$profiles,"display_cluster_id");d<-regionalepi:::.shiny_app_indicator_display();p$label<-d$label[match(p$indicator_id,d$indicator_id)];p$text<-sprintf("Cluster: %s<br>Indikator: %s<br>z: %.2f<br>Mittelwert: %.2f<br>Median: %.2f<br>Kreise: %d",p$display_cluster_id,p$label,p$standardized_center,p$original_mean,p$original_median,p$cluster_size);wide<-stats::xtabs(standardized_center~display_cluster_id+label,p);plotly::layout(plotly::plot_ly(x=colnames(wide),y=rownames(wide),z=wide,type="heatmap",zmid=0,colors=regionalepi:::.shiny_signed_heatmap_colours(),text=matrix(p$text[match(paste(rep(rownames(wide),each=ncol(wide)),rep(colnames(wide),times=nrow(wide))),paste(p$display_cluster_id,p$label))],nrow=nrow(wide),byrow=TRUE),hoverinfo="text"),xaxis=list(title=""),yaxis=list(title="Cluster"))})
+  output$profile_table <- renderTable({req(demographic_state$result);p<-demographic_display_data(demographic_state$result$fit$profiles,"display_cluster_id");p<-p[order(p$display_order),];d<-regionalepi:::.shiny_app_indicator_display();data.frame(Cluster=p$display_cluster_id,N=p$cluster_size,Indikator=d$label[match(p$indicator_id,d$indicator_id)],Einheit=d$unit[match(p$indicator_id,d$indicator_id)],Mittelwert=round(p$original_mean,2),Median=round(p$original_median,2),check.names=FALSE)},striped=TRUE,rownames=FALSE)
+  output$cluster_warning <- renderUI({req(demographic_state$result);p(class="app-note","Beschreibungen sind reproduzierbare Profiltexte, keine Clusteridentitäten.")})
+  output$stability_summary <- renderTable({req(demographic_state$result);x<-demographic_state$result$stability$summary;data.frame(`k=3 Referenz`="k=3",Ziel=paste0("k=",x$target_k),`Ähnlichkeit der Partitionen (ARI)`=round(x$ari,3),`Dominante Herkunft (Kreise)`=x$dominant_ancestry_districts,`Größen der Zielcluster`=x$target_cluster_sizes,check.names=FALSE)},striped=TRUE,rownames=FALSE)
+  output$stability_plot <- plotly::renderPlotly({req(demographic_state$result);regionalepi:::.shiny_stability_alluvial_widget(demographic_state$result$stability,demographic_state$result$stability_metadata)})
+  output$stability_note <- renderUI({req(demographic_state$result);tagList(p(class="app-note","k=3 ist die geprüfte interpretative Referenz, nicht ein statistisch optimales oder korrektes k. k=2, k=4 und k=5 sind unabhängig angepasste Alternativen; die Flussbreite zeigt die Neuordnung anhand der Zahl gemeinsam zugeordneter Kreise."),p(class="app-note",regionalepi:::.shiny_stability_interpretation(demographic_state$result$stability)))})
 
   output$demographic_distribution_plot <- plotly::renderPlotly({
-    req(state$result);x<-merge(state$result$demographic$summary$data,state$result$fit$assignments[c("geo_id","display_cluster_id")],by="geo_id");x<-display_data(x,"display_cluster_id");x$geo_name<-state$result$map_join$data$geo_name[match(x$geo_id,state$result$map_join$data$geo_id)];d<-regionalepi:::.shiny_app_indicator_display();x$indicator_label<-factor(d$label[match(x$indicator_id,d$indicator_id)],levels=d$label);x$unit<-d$unit[match(x$indicator_id,d$indicator_id)];density<-x$indicator_id=="population_density";density_text<-formatC(x$indicator_value,format="f",digits=0,big.mark=".",decimal.mark=",");x$text<-sprintf("%s<br>AGS: %s<br>Cluster: %s<br>%s: %s %s%s",x$geo_name,x$geo_id,x$display_cluster_id,x$indicator_label,ifelse(density,density_text,sprintf("%.2f",x$indicator_value)),x$unit,ifelse(density&identical(input$density_scale,"log10"),"<br>Darstellung: logarithmische Achse",""));cols<-palette_colours(x$display_cluster_id)
+    req(demographic_state$result);x<-merge(demographic_state$result$demographic$summary$data,demographic_state$result$fit$assignments[c("geo_id","display_cluster_id")],by="geo_id");x<-demographic_display_data(x,"display_cluster_id");x$geo_name<-demographic_state$result$map_join$data$geo_name[match(x$geo_id,demographic_state$result$map_join$data$geo_id)];d<-regionalepi:::.shiny_app_indicator_display();x$indicator_label<-factor(d$label[match(x$indicator_id,d$indicator_id)],levels=d$label);x$unit<-d$unit[match(x$indicator_id,d$indicator_id)];density<-x$indicator_id=="population_density";density_text<-formatC(x$indicator_value,format="f",digits=0,big.mark=".",decimal.mark=",");x$text<-sprintf("%s<br>AGS: %s<br>Cluster: %s<br>%s: %s %s%s",x$geo_name,x$geo_id,x$display_cluster_id,x$indicator_label,ifelse(density,density_text,sprintf("%.2f",x$indicator_value)),x$unit,ifelse(density&identical(input$density_scale,"log10"),"<br>Darstellung: logarithmische Achse",""));cols<-demographic_palette_colours(x$display_cluster_id)
     make_plot<-function(z,log_density=FALSE){layers<-regionalepi:::.shiny_adaptive_distribution_layers(z,"display_cluster_id","indicator_value");g<-ggplot2::ggplot(z,ggplot2::aes(display_cluster_id,indicator_value,fill=display_cluster_id,colour=display_cluster_id));if(nrow(layers$violins))g<-g+ggplot2::geom_violin(data=layers$violins,alpha=.2,trim=FALSE,show.legend=FALSE);if(nrow(layers$boxplots))g<-g+ggplot2::geom_boxplot(data=layers$boxplots,width=.15,outlier.shape=NA,alpha=.65,show.legend=FALSE);if(nrow(layers$medians))g<-g+ggplot2::geom_point(data=layers$medians,ggplot2::aes(display_cluster_id,.display_median),inherit.aes=FALSE,shape=23,size=3,fill="white",colour="#4B5563",stroke=.9,show.legend=FALSE);g<-g+suppressWarnings(ggplot2::geom_jitter(data=layers$points,ggplot2::aes(key=geo_id,text=text),width=.09,alpha=.45,size=1,show.legend=FALSE))+ggplot2::scale_colour_manual(values=cols)+ggplot2::scale_fill_manual(values=cols)+ggplot2::labs(x="Cluster",y=as.character(z$indicator_label[[1L]]))+ggplot2::theme_minimal()+ggplot2::theme(legend.position="none");sel<-layers$points[layers$points$geo_id==state$selected_geo_id,,drop=FALSE];if(nrow(sel))g<-g+ggplot2::geom_point(data=sel,shape=21,fill="#FFFFFF",colour="#111111",size=3,stroke=1.1,show.legend=FALSE);if(log_density){if(any(!is.finite(z$indicator_value)|z$indicator_value<=0))stop("Logarithmic population-density display requires positive finite values.",call.=FALSE);g<-g+ggplot2::scale_y_log10(breaks=c(50,100,250,500,1000,2500,5000),labels=c("50","100","250","500","1.000","2.500","5.000"))};g}
     if(!identical(input$density_scale,"log10")){g<-make_plot(x)+ggplot2::facet_wrap(~indicator_label,scales="free_y",ncol=1)+ggplot2::labs(y=NULL)+ggplot2::theme(panel.spacing.y=grid::unit(1.25,"lines"),strip.text=ggplot2::element_text(face="bold",size=11));return(plotly::ggplotly(g,tooltip="text",source="demography"))}
     widgets<-lapply(d$indicator_id,function(id)plotly::ggplotly(make_plot(x[x$indicator_id==id,,drop=FALSE],id=="population_density"),tooltip="text",source="demography"));plotly::subplot(widgets,nrows=3L,shareX=FALSE,shareY=FALSE,titleY=TRUE,margin=.07)
+  })
+
+  transition_result <- reactive({req(demographic_state$transition)
+    demographic_state$transition$result})
+  observe({
+    transition<-transition_result();labels<-regionalepi:::.shiny_transition_profile_labels()
+    changed<-transition$assignments[transition$assignments$changed,,drop=FALSE]
+    categories<-sort(unique(paste(changed$from_profile_class,
+      changed$to_profile_class,sep="_to_")),method="radix")
+    category_labels<-vapply(categories,function(category){
+      bits<-strsplit(category,"_to_",fixed=TRUE)[[1L]]
+      paste(labels[bits],collapse=" → ")
+    },character(1L))
+    choices<-c("Alle Kreise"="all","Nur Wechsel"="changed",
+      "Unverändertes Profil"="unchanged",stats::setNames(categories,category_labels))
+    selected<-isolate(input$transition_filter)
+    if(is.null(selected)||!selected%in%unname(choices))selected<-"all"
+    updateSelectInput(session,"transition_filter",choices=choices,selected=selected)
+  })
+  output$transition_summary <- renderUI({
+    x<-transition_result()$diagnostics
+    fluidRow(column(3,strong(x$compared_districts),br(),"verglichene Kreise"),
+      column(3,strong(x$unchanged_districts),br(),"unverändert"),
+      column(3,strong(x$changed_districts),br(),"gewechselt"),
+      column(3,strong(sprintf("%.2f %%",x$changed_percentage)),br(),
+        "Anteil Wechsel"))
+  })
+  output$transition_matrix <- renderTable({
+    transition<-transition_result();labels<-regionalepi:::.shiny_transition_profile_labels()
+    matrix<-if(identical(input$transition_matrix_mode,"row_percentage"))
+      transition$row_percentage_matrix else transition$count_matrix
+    order<-regionalepi:::.shiny_transition_profile_order()
+    matrix<-matrix[order,order,drop=FALSE]
+    data.frame(`2017–2020`=unname(labels[rownames(matrix)]),
+      stats::setNames(as.data.frame.matrix(unclass(matrix)),
+        paste0("2022–2025: ",unname(labels[colnames(matrix)]))),
+      check.names=FALSE)
+  },striped=TRUE,rownames=FALSE,digits=2)
+  output$transition_sankey <- plotly::renderPlotly({
+    regionalepi:::.shiny_transition_sankey_widget(transition_result())
+  })
+  output$transition_map <- leaflet::renderLeaflet({
+    transition<-transition_result();filter<-input$transition_filter
+    if(is.null(filter)||!nzchar(filter))filter<-"all"
+    key<-paste("transition-map",transition$provenance$comparison_id,filter,sep=":")
+    if(!exists(key,envir=cache,inherits=FALSE))assign(key,
+      regionalepi:::.shiny_transition_map_widget(transition,cache$map,
+        cache$map_bounds,cache$states,
+        regionalepi:::.shiny_germany_outline_geojson(),filter),envir=cache)
+    get(key,envir=cache,inherits=FALSE)
+  })
+  output$transition_map_attribution <- renderUI({p(class="app-note",
+    cache$map$provenance$attribution," · Ländergrenzen: ",
+    cache$states$provenance$source_layer," · ",
+    a(cache$map$provenance$license,href=cache$map$provenance$license_url,
+      target="_blank"))})
+  output$transition_district_detail <- renderUI({
+    transition<-transition_result();req(state$selected_geo_id)
+    id<-state$selected_geo_id
+    assignment<-transition$assignments[transition$assignments$geo_id==id,
+      ,drop=FALSE]
+    req(nrow(assignment)==1L)
+    values<-transition$indicator_changes[
+      transition$indicator_changes$geo_id==id,,drop=FALSE]
+    display<-regionalepi:::.shiny_app_indicator_display()
+    labels<-regionalepi:::.shiny_transition_profile_labels()
+    geo_name<-cache$map$features$geo_name[
+      match(id,cache$map$features$geo_id)]
+    indicator_rows<-lapply(seq_len(nrow(values)),function(i){
+      label<-display$label[match(values$indicator_id[[i]],display$indicator_id)]
+      unit<-display$unit[match(values$indicator_id[[i]],display$indicator_id)]
+      p(strong(label,": "),sprintf("%.2f → %.2f %s (Δ %+.2f)",
+        values$from_value[[i]],values$to_value[[i]],unit,
+        values$absolute_change[[i]]))
+    })
+    tagList(h4(geo_name),p(strong("AGS: "),id),
+      p(strong("2017–2020: "),labels[[assignment$from_profile_class]],
+        " (",assignment$from_dynamic_cluster_id,")"),
+      p(strong("2022–2025: "),labels[[assignment$to_profile_class]],
+        " (",assignment$to_dynamic_cluster_id,")"),
+      p(strong("Zuordnung: "),if(assignment$changed)"gewechselt"else"unverändert"),
+      indicator_rows)
   })
 
   output$incidence_plot <- plotly::renderPlotly({
@@ -412,8 +626,67 @@ server <- function(input, output, session) {
     plotly::layout(widget,xaxis=list(rangeslider=list(visible=TRUE),autorange=TRUE))
   })
   output$incidence_warning <- renderUI({x<-exploration()$weekly;bad<-x$expected_districts>0&x$observed_districts/x$expected_districts<.8;p(class=if(any(bad))"status-quality"else"app-note",if(any(bad))paste0("Datenvollständigkeit: In ",sum(bad)," Wochen-Cluster-Kombinationen liegen für weniger als 80 % der Kreise beobachtete Werte vor. Fehlende Werte bleiben NA.")else"Fehlende Inzidenzen bleiben NA; Median und empirischer IQR verwenden beobachtete Kreise.")})
-  output$incidence_early_window_note <- renderUI({req(state$result);early<-regionalepi:::.shiny_early_window_note(state$result$window,state$result$analysis_range);if(is.null(early))NULL else p(class="status-quality",paste("Früher Beobachtungsstand:",early))})
+  output$incidence_early_window_note <- renderUI({req(state$result);early<-regionalepi:::.shiny_early_window_note(state$result$window,state$result$analysis_range);if(is.null(early))NULL else p(class="status-info",paste("Früher Beobachtungsstand:",early))})
   output$period_distribution_plot <- plotly::renderPlotly({x<-display_data(exploration()$district_period);x$text<-sprintf("%s<br>AGS: %s<br>Cluster: %s<br>Median: %s<br>Gemeldete Fälle in beobachteten Wochen: %s<br>Daten vorhanden: %d von %d Wochen%s",x$geo_name,x$geo_id,x$cluster_id,round(x$median_period_incidence,2),ifelse(is.na(x$cumulative_observed_cases),"fehlend",x$cumulative_observed_cases),x$observed_case_week_count,x$expected_week_count,ifelse(x$missing_case_week_count>0,paste0("<br>Fehlende Wochen: ",x$missing_case_week_count),""));cols<-palette_colours(x$cluster_id);layers<-regionalepi:::.shiny_adaptive_distribution_layers(x,"cluster_id","median_period_incidence");g<-ggplot2::ggplot(x,ggplot2::aes(cluster_id,median_period_incidence,fill=cluster_id,colour=cluster_id));if(nrow(layers$violins))g<-g+ggplot2::geom_violin(data=layers$violins,alpha=.2,trim=FALSE,na.rm=TRUE,show.legend=FALSE);if(nrow(layers$boxplots))g<-g+ggplot2::geom_boxplot(data=layers$boxplots,width=.15,outlier.shape=NA,alpha=.65,na.rm=TRUE,show.legend=FALSE);if(nrow(layers$medians))g<-g+ggplot2::geom_point(data=layers$medians,ggplot2::aes(cluster_id,.display_median),inherit.aes=FALSE,shape=23,size=3,fill="white",colour="#4B5563",stroke=.9,show.legend=FALSE);g<-g+suppressWarnings(ggplot2::geom_jitter(data=layers$points,ggplot2::aes(key=geo_id,text=text),width=.09,alpha=.5,size=1,na.rm=TRUE,show.legend=FALSE))+ggplot2::scale_colour_manual(values=cols)+ggplot2::scale_fill_manual(values=cols)+ggplot2::labs(x="Cluster",y="Median der wöchentlichen Kreisinzidenz")+ggplot2::theme_minimal()+ggplot2::theme(legend.position="none");sel<-layers$points[layers$points$geo_id==state$selected_geo_id,,drop=FALSE];if(nrow(sel))g<-g+ggplot2::geom_point(data=sel,shape=21,fill="#FFFFFF",colour="#111111",size=3,stroke=1.1,show.legend=FALSE);plotly::ggplotly(g,tooltip="text",source="period")})
+  output$distribution_week_control <- renderUI({
+    dates<-exploration()$expected_dates
+    choices<-stats::setNames(as.character(dates),
+      vapply(dates,regionalepi:::.shiny_iso_week_display,character(1L)))
+    selected<-as.character(max(dates))
+    current<-isolate(input$distribution_week)
+    if(length(current)==1L&&!is.na(current)&&current%in%unname(choices))
+      selected<-current
+    selectInput("distribution_week","ISO-Kalenderwoche",choices,
+      selected=selected)
+  })
+  weekly_distribution <- reactive({
+    req(state$result,input$distribution_week)
+    regionalepi:::.shiny_week_distribution(exploration()$data,
+      as.Date(input$distribution_week),
+      state$result$display_metadata$display_cluster_id)
+  })
+  output$weekly_distribution_status <- renderUI({
+    x<-weekly_distribution();s<-x$support
+    p(class=if(any(s$missing_districts>0L))"status-quality"else"app-note",
+      paste(sprintf("%s: n=%d beobachtet, %d fehlend, %d Nullwerte",
+        s$cluster_id,s$observed_districts,s$missing_districts,
+        s$zero_districts),collapse=" · "))
+  })
+  output$weekly_distribution_plot <- plotly::renderPlotly({
+    selected<-weekly_distribution();x<-display_data(selected$data)
+    x$text<-sprintf("%s<br>AGS: %s<br>%s<br>Cluster: %s<br>Inzidenz: %s<br>Gemeldete Fälle: %s",
+      x$geo_name,x$geo_id,regionalepi:::.iso_week_label(x$date),x$cluster_id,
+      ifelse(is.na(x$incidence),"fehlend",sprintf("%.4f",x$incidence)),
+      ifelse(is.na(x$cases),"fehlend",format(x$cases,scientific=FALSE,
+        trim=TRUE)))
+    cols<-palette_colours(x$cluster_id)
+    layers<-regionalepi:::.shiny_adaptive_distribution_layers(
+      x,"cluster_display","incidence")
+    g<-ggplot2::ggplot(x,ggplot2::aes(cluster_display,incidence,
+      fill=cluster_id,colour=cluster_id))
+    if(nrow(layers$violins))g<-g+ggplot2::geom_violin(
+      data=layers$violins,alpha=.2,trim=FALSE,na.rm=TRUE,show.legend=FALSE)
+    if(nrow(layers$boxplots))g<-g+ggplot2::geom_boxplot(
+      data=layers$boxplots,width=.15,outlier.shape=NA,alpha=.65,
+      na.rm=TRUE,show.legend=FALSE)
+    if(nrow(layers$medians))g<-g+ggplot2::geom_point(
+      data=layers$medians,ggplot2::aes(cluster_display,.display_median),
+      inherit.aes=FALSE,shape=23,size=3,fill="white",colour="#4B5563",
+      stroke=.9,show.legend=FALSE)
+    g<-g+suppressWarnings(ggplot2::geom_jitter(data=layers$points,
+      ggplot2::aes(key=geo_id,text=text),width=.09,alpha=.5,size=1,
+      na.rm=TRUE,show.legend=FALSE))+ggplot2::scale_colour_manual(values=cols)+
+      ggplot2::scale_fill_manual(values=cols)+
+      ggplot2::labs(x="Demografischer Regionaltyp",
+        y="Kreisinzidenz je 100.000",
+        title=regionalepi:::.shiny_iso_week_display(selected$date))+
+      ggplot2::theme_minimal()+ggplot2::theme(legend.position="none")
+    sel<-layers$points[layers$points$geo_id==state$selected_geo_id,,drop=FALSE]
+    if(nrow(sel))g<-g+ggplot2::geom_point(data=sel,
+      ggplot2::aes(cluster_display,incidence),inherit.aes=FALSE,shape=21,
+      fill="#FFFFFF",colour="#111111",size=3,stroke=1.1,show.legend=FALSE)
+    plotly::ggplotly(g,tooltip="text",source="period")
+  })
   heat <- function(x,y,z,text,source,zmid=0,colors=regionalepi:::.shiny_signed_heatmap_colours(),customdata=NULL,xgap=0){rp<-reviewed_period();shapes<-list();if(!is.null(rp)&&nrow(rp))shapes<-lapply(c(rp$start_date,rp$end_date),function(day)list(type="line",xref="x",yref="paper",x0=format(day),x1=format(day),y0=0,y1=1,line=list(color="#4B5563",width=1,dash="dot")));plotly::layout(plotly::plot_ly(x=x,y=y,z=z,type="heatmap",zmid=zmid,colors=colors,text=text,hoverinfo="text",customdata=customdata,source=source,connectgaps=FALSE,xgap=xgap,ygap=1),xaxis=list(title="",rangeslider=list(visible=TRUE)),yaxis=list(title=""),shapes=shapes,plot_bgcolor="#D1D5DB")}
   output$relative_heatmap <- plotly::renderPlotly({w<-display_data(exploration()$weekly);w$hover<-sprintf("Cluster: %s<br>%s<br>Cluster-Median: %.2f<br>Median aller Kreise: %.2f<br>Differenz: %.2f<br>Kreise: %d/%d<br>Gemeldete Fälle in beobachteten Kreisen: %s",w$cluster_id,regionalepi:::.iso_week_label(w$date),w$median_incidence,w$all_district_median,w$relative_activity,w$observed_districts,w$expected_districts,ifelse(is.na(w$reported_cases_observed),"fehlend",w$reported_cases_observed));g<-regionalepi:::.shiny_heatmap_grid(w,"cluster_id","date","relative_activity","hover");heat(g$columns,g$rows,g$z,g$text,"relative",xgap=regionalepi:::.shiny_weekly_heatmap_xgap(length(g$columns)))})
   output$pairwise_heatmap <- plotly::renderPlotly({req(state$result);metadata<-state$result$display_metadata;req(nrow(metadata),length(metadata$display_cluster_id)>=2L);regionalepi:::.shiny_pairwise_heatmap_widget(exploration()$pairwise,metadata,reviewed_period())})
@@ -520,71 +793,119 @@ server <- function(input, output, session) {
     layers<-regionalepi:::.shiny_adaptive_distribution_layers(x,"cluster_id","period_median_incidence");cols<-palette_colours(x$cluster_id);g<-ggplot2::ggplot(x,ggplot2::aes(cluster_id,period_median_incidence,colour=cluster_id,fill=cluster_id));if(nrow(layers$violins))g<-g+ggplot2::geom_violin(data=layers$violins,width=.85,alpha=.2,trim=FALSE,na.rm=TRUE,show.legend=FALSE);if(nrow(layers$boxplots))g<-g+ggplot2::geom_boxplot(data=layers$boxplots,width=.18,outlier.shape=NA,alpha=.35,na.rm=TRUE,show.legend=FALSE);if(nrow(layers$medians))g<-g+ggplot2::geom_point(data=layers$medians,ggplot2::aes(cluster_id,.display_median),inherit.aes=FALSE,shape=23,size=3,fill="white",colour="#4B5563",stroke=.9,show.legend=FALSE);g<-g+suppressWarnings(ggplot2::geom_jitter(data=layers$points,ggplot2::aes(key=geo_id,text=text),width=.09,alpha=.7,size=1.7,na.rm=TRUE,show.legend=FALSE))+ggplot2::scale_colour_manual(values=cols)+ggplot2::scale_fill_manual(values=cols)+ggplot2::labs(x="Demografischer Regionaltyp",y="Median der wöchentlichen Kreisinzidenzen")+ggplot2::theme_minimal()+ggplot2::theme(legend.position="none");plotly::ggplotly(g,tooltip="text")
   })
 
-  output$district_detail <- renderUI({req(state$result,state$selected_geo_id);id<-state$selected_geo_id;a<-state$result$map_join$data[state$result$map_join$data$geo_id==id,,drop=FALSE];p<-exploration()$district_period;v<-p[p$geo_id==id,,drop=FALSE];weekly<-exploration()$data;point<-weekly[weekly$geo_id==id&weekly$date==state$selected_date,,drop=FALSE];tagList(h4(a$geo_name),p(a$state_name),p(strong("AGS: "),id),p(strong("Cluster: "),a$display_cluster_id),if(nrow(point))tagList(p(strong(regionalepi:::.iso_week_label(point$date))),p("Inzidenz: ",regionalepi:::.shiny_format_number(point$incidence,1L)," je 100.000"),p("Gemeldete Fälle: ",regionalepi:::.shiny_format_number(point$cases))),if(nrow(v))tagList(p(strong("Median der wöchentlichen Inzidenz: "),regionalepi:::.shiny_format_number(v$median_period_incidence,2L)),p(strong(if(v$missing_case_week_count>0)"Gemeldete Fälle in beobachteten Wochen: "else"Gemeldete Fälle im Analysezeitraum: "),regionalepi:::.shiny_format_number(v$cumulative_observed_cases)),p("Daten vorhanden: ",v$observed_case_week_count," von ",v$expected_week_count," Wochen"),if(v$missing_case_week_count>0)p("Fehlende Wochen: ",v$missing_case_week_count)))})
-  output$methods_methodology <- renderUI({tagList(
-    div(class="panel-card method-grid",h3("Demografische Typologie"),
-      p("Die Typologie basiert auf Bevölkerungsdichte, Durchschnittsalter und Jugendquotient. Die drei Indikatoren werden über alle einbezogenen Kreise Deutschlands z-standardisiert. Auf dieser Grundlage werden mit k-Means demografische Regionaltypen für die gewählte Clusterzahl ermittelt. Die methodische Konzeption basiert auf der demografischen Regionaltypologie von ",a("Dettmann (2026)",href="https://doi.org/10.17169/refubium-51449",target="_blank",rel="noopener noreferrer"),"."),
-      p(strong("Historische Referenztypologie (2017–2020)")),
-      p("Die historische Referenztypologie reproduziert die für 2017–2020 festgelegte Drei-Cluster-Lösung nach ",a("Dettmann (2026)",href="https://doi.org/10.17169/refubium-51449",target="_blank",rel="noopener noreferrer"),". Indikatoren, Clusterzahl und Berechnungsverfahren sind für diese Reproduktion fest vorgegeben."),
-      p(class="app-note","Die Typologie wird für alle Kreise Deutschlands bestimmt; eine spätere Auswahl einzelner Regionen dient ausschließlich der Darstellung und verändert die Clusterzuordnung nicht.")),
-    div(class="panel-card method-grid",h3("Infektionsgeschehen"),
-      p("Die epidemiologische Beobachtungseinheit ist der Kreis. Für aktuelle Analysen wird die wöchentliche Inzidenz aus den über SurvStat bezogenen Fallzahlen und der amtlichen durchschnittlichen Jahresbevölkerung des jeweiligen Berichtsjahres berechnet. Für die historische Referenzanalyse wird dagegen die von SurvStat bereitgestellte historische Inzidenz verwendet."),
-      p(class="app-note","Leere Zellen in den geprüften vollständigen SurvStat-Fallzahlexporten werden als null gemeldete Fälle interpretiert, sofern die vollständige Quellmatrix mit den ausgewiesenen Summen übereinstimmt. Tatsächlich fehlende Beobachtungen bleiben NA."),
-      h4("Vordefinierte epidemiologische Zeiträume"),
-      p("Für Influenza können die von der RKI-Arbeitsgemeinschaft Influenza (AGI) definierten Influenzawellen ausgewählt werden. Für COVID-19 sind die retrospektive Phaseneinteilung der Pandemie sowie definierte COVID-19-Wellen des RKI hinterlegt. Die Auswahl wird nur angezeigt, wenn für den gewählten Beobachtungszeitraum ein entsprechender Zeitraum verfügbar ist."),
-      p(class="app-note","Quellen: AGI-Saison- und Wochenberichte für die Influenzawellen; RKI, ",a("Epidemiologisches Bulletin 38/2022",href="https://edoc.rki.de/bitstream/handle/176904/10260/EB-38-2022-Phaseneinteilung.pdf?sequence=1",target="_blank",rel="noopener noreferrer")," für die retrospektive Phaseneinteilung der COVID-19-Pandemie; RKI, Epidemiologisches Bulletin 35/2025 für die COVID-19-Wellen 2023/24 und 2024/25."),
-      p("Vergleiche zwischen demografischen Regionaltypen basieren auf dem Median der Kreisinzidenzen. Interquartilsabstände beschreiben die empirische Verteilung der Kreise und sind keine Konfidenzintervalle. Die bundesweite relative Aktivität zeigt die Abweichung des wöchentlichen Cluster-Medians vom Median aller beobachteten Kreise Deutschlands. Paarweise Vergleiche zeigen die Differenz zwischen zwei Cluster-Medianen. Kreisbezogene Zusammenfassungen verwenden den Median der beobachteten Wocheninzidenzen im gewählten Analysezeitraum.")),
-    div(class="panel-card method-grid",h3("Regionale Analyse"),
-      p("Die regionalen Ansichten ermöglichen deskriptive Vergleiche für vier Großregionen nach der Einteilung der RKI-Arbeitsgemeinschaft Influenza (AGI), zwölf Ländergruppen und die 16 Bundesländer. Die demografischen Regionaltypen werden weiterhin bundesweit bestimmt; die regionale Auswahl beschränkt lediglich die dargestellten Kreise."),
-      p("Die relative Aktivität innerhalb einer Region beschreibt die Abweichung des wöchentlichen Cluster-Medians vom Median aller beobachteten Kreise dieser Region. Positive Werte kennzeichnen eine höhere, negative Werte eine niedrigere mediane Inzidenz. Die dargestellten regionalen Bezugswerte sind aus Kreisdaten berechnete Mediane und keine amtlichen regionalen Inzidenzen.")),
-    div(class="panel-card method-grid",h3("Interpretationsgrenzen"),
-      p("Die Anwendung unterstützt die deskriptive Exploration zeitlicher, räumlicher und typologiespezifischer Unterschiede im regionalen Infektionsgeschehen. Sie ermöglicht Vergleiche zwischen demografischen Regionaltypen, Kreisen, Zeiträumen und Regionen."),
-      p("Die dargestellten Zusammenhänge sind deskriptiv. Sie erlauben keine kausalen Aussagen über demografische oder regionale Einflüsse und liefern keine inferenzstatistischen Signifikanztests.")))})
+  output$demographic_district_detail <- renderUI({
+    req(demographic_state$result,state$selected_geo_id)
+    id<-state$selected_geo_id
+    a<-demographic_state$result$map_join$data[
+      demographic_state$result$map_join$data$geo_id==id,,drop=FALSE]
+    values<-demographic_state$result$demographic$summary$data
+    values<-values[values$geo_id==id,,drop=FALSE]
+    display<-regionalepi:::.shiny_app_indicator_display()
+    tagList(h4(a$geo_name),p(a$state_name),p(strong("AGS: "),id),
+      p(strong("Demografischer Regionaltyp: "),a$display_cluster_id),
+      lapply(seq_len(nrow(values)),function(i)
+        p(strong(display$label[match(values$indicator_id[[i]],display$indicator_id)],": "),
+          regionalepi:::.shiny_format_number(values$indicator_value[[i]],2L)," ",
+          display$unit[match(values$indicator_id[[i]],display$indicator_id)])))
+  })
+  export_token <- function(x) {
+    x<-tolower(iconv(as.character(x),to="ASCII//TRANSLIT"));x<-gsub("[^a-z0-9]+","-",x);gsub("(^-|-$)","",x)
+  }
+  typology_export_tables <- reactive({req(demographic_state$result);regionalepi:::.typology_export_tables(demographic_state$result,cache$map$provenance)})
+  transition_export_tables <- reactive({req(demographic_state$transition);regionalepi:::.transition_export_tables(demographic_state$transition$result,cache$map,demographic_state$transition$to_demographic$snapshot_provenance$snapshot_id)})
+  analysis_export_tables <- reactive({req(state$result);regional<-NULL
+    if(!is.null(input$regional_focal)&&nzchar(input$regional_focal))
+      regional<-regional_cluster_weekly()
+    regionalepi:::.epidemiology_export_tables(state$result,exploration(),
+      regional,FALSE,cache$map$provenance$source_vintage)})
+  output$typology_xlsx <- downloadHandler(filename=function(){x<-demographic_state$result;paste0("regionalepi_typology_",paste(range(x$demographic_years),collapse="-"),"_k",x$configuration$k,".xlsx")},content=function(file)regionalepi:::.write_scientific_workbook(typology_export_tables(),file))
+  output$typology_csv <- downloadHandler(filename=function(){x<-demographic_state$result;paste0("regionalepi_typology_",paste(range(x$demographic_years),collapse="-"),"_k",x$configuration$k,"_districts.csv")},content=function(file)regionalepi:::.write_scientific_csv(typology_export_tables()$Kreiszuordnungen,file))
+  output$typology_png <- downloadHandler(filename=function(){"regionalepi_typology_cluster_profiles.png"},content=function(file)regionalepi:::.write_scientific_png(regionalepi:::.scientific_export_plot("profiles",demographic_state$result$fit$profiles),file))
+  output$transition_xlsx <- downloadHandler(filename=function(){"regionalepi_typology_transitions_2017-2025.xlsx"},content=function(file)regionalepi:::.write_scientific_workbook(transition_export_tables(),file))
+  output$transition_csv <- downloadHandler(filename=function(){"regionalepi_typology_transitions_2017-2025.csv"},content=function(file)regionalepi:::.write_scientific_csv(transition_export_tables()$Clusterwechsler,file))
+  output$transition_png <- downloadHandler(filename=function(){"regionalepi_typology_transition_matrix_2017-2025.png"},content=function(file)regionalepi:::.write_scientific_png(regionalepi:::.scientific_export_plot("transition",demographic_state$transition$result$count_matrix),file,8,6))
+  output$analysis_xlsx <- downloadHandler(filename=function(){x<-state$result;paste0("regionalepi_",export_token(x$window$pathogen),"_",export_token(x$window$label),"_",export_token(x$loaded_selection$demographic_period),"_k",x$loaded_selection$k,".xlsx")},content=function(file)regionalepi:::.write_scientific_workbook(analysis_export_tables(),file))
+  output$analysis_weekly_csv <- downloadHandler(filename=function(){"regionalepi_weekly_cluster_incidence.csv"},content=function(file)regionalepi:::.write_scientific_csv(analysis_export_tables()[["W\u00f6chentliche Clusterinzidenz"]],file))
+  output$analysis_district_csv <- downloadHandler(filename=function(){"regionalepi_district_period_results.csv"},content=function(file)regionalepi:::.write_scientific_csv(analysis_export_tables()[["Kreisbezogene Ergebnisse"]],file))
+  output$analysis_weekly_png <- downloadHandler(filename=function(){"regionalepi_weekly_cluster_incidence.png"},content=function(file)regionalepi:::.write_scientific_png(regionalepi:::.scientific_export_plot("weekly",exploration()$weekly,state$result$display_metadata),file))
+  output$analysis_district_png <- downloadHandler(filename=function(){"regionalepi_district_incidence_distribution.png"},content=function(file)regionalepi:::.write_scientific_png(regionalepi:::.scientific_export_plot("district",exploration()$district_period,state$result$display_metadata),file))
+  output$analysis_week_distribution_png <- downloadHandler(
+    filename=function(){paste0("regionalepi_district_incidence_",
+      gsub("-","_",regionalepi:::.iso_week_label(weekly_distribution()$date)),
+      ".png")},
+    content=function(file)regionalepi:::.write_scientific_png(
+      regionalepi:::.scientific_export_plot("weekly_district",
+        weekly_distribution()$data,state$result$display_metadata),file))
+  output$regional_csv <- downloadHandler(filename=function(){"regionalepi_selected_regional_results.csv"},content=function(file)regionalepi:::.write_scientific_csv(regional_cluster_weekly(),file))
+  output$regional_png <- downloadHandler(filename=function(){"regionalepi_selected_regional_time_series.png"},content=function(file)regionalepi:::.write_scientific_png(regionalepi:::.scientific_export_plot("weekly",regional_cluster_weekly(),state$result$display_metadata),file))
 
-  output$methods_sources <- renderUI({tagList(
-    div(class="panel-card method-grid",h3("Regionaldatenbank Deutschland"),
-      p("Der geprüfte Snapshot enthält die demografischen Daten für die Typologie sowie die amtliche durchschnittliche Jahresbevölkerung für die Inzidenzberechnung. Der optionale Live-Modus ruft diese Daten neu aus der Regionaldatenbank Deutschland der Statistischen Ämter des Bundes und der Länder ab."),
-      h4("Optionaler Live-Abruf"),
-      p("Für den Live-Abruf müssen REGIONALSTATISTIK_USER und REGIONALSTATISTIK_PASSWORD als Umgebungsvariablen hinterlegt sein. Lokal kann dafür beispielsweise .Renviron verwendet werden; auf einer Deployment-Plattform der jeweilige Secret-Mechanismus. Zugangsdaten dürfen nicht im Quellcode oder Repository gespeichert werden."),
-      pre(class="credential-example","REGIONALSTATISTIK_USER=...\nREGIONALSTATISTIK_PASSWORD=..."),
-      p("Daten der Statistischen Ämter des Bundes und der Länder; ",a("Datenlizenz Deutschland – Namensnennung – Version 2.0",href="https://www.govdata.de/dl-de/by-2-0",target="_blank",rel="noopener noreferrer"),".")),
-    div(class="panel-card method-grid",h3("SurvStat@RKI"),
-      p("SurvStat@RKI liefert die wöchentlichen gemeldeten Fallzahlen sowie die für die historische Referenzanalyse verwendeten Kreisinzidenzen. Die App bestimmt den passenden Erreger-Eintrag anhand der SurvStat-Metadaten und verwendet die hinterlegten geografischen Zuordnungen."),p("Daten des Robert Koch-Instituts; es gelten die Nutzungs- und Quellenbedingungen des RKI.")),
-    div(class="panel-card method-grid",h3("BKG / geografische Ressourcen"),
-      p("Die verwendeten Kreisidentitäten, Kartengeometrien und Ländergrenzen beziehen sich auf den geografischen Referenzstand ",format(cache$map$provenance$source_vintage,"%d.%m.%Y"),"."),
-      p(cache$map$provenance$attribution),p(a(cache$map$provenance$license,href=cache$map$provenance$license_url,target="_blank")),p("Die BKG-Ressourcen behalten ihre jeweiligen Quellen- und Lizenzbedingungen. Ausführliche Angaben zu Quellen, Lizenzen und Datenständen stehen in NOTICE und der Paketdokumentation.")))})
-
-  output$methods_status <- renderUI({
-    if(is.null(state$result))return(div(class="info-state","Analyse laden, um den aktuellen Datenstand und die verwendeten Definitionen anzuzeigen."))
-    b<-state$result$bundle;r<-state$result$analysis_range;incidence_queries<-if("source_incidence"%in%names(b$provenance))b$provenance$source_incidence else b$provenance$incidence;status<-unique(c(regionalepi:::.shiny_app_query_status(incidence_queries),regionalepi:::.shiny_app_query_status(b$provenance$counts)));derived<-state$result$typology_mode!="dissertation";status_by_year<-b$diagnostics$status_by_reporting_year
-    tagList(div(class="panel-card method-grid",h3("Aktuelle Analyse"),
-      p(strong("Erreger: "),input$pathogen),p(strong("Beobachtungszeitraum: "),state$result$window$label),
-      p(strong("Analysezeitraum: "),format(r$start_date)," bis ",format(r$end_date)),
-      if(isTRUE(r$is_truncated))p(strong("Analyse-Stichtag: "),format(r$analysis_as_of_date)," (unabhängig vom SurvStat-Datenstatus)"),
-      p(strong("Demografischer Referenzzeitraum: "),paste(range(state$result$demographic_years),collapse="–")),
-      p(strong("Typologie: "),if(state$result$typology_mode=="dissertation")"Historische Referenztypologie (2017–2020)"else"Aktualisierte demografische Typologie"),
-      if(state$result$typology_mode=="dynamic")p(strong("Clusterzahl: "),length(unique(state$result$fit$assignments$display_cluster_id))),
-      p(strong("Inzidenzdefinition: "),if(derived)"Inzidenz auf Basis der durchschnittlichen Jahresbevölkerung"else"Historische SurvStat-Inzidenz"),
-      if(derived)p(strong("Definition: "),"annual_average_population_v1; Multiplikator 100000"),
-      if(derived)p(strong("Quelle des Bevölkerungsnenners: "),if(identical(b$diagnostics$population_source_mode,"snapshot"))"Geprüfter Snapshot"else"Live-Abruf Regionaldatenbank"),
-      if(derived)p(strong("Status und Bezugsjahre: "),paste(paste0(status_by_year$reporting_year," = ",ifelse(status_by_year$incidence_status=="provisional","vorläufig",status_by_year$incidence_status)," (Bevölkerung ",status_by_year$population_year,")"),collapse=", ")),
-      if(derived)p(strong("Bevölkerungs-Datenstatus: "),paste(vapply(b$provenance$population,function(x)as.character(x$data_status),character(1L)),collapse=", ")),
-      p(strong("Geografischer Referenzstand: "),format(cache$map$provenance$source_vintage)),
-      p(strong("SurvStat-Datenstatus: "),paste(status,collapse=", "))))})
-
-  output$methods_reproducibility <- renderUI({
-    if(is.null(state$result))return(div(class="info-state","Analyse laden, um die technischen Reproduzierbarkeitsangaben anzuzeigen."))
-    provenance<-state$result$fit$provenance;source_versions<-if("source_version"%in%names(state$result$bundle$data))unique(as.character(state$result$bundle$data$source_version))else character();source_versions<-source_versions[!is.na(source_versions)];if(!length(source_versions))source_versions<-"nicht verfügbar"
-    tagList(div(class="panel-card method-grid",h3("Technische Provenienz"),
-      p(strong("Paketversion: "),as.character(utils::packageVersion("regionalepi"))),
-      p(strong("Typologie-Indikatorsatz: "),provenance$indicator_set_id," (",provenance$indicator_set_version,")"),
-      p(strong("Fitting-Spezifikation: "),provenance$fitting_specification_id," (",provenance$fitting_specification_version,")"),
-      p(strong("Fit-ID: "),provenance$fit_id),
-      p(strong("Beobachtungsfenster-Definition: "),state$result$window$definition_version),
-      p(strong("Kartenressource: "),cache$map$provenance$resource_version),
-      p(strong("SurvStat-Quellversion: "),paste(source_versions,collapse=", ")),
-      p(strong("Primäre Inzidenz: "),if(state$result$typology_mode=="dissertation")"historische SurvStat-Inzidenz"else"incidence_annual_average (annual_average_population_v1)"),
-      if(state$result$typology_mode!="dissertation")p(strong("Nenner: "),"Regionaldatenbank Deutschland, Tabelle 12411-05-01-4; Berichts-/Bevölkerungsjahr und finaler/vorläufiger Status siehe Datenstand und Definitionen."),
-      p(strong("Sitzungscache: "),length(ls(cache,all.names=TRUE))," Einträge; ",state$retrieval_count," Surveillance-Abruf(e) in dieser Sitzung."),
-      p(strong("Methodische Referenz: "),a("Dettmann (2026)",href="https://doi.org/10.17169/refubium-51449",target="_blank",rel="noopener noreferrer"))))})
+  output$methods_page <- renderUI({
+    loaded<-state$result
+    current<-demographic_state$result
+    technical_base<-tagList(
+      p(strong("Paketversion: "),
+        as.character(utils::packageVersion("regionalepi"))),
+      if(!is.null(current))p(strong("Snapshot-ID: "),
+        current$demographic$snapshot_provenance$snapshot_id),
+      if(!is.null(current))p(strong("Fit-ID: "),current$fit$provenance$fit_id),
+      p(strong("Geografischer Referenzstand: "),
+        format(cache$map$provenance$source_vintage)))
+    technical<-if(is.null(loaded)) tagList(technical_base,
+      p(class="app-note",
+        "Analyse laden, um Beobachtungsfenster, Inzidenzdefinition und Quellstatus anzuzeigen.")
+    ) else {
+      b<-loaded$bundle
+      queries<-if("source_incidence"%in%names(b$provenance))
+        b$provenance$source_incidence else b$provenance$incidence
+      status<-unique(c(regionalepi:::.shiny_app_query_status(queries),
+        regionalepi:::.shiny_app_query_status(b$provenance$counts)))
+      tagList(technical_base,
+        p(strong("Inzidenzdefinition: "),
+          "incidence_annual_average (annual_average_population_v1)"),
+        p(strong("Beobachtungsfenster-Definition: "),
+          loaded$window$definition_version),
+        p(strong("SurvStat-Datenstatus: "),paste(status,collapse=", ")))
+    }
+    tagList(
+      div(class="panel-card method-grid",
+        h3("Wissenschaftlicher Ansatz"),
+        p("regionalepi verknüpft bundesweit bestimmte demografische Regionaltypen mit deskriptiven Analysen der wöchentlichen Kreisinzidenz. Bevölkerungsdichte, Durchschnittsalter und Jugendquotient werden für die dynamische Typologie bundesweit standardisiert und mit der dokumentierten k-Means-Spezifikation ausgewertet."),
+        p("Die methodische Konzeption basiert auf der demografischen Regionaltypologie von ",
+          a("Dettmann (2026)",
+            href="https://doi.org/10.17169/refubium-51449",
+            target="_blank",rel="noopener noreferrer"),
+          ". Die dynamischen Typologien für 2017–2020 und 2022–2025 werden unabhängig angepasst; fit-lokale Cluster-IDs werden anhand eindeutiger demografischer Profile ausgerichtet. Regionale Auswahlen verändern weder die nationale Standardisierung noch die bundesweit bestimmte Clusterzuordnung."),
+        p(class="app-note",
+          "Die dargestellten Zusammenhänge sind deskriptiv und erlauben keine kausalen Aussagen.")),
+      div(class="panel-card method-grid",
+        h3("Daten und Definitionen"),
+        p("Die regulären Analysen verwenden SurvStat-Fallzahlen und berechnen die Inzidenz mit der amtlichen durchschnittlichen Jahresbevölkerung des Berichtsjahres. Nullwerte bleiben beobachtete Nullwerte; fehlende Beobachtungen bleiben NA und werden bei Medianen und Quartilen nicht als Null behandelt."),
+        p("Demografischer Referenzzeitraum und epidemiologischer Beobachtungszeitraum sind getrennte Dimensionen. ISO-Kalenderwochen bestimmen die zeitliche Auswahl; laufende Fenster enden am Analyse-Stichtag."),
+        p("Die amtlichen Bevölkerungsdaten unterscheiden die Census-2011-Basis für 2017–2021 und die Census-2022-Basis ab 2022. Geografische Auflösung und historische Gebietsstände werden getrennt harmonisiert. Vollständigkeitsangaben weisen beobachtete und erwartete Kreise beziehungsweise Wochen getrennt aus.")),
+      div(class="panel-card method-grid",
+        h3("Vergleichbarkeit mit früheren Auswertungen"),
+        p("Die demografische Typologie für 2017–2020 reproduziert die Kreiszuordnungen der ursprünglichen Dissertationstypologie. Die epidemiologischen Ergebnisse können jedoch von früheren Auswertungen abweichen. Gründe sind insbesondere nachträgliche Aktualisierungen der SurvStat-Meldedaten sowie Unterschiede in der Inzidenzberechnung. Während die ursprünglichen Analysen auf den von SurvStat bereitgestellten Inzidenzen beruhten, berechnet regionalepi die Inzidenzen aus gemeldeten Fallzahlen und der amtlichen durchschnittlichen Jahresbevölkerung. Unterschiede der Bevölkerungsgrundlage und der Rundungspräzision können die Vergleichbarkeit zusätzlich beeinflussen."),
+        p(class="app-note","Aus beobachteten Abweichungen wird keine bestimmte Ursache wie eine nachträgliche Nennerrevision abgeleitet.")),
+      div(class="panel-card method-grid",
+        h3("Reproduzierbarkeit und Zitation"),
+        p("Geprüfte Snapshots, versionierte Definitionen und Fit-IDs dokumentieren den Analysezustand. Wissenschaftliche Excel-Exporte enthalten Ergebnisse, Metadaten, Methodik sowie Quellen- und Lizenzangaben; CSV und PNG ergänzen einzelne Tabellen und statische Abbildungen."),
+        p(strong("R-Paket"),br(),
+          regionalepi:::.regionalepi_package_citation()),
+        p(strong("Wissenschaftliche Grundlage"),br(),
+          a(regionalepi:::.regionalepi_dissertation_citation(),
+            href="https://doi.org/10.17169/refubium-51449",
+            target="_blank",rel="noopener noreferrer")),
+        p("Der Paketcode steht unter GPL-3. Diese Lizenz überträgt sich nicht auf SurvStat-Beobachtungen, Daten der Regionaldatenbank oder BKG-Ressourcen."),
+        p("Regionaldatenbank Deutschland: ",
+          a("Datenlizenz Deutschland – Namensnennung – Version 2.0",
+            href="https://www.govdata.de/dl-de/by-2-0",
+            target="_blank",rel="noopener noreferrer"),"."),
+        p(cache$map$provenance$attribution," · ",
+          a(cache$map$provenance$license,
+            href=cache$map$provenance$license_url,target="_blank",
+            rel="noopener noreferrer")),
+        p("SurvStat@RKI, Regionaldatenbank Deutschland und BKG-Ressourcen behalten ihre jeweiligen Quellen-, Nutzungs- und Lizenzbedingungen."),
+        p("Ausführliche Quellen- und Lizenzangaben stehen in NOTICE und der Paketdokumentation."),
+        tags$details(tags$summary("Technische Provenienz"),technical)))
+  })
 }

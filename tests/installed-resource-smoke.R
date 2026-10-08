@@ -42,6 +42,33 @@ stopifnot(
               annual_average_population = 3600L))
 )
 
+transition_from <- regionalepi::fit_dynamic_typology(
+  regionalepi:::.shiny_fetch_snapshot_demography(2017:2020)$summary, k = 3L
+)
+transition_to <- regionalepi::fit_dynamic_typology(
+  regionalepi:::.shiny_fetch_snapshot_demography(2022:2025)$summary, k = 3L
+)
+transition <- regionalepi::compare_dynamic_typology_transitions(
+  transition_from, transition_to, map$features$geo_id
+)
+expected_transition <- matrix(
+  c(113L, 8L, 3L, 14L, 193L, 6L, 0L, 0L, 63L),
+  nrow = 3L, byrow = TRUE,
+  dimnames = list(
+    from = c("older", "family", "dense"),
+    to = c("older", "family", "dense")
+  )
+)
+stopifnot(
+  identical(as.integer(transition$count_matrix),
+            as.integer(expected_transition)),
+  identical(dim(transition$count_matrix), dim(expected_transition)),
+  identical(transition$diagnostics$compared_districts, 400L),
+  identical(transition$diagnostics$unchanged_districts, 369L),
+  identical(transition$diagnostics$changed_districts, 31L),
+  identical(transition$diagnostics$from_fit_only_geo_ids, "16056")
+)
+
 if (requireNamespace("shiny", quietly = TRUE)) {
   app_directory <- system.file(
     "shiny", "regionalepi", package = "regionalepi", mustWork = TRUE
@@ -49,6 +76,14 @@ if (requireNamespace("shiny", quietly = TRUE)) {
   server_environment <- new.env(parent = asNamespace("shiny"))
   sys.source(file.path(app_directory, "server.R"), envir = server_environment)
   shiny::testServer(server_environment$server, {
+    session$setInputs(
+      demographic_period = "2022–2025", k = "3",
+      demographic_source = "snapshot",
+      pathogen = "Influenza, saisonal",
+      window_id = "influenza_2025_26", range_mode = "window",
+      regional_level = "grossregion"
+    )
+    session$flushReact()
     stopifnot(
       identical(cache$map$provenance$resource_id,
                 "regionalepi_map_geometry_2024"),
@@ -59,7 +94,22 @@ if (requireNamespace("shiny", quietly = TRUE)) {
                 "regionalepi_geography_resources_2024"),
       identical(nrow(regionalepi::regionalepi_state_comparison_groups()), 16L),
       identical(regionalepi::regionalepi_demographic_snapshot()$provenance$snapshot_id,
-                "regionalepi_demography_d16ef9d0b03bb970")
+                "regionalepi_demography_d16ef9d0b03bb970"),
+      !is.null(demographic_state$result),
+      identical(demographic_state$result$demographic_years, 2022:2025),
+      identical(demographic_state$result$configuration$k, 3L),
+      !is.null(demographic_state$transition),
+      identical(demographic_state$transition_compute_count, 1L),
+      identical(demographic_state$transition$result$diagnostics$compared_districts,
+                400L),
+      identical(demographic_state$transition$result$diagnostics$unchanged_districts,
+                369L),
+      identical(demographic_state$transition$result$diagnostics$changed_districts,
+                31L),
+      !is.null(output$typology_xlsx),
+      !is.null(output$transition_xlsx),
+      identical(state$retrieval_count, 0L),
+      is.null(state$result)
     )
   })
 }

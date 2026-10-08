@@ -209,6 +209,18 @@ handled through documented aggregation or replacement rules before analysis.
 Epidemiological periods are supplied as reviewed date intervals rather than
 being inferred from the observed incidence curves.
 
+## Scientific exports
+
+The Shiny application can export the currently prepared demographic typology,
+the reviewed 2017--2025 transition comparison, and loaded regular or historical
+surveillance analyses. Excel is the recommended format because its workbook
+contains result tables together with methodology, source, licensing, and
+provenance sheets. Individual result tables are also available as UTF-8 CSV,
+and principal non-interactive scientific figures can be saved as PNG. Exports
+use the current in-session analytical objects and do not retrieve or refit data.
+PDF reports, SVG, Leaflet maps, and direct Plotly heatmaps are not exported in
+version 0.1.
+
 ## Documentation
 
 - `?regionalepi` introduces the scientific workflows, incidence definitions,
@@ -224,8 +236,19 @@ being inferred from the observed incidence curves.
 
 ## Citation and licenses
 
-Use `citation("regionalepi")` for the package citation. The regionalepi source
-code is licensed under GPL-3.
+R package:
+
+> Dettmann, M. (2026). *regionalepi: Regionale Infektionssurveillance und
+> demografische Typologien* (Version 0.1.0). R-Paket.
+
+Scientific foundation:
+
+> Dettmann, M. (2026). *Einfluss demografischer Faktoren auf die Ausbreitung
+> von Infektionskrankheiten am Beispiel von Influenza und COVID-19*. Freie
+> Universität Berlin. DOI: [10.17169/refubium-51449](https://doi.org/10.17169/refubium-51449).
+
+`citation("regionalepi")` returns the installed package citation. The
+regionalepi source code is licensed under GPL-3.
 
 SurvStat observations remain subject to the RKI data-usage conditions and
 source-attribution requirements. Regionaldatenbank data retain the applicable

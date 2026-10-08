@@ -440,6 +440,19 @@ Historical-reference rows additionally carry their frozen code and label.
 All views consume this same session object; it is display metadata, not a new
 analytical or public package contract.
 
+## Scientific export objects
+
+Scientific exports introduce no new analytical contract. Workbook and CSV
+tables are projections of validated prepared or loaded objects. Character
+`geo_id` values remain five characters, observed zero remains numeric zero,
+and missing values remain `NA`. Character cells beginning with spreadsheet
+formula prefixes are written as literal text. Export metadata are assembled
+from an explicit whitelist; credentials, transport headers, request bodies,
+and raw source responses are not eligible fields. Historical reproduction
+exports remain separate from current derived-incidence exports at the package
+API boundary; the Shiny application exposes only the regular dynamic analysis
+workflow.
+
 For dynamic k = 2, clear continuation of a k = 3 profile anchor requires a
 dominant membership share, agreement with the nearest standardized center,
 and a bounded center distance. Otherwise the cluster is explicitly displayed

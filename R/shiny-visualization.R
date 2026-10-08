@@ -262,6 +262,55 @@
        pairwise = pairwise, expected_dates = expected_dates)
 }
 
+.shiny_week_distribution <- function(data, selected_date, cluster_order) {
+  .require_data_frame(data, "weekly district distribution")
+  .require_columns(data, c("date", "geo_id", "geo_name", "cluster_id",
+    "incidence", "cases"), "weekly district distribution")
+  if (!inherits(selected_date, "Date") || length(selected_date) != 1L ||
+      is.na(selected_date)) {
+    stop("Weekly district distribution requires one complete Date.",
+      call. = FALSE)
+  }
+  if (!is.character(cluster_order) || !length(cluster_order) ||
+      anyNA(cluster_order) || any(!nzchar(cluster_order)) ||
+      anyDuplicated(cluster_order)) {
+    stop("Weekly district distribution requires unique cluster IDs.",
+      call. = FALSE)
+  }
+  selected <- data[data$date == selected_date, , drop = FALSE]
+  if (!nrow(selected)) {
+    stop("The selected ISO week is not part of the loaded analysis.",
+      call. = FALSE)
+  }
+  if (anyDuplicated(selected$geo_id)) {
+    stop("Weekly district observations must be unique by geo_id.",
+      call. = FALSE)
+  }
+  unknown <- setdiff(unique(as.character(selected$cluster_id)), cluster_order)
+  if (length(unknown)) {
+    stop("Weekly district observations contain an unknown cluster ID.",
+      call. = FALSE)
+  }
+  selected$cluster_id <- factor(as.character(selected$cluster_id),
+    levels = cluster_order)
+  support <- do.call(rbind, lapply(cluster_order, function(cluster_id) {
+    values <- selected$incidence[selected$cluster_id == cluster_id]
+    data.frame(cluster_id = cluster_id,
+      expected_districts = length(values),
+      observed_districts = sum(!is.na(values)),
+      missing_districts = sum(is.na(values)),
+      zero_districts = sum(values == 0, na.rm = TRUE),
+      stringsAsFactors = FALSE)
+  }))
+  selected$cluster_display <- paste0(as.character(selected$cluster_id),
+    " (n=", support$observed_districts[
+      match(as.character(selected$cluster_id), support$cluster_id)], ")")
+  selected$cluster_display <- factor(selected$cluster_display,
+    levels = paste0(cluster_order, " (n=",
+      support$observed_districts[match(cluster_order, support$cluster_id)], ")"))
+  list(date = selected_date, data = selected, support = support)
+}
+
 .shiny_state_composition_widget <- function(composition, display_metadata) {
   composition <- .shiny_apply_display_metadata(
     composition, display_metadata, "cluster_id"
@@ -1030,4 +1079,94 @@
     ),
     margin = list(l = 12, r = 12, t = 34, b = 12)
   )
+}
+
+.shiny_transition_profile_labels <- function() {
+  c(older = "\u00c4lter/l\u00e4ndlich", family = "Familie/Jugend",
+    dense = "Dicht")
+}
+
+.shiny_transition_profile_order <- function() {
+  c("older", "family", "dense")
+}
+
+.shiny_transition_profile_colours <- function() {
+  c(older = "#274f66", family = "#748c61", dense = "#bc5e21")
+}
+
+.shiny_transition_sankey_widget <- function(transition) {
+  required <- c("assignments", "count_matrix", "profile_alignment",
+    "diagnostics", "provenance")
+  if (!is.list(transition) || !all(required %in% names(transition))) {
+    stop("Transition Sankey requires a validated transition result.",call.=FALSE)
+  }
+  classes <- .shiny_transition_profile_order()
+  labels <- .shiny_transition_profile_labels()
+  colours <- .shiny_transition_profile_colours()
+  counts <- as.data.frame(transition$count_matrix,stringsAsFactors=FALSE)
+  names(counts)<-c("from","to","n")
+  counts<-counts[counts$n>0L,,drop=FALSE]
+  nodes<-c(paste0("2017\u20132020 \u00b7 ",labels[classes]),
+    paste0("2022\u20132025 \u00b7 ",labels[classes]))
+  rgba<-function(colour,alpha=.55){rgb<-grDevices::col2rgb(colour);sprintf(
+    "rgba(%d,%d,%d,%.2f)",rgb[1L,],rgb[2L,],rgb[3L,],alpha)}
+  plotly::layout(plotly::plot_ly(
+    type="sankey",orientation="h",arrangement="snap",
+    node=list(label=unname(nodes),pad=16,thickness=18,
+      color=rep(unname(colours[classes]),2L)),
+    link=list(
+      source=match(as.character(counts$from),classes)-1L,
+      target=length(classes)+match(as.character(counts$to),classes)-1L,
+      value=counts$n,
+      color=unname(rgba(colours[as.character(counts$from)])),
+      customdata=sprintf("%s \u2192 %s<br>Kreise: %d",
+        labels[as.character(counts$from)],labels[as.character(counts$to)],
+        counts$n),hovertemplate="%{customdata}<extra></extra>")),
+    margin=list(l=15,r=15,t=20,b=20))
+}
+
+.shiny_transition_map_widget <- function(transition, map, bounds, states,
+    exterior_geojson, filter = "all") {
+  assignments<-transition$assignments
+  categories<-ifelse(assignments$changed,
+    paste(assignments$from_profile_class,assignments$to_profile_class,sep="_to_"),
+    "unchanged")
+  allowed<-c("all","changed","unchanged",sort(unique(categories[assignments$changed])))
+  if(length(filter)!=1L||is.na(filter)||!filter%in%allowed)
+    stop("Unknown transition map filter.",call.=FALSE)
+  selected<-if(identical(filter,"all"))rep(TRUE,nrow(assignments)) else
+    if(identical(filter,"changed"))assignments$changed else categories==filter
+  display_id<-ifelse(selected,categories,"not_selected")
+  map_assignments<-data.frame(geo_id=assignments$geo_id,
+    display_cluster_id=display_id,stringsAsFactors=FALSE)
+  transitions<-sort(unique(categories[assignments$changed]),method="radix")
+  category_levels<-c(
+    if("unchanged"%in%display_id)"unchanged",
+    transitions[transitions%in%display_id],
+    if("not_selected"%in%display_id)"not_selected")
+  transition_colours<-.shiny_transition_profile_colours()
+  category_colour<-vapply(category_levels,function(category){
+    if(identical(category,"not_selected"))return("#E1E3E6")
+    if(identical(category,"unchanged"))return("#9C9EB5")
+    target<-sub("^.*_to_","",category)
+    unname(transition_colours[[target]])
+  },character(1L))
+  category_label<-vapply(category_levels,function(category){
+    if(identical(category,"not_selected"))return("Nicht ausgew\u00e4hlt")
+    if(identical(category,"unchanged"))return("Profil unver\u00e4ndert")
+    bits<-strsplit(category,"_to_",fixed=TRUE)[[1L]]
+    paste(.shiny_transition_profile_labels()[bits],collapse=" \u2192 ")
+  },character(1L))
+  metadata<-data.frame(display_cluster_id=category_levels,
+    display_label=unname(category_label),display_colour=unname(category_colour),
+    display_order=seq_along(category_levels),
+    n_districts=as.integer(table(factor(display_id,levels=category_levels))),
+    profile_description=unname(category_label),stringsAsFactors=FALSE)
+  widget<-.shiny_app_leaflet_geojson(map$browser_geojson,bounds,map_assignments,
+    "dynamic",states$browser_geojson,exterior_geojson,"neutral",NULL,metadata)
+  shown<-metadata$display_cluster_id!="not_selected"
+  leaflet::addLegend(widget,position="bottomright",
+    colors=metadata$display_colour[shown],
+    labels=metadata$display_label[shown],opacity=.88,
+    title="Typologie\u00fcbergang")
 }
