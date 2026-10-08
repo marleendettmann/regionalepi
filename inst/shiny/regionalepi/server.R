@@ -240,7 +240,7 @@ server <- function(input, output, session) {
         stability_fits[[2L]])
       stability_metadata <- regionalepi:::.shiny_cluster_display_metadata(
         stability_fits[[2L]],"dynamic","profile_aligned",stability_policy,
-        regionalepi_map_geometry()$features$geo_id)
+        regionalepi::regionalepi_map_geometry()$features$geo_id)
       palette_variant <- if(mode=="dynamic"&&as.integer(input$k)>=2L) "profile_aligned" else "neutral"
       palette_alignment <- NULL
       if(mode=="dynamic"&&as.integer(input$k)>=2L) {
