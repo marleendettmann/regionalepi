@@ -361,14 +361,16 @@ The current `demographic_snapshot` contains normalized `mean_age`,
 `youth_dependency`, `population`, and `area` source components plus the
 distinct official `annual_average_population` component for reporting years
 2017--2025. Components require duplicate-free five-character IDs. The typology
-components retain 401 units in 2017--2020 and 400 in 2022--2025 without
+components retain 401 units in 2017--2020 and 400 in 2021--2025 without
 harmonization or inferred `geo_vintage`. Annual-average population is a
 separate additive denominator component: its 2017--2020 Eisenach observations
 are merged into Wartburgkreis under the reviewed relation, while 2021 onward
 already uses the 400-district target set. Every stored denominator year matches
 the reviewed 400-district analysis geography.
 
-Regionaldatenbank reports response-generation times separately for sequential
+Snapshot v5 records the inherited v4 observations and the added 2021
+observations as separate provenance segments. Regionaldatenbank reports
+response-generation times separately for sequential
 table requests. The four typology components preserve their statuses and must
 come from one calendar date within a 15-minute reviewed build window. The
 annual-average population retains its separately reviewed source status and

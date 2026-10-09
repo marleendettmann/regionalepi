@@ -14,7 +14,9 @@
     "source_status_compatibility", "source_status_display_date", "source_tables",
     "source_measures", "covered_reference_dates", "covered_reporting_years",
     "population_basis", "denominator_geography_harmonization",
-    "component_provenance", "prior_snapshot_id", "refresh_semantics"
+    "component_provenance", "component_observation_provenance",
+    "inherited_snapshot_checksum",
+    "prior_snapshot_id", "refresh_semantics"
   )
   x[intersect(fields, names(x))]
 }
@@ -141,32 +143,49 @@
 
 .build_demographic_snapshot <- function(
     components, snapshot_version, prior_snapshot_id = NA_character_,
-    builder = "data-raw/build-demographic-snapshot.R") {
+    builder = "data-raw/build-demographic-snapshot.R",
+    component_observation_provenance = NULL,
+    inherited_snapshot_checksum = NULL) {
   .validate_snapshot_components(components)
   if (!is.character(snapshot_version) || length(snapshot_version) != 1L ||
       is.na(snapshot_version) || !nzchar(snapshot_version)) {
     .stop_contract("demographic snapshot", "snapshot_version must be one string")
   }
-  statuses <- vapply(names(components), function(name) {
-    .snapshot_component_status(components[[name]], name)
-  }, character(1L))
+  if (is.null(component_observation_provenance)) {
+    statuses <- vapply(names(components), function(name) {
+      .snapshot_component_status(components[[name]], name)
+    }, character(1L))
+    retrieved <- lapply(names(components), function(name) {
+      .snapshot_component_retrieved_at(components[[name]], name)
+    })
+  } else {
+    .validate_snapshot_observation_provenance(
+      component_observation_provenance, components)
+    statuses <- vapply(component_observation_provenance, function(segments) {
+      segments[[length(segments)]]$data_status
+    }, character(1L))
+    retrieved <- lapply(component_observation_provenance, function(segments) {
+      segments[[length(segments)]]$retrieved_at
+    })
+  }
   status_compatibility <- .validate_snapshot_statuses(
     statuses, "annual_average_population"
   )
-  retrieved <- lapply(names(components), function(name) {
-    .snapshot_component_retrieved_at(components[[name]], name)
-  })
   names(retrieved) <- names(components)
   compact <- lapply(names(components), function(name) {
     .compact_snapshot_component(components[[name]], name)
   })
   names(compact) <- names(components)
   dates <- sort(unique(compact$population$reference_date))
-  expected_dates <- as.Date(c(sprintf("%d-12-31", 2017:2020),
-                              sprintf("%d-12-31", 2022:2025)))
-  if (!identical(dates, expected_dates)) {
+  expected_v4_dates <- as.Date(c(sprintf("%d-12-31", 2017:2020),
+                                 sprintf("%d-12-31", 2022:2025)))
+  expected_v5_dates <- as.Date(sprintf("%d-12-31", 2017:2025))
+  if (!identical(dates, expected_v4_dates) &&
+      !(identical(dates, expected_v5_dates) &&
+        !is.null(component_observation_provenance))) {
     .stop_contract("demographic snapshot",
-      "the reviewed snapshot must cover 2017-2020 and 2022-2025 exactly")
+      paste("the reviewed snapshot must cover 2017-2020 and 2022-2025, or",
+            "use observation provenance for complete 2017-2025 coverage"))
   }
   reporting_years <- sort(unique(compact$annual_average_population$year))
   if (!identical(reporting_years, 2022:2025) &&
@@ -231,6 +250,14 @@
     refresh_semantics = paste(
       "A refresh is a reviewed development/release build of a new immutable",
       "snapshot; live Shiny retrieval never mutates this resource."))
+  if (!is.null(component_observation_provenance)) {
+    identity_provenance$component_observation_provenance <-
+      component_observation_provenance
+  }
+  if (!is.null(inherited_snapshot_checksum)) {
+    identity_provenance$inherited_snapshot_checksum <-
+      inherited_snapshot_checksum
+  }
   checksum <- .snapshot_checksum(compact, identity_provenance)
   snapshot_id <- paste0("regionalepi_demography_", substr(checksum, 1L, 16L))
   provenance <- c(identity_provenance, list(
@@ -261,8 +288,212 @@
       exact_component_geography = TRUE,
       duplicate_count = 0L,
       geo_vintage_unresolved = TRUE,
-      checksum_verified = TRUE))
+      checksum_verified = TRUE,
+      inherited_v4_identity_verified = !is.null(inherited_snapshot_checksum),
+      inherited_annual_average_population_verified =
+        !is.null(inherited_snapshot_checksum)))
   validate_demographic_snapshot(snapshot)
+  snapshot
+}
+
+.validate_snapshot_observation_provenance <- function(provenance, components) {
+  contract <- "demographic snapshot observation provenance"
+  if (!is.list(provenance) ||
+      !identical(names(provenance), names(components))) {
+    .stop_contract(contract, "component entries must match snapshot components")
+  }
+  for (name in names(provenance)) {
+    segments <- provenance[[name]]
+    if (!is.list(segments) || !length(segments)) {
+      .stop_contract(contract, paste(name, "must contain provenance segments"))
+    }
+    periods <- do.call(c, lapply(segments, `[[`, "periods"))
+    component_data <- if (is.data.frame(components[[name]])) {
+      components[[name]]
+    } else components[[name]]$data
+    expected <- if (identical(name, "annual_average_population")) {
+      sort(unique(component_data$year))
+    } else {
+      sort(unique(component_data$reference_date))
+    }
+    if (!identical(sort(periods), expected) || anyDuplicated(periods)) {
+      .stop_contract(contract, paste(name, "segments must partition observation periods"))
+    }
+    for (segment in segments) {
+      required <- c("periods", "data_status", "retrieved_at", "origin",
+                    "source_provenance")
+      if (!is.list(segment) || !all(required %in% names(segment)) ||
+          !is.character(segment$data_status) || length(segment$data_status) != 1L ||
+          is.na(segment$data_status) || !nzchar(segment$data_status) ||
+          !inherits(segment$retrieved_at, "POSIXct") ||
+          length(segment$retrieved_at) != 1L || is.na(segment$retrieved_at) ||
+          !is.character(segment$origin) || length(segment$origin) != 1L ||
+          is.na(segment$origin) || !nzchar(segment$origin) ||
+          !is.list(segment$source_provenance)) {
+        .stop_contract(contract, paste(name, "contains an invalid provenance segment"))
+      }
+    }
+  }
+  invisible(provenance)
+}
+
+.snapshot_result_provenance <- function(result, name) {
+  if (name %in% c("mean_age", "youth_dependency")) {
+    result$provenance
+  } else {
+    list(source = result$provenance)
+  }
+}
+
+.snapshot_source_segment <- function(component, name, periods, origin) {
+  list(
+    periods = periods,
+    data_status = .snapshot_component_status(component, name),
+    retrieved_at = .snapshot_component_retrieved_at(component, name),
+    origin = origin,
+    source_provenance = .snapshot_result_provenance(component, name)
+  )
+}
+
+.validate_snapshot_2021_gate <- function(components, target_geography) {
+  contract <- "demographic snapshot 2021 gate"
+  needed <- c("mean_age", "youth_dependency", "population", "area")
+  if (!is.list(components) || !identical(names(components), needed)) {
+    .stop_contract(contract, "four ordered 2021 component results are required")
+  }
+  validators <- list(
+    mean_age = validate_demographic_indicator,
+    youth_dependency = validate_demographic_indicator,
+    population = validate_population_denominator,
+    area = validate_regional_area
+  )
+  value_fields <- c(mean_age = "indicator_value",
+                    youth_dependency = "indicator_value",
+                    population = "population", area = "area_km2")
+  if (!is.data.frame(target_geography) || nrow(target_geography) != 400L ||
+      !all(c("geo_id", "geo_name") %in% names(target_geography)) ||
+      anyNA(target_geography[c("geo_id", "geo_name")]) ||
+      anyDuplicated(target_geography$geo_id)) {
+    .stop_contract(contract, "reviewed target geography must contain 400 unique districts")
+  }
+  target <- target_geography[order(target_geography$geo_id), , drop = FALSE]
+  diagnostics <- vector("list", length(needed)); names(diagnostics) <- needed
+  for (name in needed) {
+    component <- components[[name]]
+    .require_result_parts(component, contract)
+    validators[[name]](component$data)
+    data <- component$data
+    if (name %in% c("mean_age", "youth_dependency")) {
+      if (!identical(unique(data$indicator_id),
+          if (name == "mean_age") "mean_age" else "youth_dependency_ratio")) {
+        .stop_contract(contract, paste(name, "has the wrong indicator identity"))
+      }
+    }
+    if (!identical(unique(data$reference_date), as.Date("2021-12-31")) ||
+        nrow(data) != 400L || anyDuplicated(data$geo_id) ||
+        anyNA(data[[value_fields[[name]]]]) ||
+        any(!is.finite(data[[value_fields[[name]]]])) ||
+        !identical(sort(data$geo_id), sort(target$geo_id)) ||
+        "16056" %in% data$geo_id || sum(data$geo_id == "16063") != 1L) {
+      .stop_contract(contract, paste(name, "does not satisfy exact 2021 coverage"))
+    }
+    observed <- data[order(data$geo_id), c("geo_id", "geo_name"), drop = FALSE]
+    if (!identical(observed$geo_id, target$geo_id) ||
+        !identical(observed$geo_name, target$geo_name)) {
+      .stop_contract(contract, paste(name, "district names differ from target geography"))
+    }
+    markers <- component$diagnostics$source_quality_markers
+    if (!identical(unique(markers), "-")) {
+      .stop_contract(contract, paste(name, "contains an unexpected quality marker"))
+    }
+    if (name != "area") {
+      provenance_entries <- if (name %in% c("mean_age", "youth_dependency")) {
+        component$provenance
+      } else list(component$provenance)
+      notes <- paste(vapply(provenance_entries, function(x) {
+        paste(x$source_notes %||% character(), collapse = "\n")
+      }, character(1L)), collapse = "\n")
+      if (!grepl("2011 bis 2021", notes, fixed = TRUE) ||
+          !grepl("Zensus vom 09. Mai 2011", notes, fixed = TRUE)) {
+        .stop_contract(contract, paste(name,
+          "source notes do not establish the Census 2011 basis for 2021"))
+      }
+    }
+    diagnostics[[name]] <- list(
+      observations = nrow(data), unique_geo_ids = length(unique(data$geo_id)),
+      missing_ids = setdiff(target$geo_id, data$geo_id),
+      unexpected_ids = setdiff(data$geo_id, target$geo_id),
+      duplicate_count = anyDuplicated(data$geo_id),
+      eisenach_present = "16056" %in% data$geo_id,
+      wartburgkreis_count = sum(data$geo_id == "16063"),
+      source_quality_markers = markers,
+      census_2011_basis = if (name == "area") "not_applicable" else TRUE
+    )
+  }
+  retrieved <- vapply(names(components), function(name) {
+    as.numeric(.snapshot_component_retrieved_at(components[[name]], name))
+  }, numeric(1L))
+  if (difftime(as.POSIXct(max(retrieved), origin = "1970-01-01", tz = "UTC"),
+               as.POSIXct(min(retrieved), origin = "1970-01-01", tz = "UTC"),
+               units = "mins") > 15) {
+    .stop_contract(contract, "2021 component retrievals exceed the 15-minute window")
+  }
+  diagnostics
+}
+
+.extend_demographic_snapshot_v5 <- function(prior_snapshot, observations_2021) {
+  contract <- "demographic snapshot v5 extension"
+  validate_demographic_snapshot(prior_snapshot)
+  if (!identical(prior_snapshot$provenance$snapshot_id,
+                 "regionalepi_demography_d16ef9d0b03bb970") ||
+      !identical(prior_snapshot$provenance$content_checksum,
+                 "d16ef9d0b03bb97035ef179a964839b8")) {
+    .stop_contract(contract, "the immutable reviewed v4 predecessor is required")
+  }
+  reconstructed <- .snapshot_reconstruct_components(prior_snapshot)
+  target <- prior_snapshot$data$population[
+    prior_snapshot$data$population$reference_date == as.Date("2025-12-31"),
+    c("geo_id", "geo_name"), drop = FALSE]
+  gate <- .validate_snapshot_2021_gate(observations_2021, target)
+  old <- list(
+    mean_age = reconstructed$mean_age,
+    youth_dependency = reconstructed$youth,
+    population = reconstructed$population,
+    area = reconstructed$area
+  )
+  combined <- Map(function(existing, added, name) {
+    existing$data <- rbind(existing$data, added$data)
+    rownames(existing$data) <- NULL
+    if (name %in% c("population", "area")) {
+      existing$data$data_status <- added$data$data_status[[1L]]
+      existing$data$retrieved_at <- added$data$retrieved_at[[1L]]
+    }
+    existing
+  }, old, observations_2021, names(old))
+  annual <- .demographic_snapshot_average_population(prior_snapshot, 2017:2025)
+  components <- c(combined, list(annual_average_population = annual))
+  old_dates <- prior_snapshot$provenance$covered_reference_dates
+  observation_provenance <- lapply(names(combined), function(name) list(
+    .snapshot_source_segment(old[[name]], name, old_dates,
+      prior_snapshot$provenance$snapshot_id),
+    .snapshot_source_segment(observations_2021[[name]], name,
+      as.Date("2021-12-31"), "authenticated_2021_extension")
+  ))
+  names(observation_provenance) <- names(combined)
+  observation_provenance$annual_average_population <- list(
+    .snapshot_source_segment(annual, "annual_average_population", 2017:2025,
+      prior_snapshot$provenance$snapshot_id)
+  )
+  snapshot <- .build_demographic_snapshot(
+    components,
+    snapshot_version = paste0(
+      "regionaldatenbank_2017-2025_",
+      "annual-average-population_2017-2025_v5"),
+    prior_snapshot_id = prior_snapshot$provenance$snapshot_id,
+    component_observation_provenance = observation_provenance,
+    inherited_snapshot_checksum = prior_snapshot$provenance$content_checksum
+  )
+  snapshot$diagnostics$authenticated_2021_gate <- gate
   snapshot
 }
 
@@ -394,6 +625,9 @@ validate_demographic_snapshot <- function(x) {
     .stop_contract(contract, "snapshot must contain data, provenance, diagnostics")
   }
   has_average <- "annual_average_population" %in% names(x$data)
+  has_observation_provenance <-
+    "component_observation_provenance" %in% names(x$provenance) &&
+    !is.null(x$provenance$component_observation_provenance)
   needed <- c("snapshot_id", "snapshot_version", "created_at", "source",
     "source_data_status", "source_status_compatibility",
     "source_status_display_date", "source_tables", "source_measures",
@@ -401,6 +635,8 @@ validate_demographic_snapshot <- function(x) {
     "component_retrieved_at", "builder", "builder_package_version",
     "content_checksum", "versioning_policy", "refresh_semantics")
   if (has_average) needed <- c(needed, "covered_reporting_years")
+  if (has_observation_provenance) needed <- c(
+    needed, "component_observation_provenance", "inherited_snapshot_checksum")
   if (!all(needed %in% names(x$provenance))) {
     .stop_contract(contract, "snapshot provenance is incomplete")
   }
@@ -439,6 +675,10 @@ validate_demographic_snapshot <- function(x) {
       any(format(dates, "%m-%d") != "12-31")) {
     .stop_contract(contract, "covered reference dates are invalid")
   }
+  expected_v5_dates <- as.Date(sprintf("%d-12-31", 2017:2025))
+  if (has_observation_provenance && !identical(dates, expected_v5_dates)) {
+    .stop_contract(contract, "covered reference dates disagree with snapshot generation")
+  }
   reporting_years <- if (has_average) {
     x$provenance$covered_reporting_years
   } else integer()
@@ -471,6 +711,10 @@ validate_demographic_snapshot <- function(x) {
   }
   if (!identical(sort(names(x$data)), sort(components))) {
     .stop_contract(contract, "snapshot components are incomplete")
+  }
+  if (has_observation_provenance) {
+    .validate_snapshot_observation_provenance(
+      x$provenance$component_observation_provenance, x$data)
   }
   expected_columns <- list(
     mean_age = c("geo_id", "geo_name", "reference_date", "indicator_value",
@@ -552,6 +796,49 @@ validate_demographic_snapshot <- function(x) {
                      "component geographic ID/name sets must match by date")
     }
   }
+  if (has_observation_provenance) {
+    expected_counts <- c(rep(401L, 4L), rep(400L, 5L))
+    actual_counts <- vapply(dates, function(date) {
+      sum(x$data$population$reference_date == date)
+    }, integer(1L))
+    if (!identical(actual_counts, expected_counts) ||
+        !identical(unname(x$diagnostics$geographic_unit_counts), expected_counts)) {
+      .stop_contract(contract, "v5 geography must contain 401 districts through 2020 and 400 thereafter")
+    }
+    for (name in c("mean_age", "youth_dependency", "population", "area")) {
+      data <- x$data[[name]]
+      years <- as.integer(format(data$reference_date, "%Y"))
+      eisenach_years <- years[data$geo_id == "16056"]
+      if (any(data$geo_id == "16056" & years >= 2021L) ||
+          !identical(sort(eisenach_years), 2017:2020)) {
+        .stop_contract(contract, "Eisenach must occur only in 2017-2020")
+      }
+    }
+    if (!identical(x$provenance$prior_snapshot_id,
+                   "regionalepi_demography_d16ef9d0b03bb970") ||
+        !identical(x$provenance$inherited_snapshot_checksum,
+                   "d16ef9d0b03bb97035ef179a964839b8") ||
+        !isTRUE(x$diagnostics$inherited_v4_identity_verified) ||
+        !isTRUE(x$diagnostics$inherited_annual_average_population_verified)) {
+      .stop_contract(contract, "v5 predecessor identity is invalid")
+    }
+    prior <- .regionalepi_package_data("regionalepi_demographic_snapshot_v4")
+    for (name in c("mean_age", "youth_dependency", "population", "area")) {
+      inherited <- x$data[[name]][
+        x$data[[name]]$reference_date != as.Date("2021-12-31"), , drop = FALSE]
+      rownames(inherited) <- NULL
+      prior_data <- prior$data[[name]]
+      rownames(prior_data) <- NULL
+      if (!identical(inherited, prior_data)) {
+        .stop_contract(contract, paste(name, "does not preserve v4 observations"))
+      }
+    }
+    if (!identical(x$data$annual_average_population,
+                   prior$data$annual_average_population)) {
+      .stop_contract(contract,
+        "annual-average population does not preserve v4 observations")
+    }
+  }
   if (has_average) {
     annual <- x$data$annual_average_population
     latest_reference_date <- max(dates)
@@ -591,7 +878,7 @@ regionalepi_demographic_snapshot <- function(snapshot = "reviewed_default") {
     .stop_contract("demographic snapshot accessor",
                    "unsupported snapshot; available value is reviewed_default")
   }
-  value <- .regionalepi_package_data("regionalepi_demographic_snapshot_v4")
+  value <- .regionalepi_package_data("regionalepi_demographic_snapshot_v5")
   validate_demographic_snapshot(value)
   value
 }
@@ -606,7 +893,10 @@ regionalepi_demographic_snapshot <- function(snapshot = "reviewed_default") {
 #'
 #' @param snapshot A validated snapshot returned by
 #'   [regionalepi_demographic_snapshot()].
-#' @param reference_years Explicit years covered by the reviewed snapshot.
+#' @param reference_years One or more contiguous years wholly within 2017--2020
+#'   or wholly within 2021--2025. Periods crossing 2020/2021 are rejected
+#'   because the stored nonadditive demographic indicators use different
+#'   district geographies on either side of that boundary.
 #' @return A list with five top-level fields: `annual`, the combined annual
 #'   demographic indicators; `summary`, the period-summary result accepted
 #'   directly by [fit_dynamic_typology()]; `source`, the reconstructed
@@ -633,8 +923,29 @@ prepare_demographic_snapshot <- function(snapshot, reference_years) {
   .demographic_snapshot_period(snapshot, reference_years)
 }
 
+.validate_demographic_reference_years <- function(reference_years) {
+  contract <- "demographic reference period"
+  if (!is.numeric(reference_years) || !length(reference_years) ||
+      anyNA(reference_years) || any(reference_years != floor(reference_years)) ||
+      anyDuplicated(reference_years)) {
+    .stop_contract(contract, "years must be unique whole values")
+  }
+  years <- sort(as.integer(reference_years))
+  if (!identical(years, seq.int(min(years), max(years)))) {
+    .stop_contract(contract, "years must form one contiguous period")
+  }
+  historical <- all(years %in% 2017:2020)
+  current <- all(years %in% 2021:2025)
+  if (!historical && !current) {
+    .stop_contract(contract,
+      "period must lie within 2017-2020 or within 2021-2025")
+  }
+  years
+}
+
 .demographic_snapshot_period <- function(snapshot, reference_years) {
-  dates <- as.Date(sprintf("%d-12-31", as.integer(reference_years)))
+  reference_years <- .validate_demographic_reference_years(reference_years)
+  dates <- as.Date(sprintf("%d-12-31", reference_years))
   components <- .snapshot_reconstruct_components(snapshot, dates)
   density <- derive_population_density(components$population, components$area)
   annual <- .combine_demographic_indicators(

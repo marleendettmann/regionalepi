@@ -5,6 +5,68 @@
   )
 }
 
+.shiny_demographic_reference_selection <- function(
+    period_label, custom_start = NULL, custom_end = NULL) {
+  presets <- .shiny_demographic_periods()
+  if (is.character(period_label) && length(period_label) == 1L &&
+      !is.na(period_label) && period_label %in% names(presets)) {
+    years <- presets[[period_label]]
+    selection_type <- "preset"
+    label <- period_label
+  } else if (identical(period_label, "Benutzerdefinierter Referenzzeitraum")) {
+    bounds <- as.integer(c(custom_start, custom_end))
+    if (length(bounds) != 2L || anyNA(bounds) || bounds[[1L]] > bounds[[2L]]) {
+      stop("Invalid custom demographic reference period.", call. = FALSE)
+    }
+    years <- seq.int(bounds[[1L]], bounds[[2L]])
+    years <- .validate_demographic_reference_years(years)
+    selection_type <- "custom"
+    label <- paste(range(years), collapse = "\u2013")
+  } else {
+    stop("Unsupported demographic reference period.", call. = FALSE)
+  }
+  years <- .validate_demographic_reference_years(years)
+  bases <- unique(ifelse(years <= 2021L, "census_2011", "census_2022"))
+  list(
+    period_label = label,
+    control_value = period_label,
+    years = years,
+    selection_type = selection_type,
+    configuration_type = selection_type,
+    solution_review_status = if (identical(selection_type, "preset"))
+      "reviewed_reference" else "not_individually_reviewed",
+    exploratory = identical(selection_type, "custom"),
+    annual_typology = length(years) == 1L,
+    geography_regime = if (max(years) <= 2020L)
+      "historical_401_districts" else "current_400_districts",
+    census_bases = bases,
+    census_comparability_notice = all(c(2021L, 2022L) %in% years)
+  )
+}
+
+.shiny_reconcile_custom_demographic_years <- function(
+    start_year = 2022L, end_year = 2025L, changed = NULL) {
+  supported <- 2017:2025
+  start_year <- as.integer(start_year)
+  end_year <- as.integer(end_year)
+  if (length(start_year) != 1L || is.na(start_year) ||
+      !start_year %in% supported) start_year <- 2022L
+  allowed_end <- if (start_year <= 2020L) start_year:2020L else start_year:2025L
+  if (length(end_year) != 1L || is.na(end_year) ||
+      !end_year %in% allowed_end) end_year <- start_year
+  list(start_year = start_year, end_year = end_year,
+       start_choices = supported, end_choices = allowed_end)
+}
+
+.shiny_demographic_reference_qualifier <- function(reference) {
+  if (!is.list(reference) ||
+      !identical(reference$configuration_type %||%
+        reference$selection_type, "custom")) return("")
+  if (isTRUE(reference$annual_typology))
+    " \u00b7 Benutzerdefinierte Konfiguration \u00b7 Einj\u00e4hriger Referenzzeitraum" else
+      " \u00b7 Benutzerdefinierte Konfiguration"
+}
+
 .shiny_loaded_analysis_context <- function(result) {
   ids <- as.character(result$display_metadata$display_cluster_id)
   cluster_text <- paste(ids, collapse = " / ")
@@ -14,12 +76,20 @@
       "Historische SurvStat-Inzidenz"
     ))
   }
-  period <- result$loaded_selection$demographic_period
+  loaded <- result$loaded_selection
+  period <- loaded$demographic_period
   if (is.null(period) || length(period) != 1L || is.na(period) || !nzchar(period)) {
     period <- paste(range(result$demographic_years), collapse = "\u2013")
   }
   paste0(
-    "Demografische Typologie \u00b7 ", period, " \u00b7 k=", length(ids), " \u00b7 ",
+    "Demografische Typologie \u00b7 ", period,
+    if (identical(loaded$configuration_type %||%
+        loaded$reference_selection, "custom")) {
+      if (length(loaded$demographic_years) == 1L)
+        " \u00b7 Benutzerdefinierte Konfiguration \u00b7 Einj\u00e4hriger Referenzzeitraum" else
+          " \u00b7 Benutzerdefinierte Konfiguration"
+    } else "",
+    " \u00b7 k=", length(ids), " \u00b7 ",
     "Inzidenz auf Basis der durchschnittlichen Jahresbev\u00f6lkerung"
   )
 }
@@ -31,7 +101,8 @@
 }
 
 .shiny_loaded_selection_changed <- function(
-    result, typology_mode, demographic_period, k, demographic_source) {
+    result, typology_mode, demographic_period, k, demographic_source,
+    demographic_years = NULL) {
   loaded <- result$loaded_selection
   if (is.null(loaded)) return(FALSE)
   source_mode <- demographic_source
@@ -44,6 +115,10 @@
     changed <- changed ||
       !identical(demographic_period, loaded$demographic_period) ||
       !identical(as.integer(k), loaded$k)
+    if (!is.null(demographic_years) && !is.null(loaded$demographic_years)) {
+      changed <- changed || !identical(
+        as.integer(demographic_years), loaded$demographic_years)
+    }
   }
   changed
 }
@@ -224,9 +299,11 @@
   matches[[1L]]
 }
 
-.shiny_demographic_cache_key <- function(period_label, source_mode = "snapshot") {
-  years <- .shiny_demographic_periods()[[period_label]]
-  if (is.null(years)) stop("Unsupported demographic reference period.", call. = FALSE)
+.shiny_demographic_cache_key <- function(
+    period_label, source_mode = "snapshot", reference_years = NULL) {
+  years <- if (is.null(reference_years)) {
+    .shiny_demographic_reference_selection(period_label)$years
+  } else .validate_demographic_reference_years(reference_years)
   if (!source_mode %in% c("snapshot", "live")) {
     stop("Unsupported demographic source mode.", call. = FALSE)
   }
@@ -235,14 +312,16 @@
 
 .shiny_typology_configuration <- function(
     period_label, k, source_mode = "snapshot",
+    reference_years = NULL,
     configuration_id = "reviewed_demographic_typology_v1",
     indicator_ids = vapply(
       demographic_structure_spec()$indicators, `[[`, character(1L),
       "indicator_id"
     ),
     fitting_specification = dynamic_kmeans_spec()) {
-  years <- .shiny_demographic_periods()[[period_label]]
-  if (is.null(years)) stop("Unsupported demographic reference period.", call. = FALSE)
+  years <- if (is.null(reference_years)) {
+    .shiny_demographic_reference_selection(period_label)$years
+  } else .validate_demographic_reference_years(reference_years)
   if (!source_mode %in% c("snapshot", "live"))
     stop("Unsupported demographic source mode.", call. = FALSE)
   k <- as.integer(k)

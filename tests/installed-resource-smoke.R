@@ -34,11 +34,11 @@ snapshot <- regionalepi::regionalepi_demographic_snapshot()
 regionalepi::validate_demographic_snapshot(snapshot)
 stopifnot(
   identical(snapshot$provenance$snapshot_id,
-            "regionalepi_demography_d16ef9d0b03bb970"),
+            "regionalepi_demography_47bd90242e6c148e"),
   identical(snapshot$diagnostics$checksum_verified, TRUE),
   identical(snapshot$diagnostics$component_row_counts,
-            c(mean_age = 3204L, youth_dependency = 3204L,
-              population = 3204L, area = 3204L,
+            c(mean_age = 3604L, youth_dependency = 3604L,
+              population = 3604L, area = 3604L,
               annual_average_population = 3600L))
 )
 
@@ -94,7 +94,7 @@ if (requireNamespace("shiny", quietly = TRUE)) {
                 "regionalepi_geography_resources_2024"),
       identical(nrow(regionalepi::regionalepi_state_comparison_groups()), 16L),
       identical(regionalepi::regionalepi_demographic_snapshot()$provenance$snapshot_id,
-                "regionalepi_demography_d16ef9d0b03bb970"),
+                "regionalepi_demography_47bd90242e6c148e"),
       !is.null(demographic_state$result),
       identical(demographic_state$result$demographic_years, 2022:2025),
       identical(demographic_state$result$configuration$k, 3L),
@@ -110,6 +110,20 @@ if (requireNamespace("shiny", quietly = TRUE)) {
       !is.null(output$transition_xlsx),
       identical(state$retrieval_count, 0L),
       is.null(state$result)
+    )
+    session$setInputs(
+      demographic_period = "Benutzerdefinierter Referenzzeitraum",
+      demographic_start_year = "2021", demographic_end_year = "2022"
+    )
+    session$flushReact()
+    stopifnot(
+      is.null(demographic_state$error),
+      identical(demographic_state$result$demographic_years, 2021:2022),
+      identical(demographic_state$result$reference_selection$selection_type,
+                "custom"),
+      identical(demographic_state$result$reference_selection$solution_review_status,
+                "not_individually_reviewed"),
+      identical(state$retrieval_count, 0L)
     )
   })
 }

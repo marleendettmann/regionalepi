@@ -51,6 +51,17 @@
 .export_methodology <- function(lines) data.frame(
   section = names(lines), text = unname(lines), stringsAsFactors = FALSE)
 
+.snapshot_export_observation_provenance <- function(snapshot) {
+  segments <- snapshot$component_observation_provenance
+  if (is.null(segments)) return(list(statuses = NULL, retrieved_at = NULL))
+  flatten <- function(field) unlist(lapply(names(segments), function(component) {
+    vapply(segments[[component]], function(segment) paste0(
+      component, "[", paste(segment$periods, collapse = ","), "]=",
+      as.character(segment[[field]])), character(1L))
+  }), use.names = FALSE)
+  list(statuses = flatten("data_status"), retrieved_at = flatten("retrieved_at"))
+}
+
 .export_sources <- function(include_rki = FALSE) {
   rows <- data.frame(
     source = c("regionalepi R-Paket", "Wissenschaftliche Grundlage",
@@ -113,23 +124,65 @@
   assignment$k <- fit$diagnostics$k
   assignment$fit_id <- fit$provenance$fit_id
   snapshot <- prepared$demographic$snapshot_provenance
+  observation_provenance <- .snapshot_export_observation_provenance(snapshot)
+  reference <- prepared$reference_selection
+  if (is.null(reference)) reference <- list(
+    selection_type = "preset", configuration_type = "preset",
+    solution_review_status = "reviewed_reference", exploratory = FALSE,
+    geography_regime = if (max(prepared$demographic_years) <= 2020L)
+      "historical_401_districts" else "current_400_districts",
+    census_bases = unique(ifelse(prepared$demographic_years <= 2021L,
+      "census_2011", "census_2022")))
+  configuration_type <- reference$configuration_type %||%
+    reference$selection_type
+  solution_review_status <- reference$solution_review_status %||%
+    if (identical(configuration_type, "preset"))
+      "reviewed_reference" else "not_individually_reviewed"
+  indicator_specification <- paste(fit$provenance$indicator_set_id,
+    fit$provenance$indicator_set_version, sep = "@")
+  fitting_specification <- paste(fit$provenance$fitting_specification_id,
+    fit$provenance$fitting_specification_version, sep = "@")
+  assignment$snapshot_id <- snapshot$snapshot_id
+  assignment$reference_selection <- reference$selection_type
+  assignment$configuration_type <- configuration_type
+  assignment$solution_review_status <- solution_review_status
+  assignment$exploratory <- reference$exploratory
+  assignment$geography_regime <- reference$geography_regime
+  assignment$census_bases <- paste(reference$census_bases, collapse = ";")
+  assignment$indicator_specification <- indicator_specification
+  assignment$fitting_specification <- fitting_specification
   metadata <- .export_metadata(list(
     package_version = as.character(utils::packageVersion("regionalepi")),
     exported_at = format(exported_at, tz = "UTC", usetz = TRUE),
     snapshot_id = snapshot$snapshot_id,
     demographic_reference_years = prepared$demographic_years,
+    reference_selection = reference$selection_type,
+    configuration_type = configuration_type,
+    solution_review_status = solution_review_status,
+    configuration_label = if (identical(configuration_type, "custom"))
+      "Benutzerdefinierte Konfiguration" else
+        "Gepr\u00fcfte Referenzkonfiguration",
+    solution_review_note = if (identical(solution_review_status,
+      "not_individually_reviewed")) paste(
+        "Die Typologie wird f\u00fcr den gew\u00e4hlten Zeitraum anhand gepr\u00fcfter",
+        "demografischer Indikatoren und Berechnungsmethoden neu erstellt.",
+        "Die konkrete Clusterl\u00f6sung wurde nicht gesondert wissenschaftlich validiert."
+      ) else "Gepr\u00fcfte Referenzkonfiguration.",
+    exploratory = reference$exploratory,
+    geography_regime = reference$geography_regime,
+    census_bases = reference$census_bases,
     selected_indicators = fit$matrix$indicator_order,
-    indicator_set = paste(fit$provenance$indicator_set_id,
-      fit$provenance$indicator_set_version, sep = "@"),
-    typology_specification = paste(fit$provenance$fitting_specification_id,
-      fit$provenance$fitting_specification_version, sep = "@"),
+    indicator_set = indicator_specification,
+    typology_specification = fitting_specification,
     k = fit$diagnostics$k, algorithm = fit$fitting_specification$algorithm,
     nstart = fit$fitting_specification$nstart,
     iter_max = fit$fitting_specification$iter_max,
     seed = fit$fitting_specification$seed,
     fit_id = fit$provenance$fit_id,
     geography_reference = as.character(map_provenance$source_vintage),
-    source_data_status = snapshot$source_data_status
+    source_data_status = snapshot$source_data_status,
+    observation_source_status = observation_provenance$statuses,
+    observation_retrieved_at = observation_provenance$retrieved_at
   ))
   list(
     `Kreiszuordnungen` = assignment,
@@ -151,10 +204,31 @@
   assignments$geo_name <- map$features$geo_name[
     match(assignments$geo_id, map$features$geo_id)]
   assignments$comparison_id <- transition$provenance$comparison_id
+  assignments$snapshot_id <- snapshot_id
+  assignments$from_reference_years <- paste(
+    transition$provenance$from_reference_period, collapse = ";")
+  assignments$to_reference_years <- paste(
+    transition$provenance$to_reference_period, collapse = ";")
+  assignments$reference_selection <- "fixed_reviewed_comparison"
+  assignments$configuration_type <- "preset"
+  assignments$solution_review_status <- "reviewed_reference"
+  assignments$exploratory <- FALSE
+  assignments$geography_regime <- "current_400_district_comparison"
+  assignments$census_bases <- "census_2011;census_2022"
+  assignments$indicator_specification <- paste(
+    demographic_structure_spec()$indicator_set_id,
+    demographic_structure_spec()$definition_version, sep = "@")
+  assignments$fitting_specification <- paste(
+    dynamic_kmeans_spec()$fitting_specification_id,
+    dynamic_kmeans_spec()$definition_version, sep = "@")
   assignments <- assignments[, c("geo_id", "geo_name",
     "from_dynamic_cluster_id", "to_dynamic_cluster_id",
     "from_profile_class", "to_profile_class", "changed", "from_fit_id",
-    "to_fit_id", "comparison_id"), drop = FALSE]
+    "to_fit_id", "comparison_id", "snapshot_id", "from_reference_years",
+    "to_reference_years", "reference_selection", "configuration_type",
+    "solution_review_status", "exploratory",
+    "geography_regime", "census_bases", "indicator_specification",
+    "fitting_specification"), drop = FALSE]
   matrix_table <- function(x) data.frame(from_profile = rownames(x),
     as.data.frame.matrix(unclass(x)), check.names = FALSE)
   changes <- stats::reshape(transition$indicator_changes,
@@ -176,6 +250,18 @@
       to_fit_id = transition$provenance$to_fit_id,
       from_reference_period = transition$provenance$from_reference_period,
       to_reference_period = transition$provenance$to_reference_period,
+      reference_selection = "fixed_reviewed_comparison",
+      configuration_type = "preset",
+      solution_review_status = "reviewed_reference",
+      exploratory = FALSE,
+      geography_regime = "current_400_district_comparison",
+      census_bases = c("census_2011", "census_2022"),
+      indicator_specification = paste(
+        demographic_structure_spec()$indicator_set_id,
+        demographic_structure_spec()$definition_version, sep = "@"),
+      fitting_specification = paste(
+        dynamic_kmeans_spec()$fitting_specification_id,
+        dynamic_kmeans_spec()$definition_version, sep = "@"),
       k = 3L, alignment = transition$provenance$alignment_version,
       comparison_id = transition$provenance$comparison_id,
       comparison_universe = "reviewed current 400-district geography",
@@ -226,6 +312,49 @@
   if (!is.null(regional) && is.data.frame(regional) && nrow(regional)) {
     sheets$`Regionale Ergebnisse` <- regional
   }
+  fit_provenance <- result$fit$provenance
+  fitting <- result$fit$fitting_specification
+  indicator_specification <- if (all(c("indicator_set_id",
+      "indicator_set_version") %in% names(fit_provenance))) paste(
+    fit_provenance$indicator_set_id, fit_provenance$indicator_set_version,
+    sep = "@") else NULL
+  fitting_specification <- if (all(c("fitting_specification_id",
+      "fitting_specification_version") %in% names(fit_provenance))) paste(
+    fit_provenance$fitting_specification_id,
+    fit_provenance$fitting_specification_version, sep = "@") else NULL
+  export_context <- list(
+    snapshot_id = if (!isTRUE(reference))
+      result$demographic$snapshot_provenance$snapshot_id %||% NA_character_
+      else NA_character_,
+    demographic_reference_years = paste(
+      loaded$demographic_years %||% result$demographic_years %||% integer(),
+      collapse = ";"),
+    reference_selection = loaded$reference_selection %||% NA_character_,
+    configuration_type = loaded$configuration_type %||%
+      loaded$reference_selection %||% NA_character_,
+    solution_review_status = loaded$solution_review_status %||%
+      if (identical(loaded$reference_selection, "preset"))
+        "reviewed_reference" else if (identical(
+          loaded$reference_selection, "custom"))
+            "not_individually_reviewed" else NA_character_,
+    exploratory_typology = loaded$exploratory %||% NA,
+    demographic_geography_regime = loaded$geography_regime %||% NA_character_,
+    demographic_census_bases = paste(loaded$census_bases %||% character(),
+      collapse = ";"),
+    indicator_specification = indicator_specification %||% NA_character_,
+    fitting_specification = fitting_specification %||% NA_character_,
+    fit_id = result$fit$provenance$fit_id)
+  snapshot_provenance <- if (!isTRUE(reference))
+    result$demographic$snapshot_provenance else NULL
+  observation_provenance <- if (is.null(snapshot_provenance)) {
+    list(statuses = NULL, retrieved_at = NULL)
+  } else .snapshot_export_observation_provenance(snapshot_provenance)
+  for (sheet_name in names(sheets)) {
+    for (field in names(export_context)) {
+      sheets[[sheet_name]][[field]] <- rep(export_context[[field]],
+        nrow(sheets[[sheet_name]]))
+    }
+  }
   sheets$Metadaten <- .export_metadata(list(
     analysis_type = if (isTRUE(reference))
       "Historische Referenzanalyse mit aktuellem SurvStat-Datenstand" else
@@ -239,9 +368,29 @@
     analysis_period = result$analysis_range$label,
     analysis_period_mode = result$analysis_range$mode,
     demographic_reference_period = loaded$demographic_period,
+    demographic_reference_years = loaded$demographic_years,
+    reference_selection = loaded$reference_selection,
+    configuration_type = loaded$configuration_type %||%
+      loaded$reference_selection,
+    solution_review_status = loaded$solution_review_status %||%
+      if (identical(loaded$reference_selection, "preset"))
+        "reviewed_reference" else if (identical(
+          loaded$reference_selection, "custom"))
+            "not_individually_reviewed" else NA_character_,
+    exploratory_typology = loaded$exploratory,
+    demographic_geography_regime = loaded$geography_regime,
+    demographic_census_bases = loaded$census_bases,
     k = loaded$k, fit_id = result$fit$provenance$fit_id,
+    indicator_specification = indicator_specification,
+    fitting_specification = fitting_specification,
+    fitting_algorithm = fitting$algorithm,
+    fitting_nstart = fitting$nstart,
+    fitting_iter_max = fitting$iter_max,
+    fitting_seed = fitting$seed,
     snapshot_id = if (!isTRUE(reference))
       result$demographic$snapshot_provenance$snapshot_id else NULL,
+    demographic_observation_source_status = observation_provenance$statuses,
+    demographic_observation_retrieved_at = observation_provenance$retrieved_at,
     incidence_definition = incidence_label,
     population_basis = if (!isTRUE(reference))
       result$demographic$snapshot_provenance$population_basis else NULL,

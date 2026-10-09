@@ -13,12 +13,11 @@ test_that("reviewed demographic snapshot contract and resource are complete", {
     paste0("typology_components_same_calendar_date_within_15_minutes;",
            "annual_average_population_independently_reviewed"))
   expect_identical(snapshot$provenance$covered_reference_dates,
-    as.Date(c(sprintf("%d-12-31", 2017:2020),
-              sprintf("%d-12-31", 2022:2025))))
+    as.Date(sprintf("%d-12-31", 2017:2025)))
   expect_identical(unname(snapshot$diagnostics$component_row_counts),
-                   c(rep(3204L, 4L), 3600L))
+                   c(rep(3604L, 4L), 3600L))
   expect_identical(unname(snapshot$diagnostics$geographic_unit_counts),
-                   c(rep(401L, 4L), rep(400L, 4L)))
+                   c(rep(401L, 4L), rep(400L, 5L)))
   expect_identical(snapshot$provenance$covered_reporting_years, 2017:2025)
   expect_identical(unname(
     snapshot$diagnostics$annual_average_population_counts), rep(400L, 9L))
@@ -43,8 +42,58 @@ test_that("snapshot geography is exact across components and dates", {
   }
 })
 
+test_that("reviewed default is immutable snapshot v5 with the v4 predecessor", {
+  snapshot <- regionalepi_demographic_snapshot()
+  prior <- regionalepi:::.regionalepi_package_data(
+    "regionalepi_demographic_snapshot_v4")
+  expect_identical(snapshot$provenance$snapshot_id,
+    "regionalepi_demography_47bd90242e6c148e")
+  expect_identical(snapshot$provenance$content_checksum,
+    "47bd90242e6c148e0390d93aae4dc738")
+  expect_identical(snapshot$provenance$prior_snapshot_id,
+    prior$provenance$snapshot_id)
+  expect_identical(snapshot$provenance$inherited_snapshot_checksum,
+    prior$provenance$content_checksum)
+  for (name in c("mean_age", "youth_dependency", "population", "area")) {
+    inherited <- snapshot$data[[name]][
+      snapshot$data[[name]]$reference_date != as.Date("2021-12-31"), ,
+      drop = FALSE]
+    rownames(inherited) <- NULL
+    prior_data <- prior$data[[name]]
+    rownames(prior_data) <- NULL
+    expect_identical(inherited, prior_data)
+  }
+  expect_identical(snapshot$data$annual_average_population,
+    prior$data$annual_average_population)
+  for (years in list(2017:2020, 2022:2025)) {
+    v5_fit <- fit_dynamic_typology(
+      prepare_demographic_snapshot(snapshot, years)$summary, k = 3L)
+    v4_fit <- fit_dynamic_typology(
+      prepare_demographic_snapshot(prior, years)$summary, k = 3L)
+    expect_identical(v5_fit$assignments, v4_fit$assignments)
+    expect_identical(v5_fit$profiles, v4_fit$profiles)
+  }
+})
+
+test_that("snapshot preparation accepts only supported contiguous geography regimes", {
+  snapshot <- regionalepi_demographic_snapshot()
+  for (years in list(2017L, 2018:2020, 2021L, 2021:2022, 2023:2025)) {
+    prepared <- prepare_demographic_snapshot(snapshot, years)
+    expect_identical(prepared$summary$diagnostics$reference_years,
+      as.integer(years))
+    expect_no_error(fit_dynamic_typology(prepared$summary, k = 3L))
+  }
+  expect_error(prepare_demographic_snapshot(snapshot, 2020:2021),
+    "within 2017-2020 or within 2021-2025", fixed = TRUE)
+  expect_error(prepare_demographic_snapshot(snapshot, c(2021L, 2023L)),
+    "contiguous", fixed = TRUE)
+  expect_error(prepare_demographic_snapshot(snapshot, 2016:2019),
+    "within 2017-2020 or within 2021-2025", fixed = TRUE)
+})
+
 test_that("snapshot v4 preserves v3 and historical observations", {
-  current <- regionalepi_demographic_snapshot()
+  current <- regionalepi:::.regionalepi_package_data(
+    "regionalepi_demographic_snapshot_v4")
   prior <- get("regionalepi_demographic_snapshot_v3",
                envir = asNamespace("regionalepi"))
   expect_invisible(validate_demographic_snapshot(prior))
@@ -87,7 +136,8 @@ test_that("immutable predecessor snapshot identities remain unchanged", {
 })
 
 test_that("extended snapshot preserves typology coverage and adds reviewed denominators", {
-  prior <- regionalepi_demographic_snapshot()
+  prior <- regionalepi:::.regionalepi_package_data(
+    "regionalepi_demographic_snapshot_v4")
   reconstructed <- regionalepi:::.snapshot_reconstruct_components(prior)
   annual <- regionalepi:::.demographic_snapshot_average_population(
     prior, 2022:2025
@@ -166,7 +216,8 @@ test_that("extended snapshot preserves typology coverage and adds reviewed denom
 })
 
 test_that("snapshot v4 identity reflects normalized deterministic content", {
-  current <- regionalepi_demographic_snapshot()
+  current <- regionalepi:::.regionalepi_package_data(
+    "regionalepi_demographic_snapshot_v4")
   prior <- get("regionalepi_demographic_snapshot_v3",
                envir = asNamespace("regionalepi"))
   expect_identical(current$provenance$content_checksum,
@@ -186,6 +237,153 @@ test_that("snapshot v4 identity reflects normalized deterministic content", {
     identical(rownames(x), as.character(seq_len(nrow(x))))
   }, logical(1L))))
   expect_invisible(validate_demographic_snapshot(current))
+})
+
+snapshot_2021_fixture <- function(offset_minutes = c(0, 3, 6, 9)) {
+  prior <- regionalepi:::.regionalepi_package_data(
+    "regionalepi_demographic_snapshot_v4")
+  old <- regionalepi:::.snapshot_reconstruct_components(prior)
+  date <- as.Date("2021-12-31")
+  status <- sprintf("09.10.2026 / 10:%02d:00", offset_minutes)
+  retrieved <- as.POSIXct("2026-10-09 08:00:00", tz = "UTC") +
+    offset_minutes * 60
+  census_notes <- paste(
+    "Die Berichtsjahre 2011 bis 2021 basieren auf den Ergebnissen des",
+    "Zensus vom 09. Mai 2011.")
+  indicator <- function(component, status_value, retrieved_value) {
+    component$data <- component$data[
+      component$data$reference_date == as.Date("2025-12-31"), , drop = FALSE]
+    component$data$reference_date <- date
+    component$data$population_basis <- "census_2011"
+    component$diagnostics$source_quality_markers <- "-"
+    component$provenance <- lapply(component$provenance, function(x) {
+      x$data_status <- status_value
+      x$retrieved_at <- retrieved_value
+      x$source_notes <- census_notes
+      x
+    })
+    component
+  }
+  population <- old$population
+  population$data <- population$data[
+    population$data$reference_date == as.Date("2025-12-31"), , drop = FALSE]
+  population$data$reference_date <- date
+  population$data$population_basis <- "census_2011"
+  population$data$data_status <- status[[3L]]
+  population$data$retrieved_at <- retrieved[[3L]]
+  population$diagnostics$source_quality_markers <- "-"
+  population$provenance$data_status <- status[[3L]]
+  population$provenance$retrieved_at <- retrieved[[3L]]
+  population$provenance$source_notes <- census_notes
+  area <- old$area
+  area$data <- area$data[
+    area$data$reference_date == as.Date("2025-12-31"), , drop = FALSE]
+  area$data$reference_date <- date
+  area$data$data_status <- status[[4L]]
+  area$data$retrieved_at <- retrieved[[4L]]
+  area$diagnostics$source_quality_markers <- "-"
+  area$provenance$data_status <- status[[4L]]
+  area$provenance$retrieved_at <- retrieved[[4L]]
+  list(
+    mean_age = indicator(old$mean_age, status[[1L]], retrieved[[1L]]),
+    youth_dependency = indicator(old$youth, status[[2L]], retrieved[[2L]]),
+    population = population, area = area
+  )
+}
+
+test_that("v5 extension adds only reviewed 2021 observations", {
+  prior <- regionalepi:::.regionalepi_package_data(
+    "regionalepi_demographic_snapshot_v4")
+  first <- regionalepi:::.extend_demographic_snapshot_v5(
+    prior, snapshot_2021_fixture())
+  second <- regionalepi:::.extend_demographic_snapshot_v5(
+    prior, snapshot_2021_fixture())
+  expect_invisible(validate_demographic_snapshot(first))
+  expect_identical(unname(first$diagnostics$component_row_counts),
+    c(rep(3604L, 4L), 3600L))
+  expect_identical(unname(first$diagnostics$geographic_unit_counts),
+    c(rep(401L, 4L), rep(400L, 5L)))
+  expect_identical(first$provenance$covered_reference_dates,
+    as.Date(sprintf("%d-12-31", 2017:2025)))
+  expect_identical(first$provenance$prior_snapshot_id,
+    prior$provenance$snapshot_id)
+  expect_identical(first$provenance$inherited_snapshot_checksum,
+    prior$provenance$content_checksum)
+  expect_identical(first$provenance$content_checksum,
+    second$provenance$content_checksum)
+  observation_provenance <- first$provenance$component_observation_provenance
+  expect_identical(unname(vapply(
+    observation_provenance[1:4], length, integer(1L))),
+    rep(2L, 4L))
+  expect_identical(unname(vapply(observation_provenance[1:4], function(x) {
+    x[[2L]]$origin
+  }, character(1L))), rep("authenticated_2021_extension", 4L))
+  expect_true(all(vapply(observation_provenance[1:4], function(x) {
+    !identical(x[[1L]]$retrieved_at, x[[2L]]$retrieved_at)
+  }, logical(1L))))
+  expect_false("16056" %in% first$data$population$geo_id[
+    first$data$population$reference_date == as.Date("2021-12-31")])
+  expect_identical(sum(first$data$population$geo_id == "16063" &
+    first$data$population$reference_date == as.Date("2021-12-31")), 1L)
+  for (name in c("mean_age", "youth_dependency", "population", "area")) {
+    inherited <- first$data[[name]][
+      first$data[[name]]$reference_date != as.Date("2021-12-31"), , drop = FALSE]
+    rownames(inherited) <- NULL
+    prior_data <- prior$data[[name]]
+    rownames(prior_data) <- NULL
+    expect_identical(inherited, prior_data)
+  }
+  expect_identical(first$data$annual_average_population,
+    prior$data$annual_average_population)
+  for (years in list(2017:2020, 2022:2025)) {
+    old_fit <- fit_dynamic_typology(
+      prepare_demographic_snapshot(prior, years)$summary, k = 3L)
+    new_fit <- fit_dynamic_typology(
+      prepare_demographic_snapshot(first, years)$summary, k = 3L)
+    expect_identical(new_fit$assignments, old_fit$assignments)
+    expect_identical(new_fit$profiles, old_fit$profiles)
+  }
+})
+
+test_that("v5 2021 gate rejects geography and retrieval defects", {
+  prior <- regionalepi:::.regionalepi_package_data(
+    "regionalepi_demographic_snapshot_v4")
+  missing <- snapshot_2021_fixture()
+  missing$mean_age$data <- missing$mean_age$data[-1L, , drop = FALSE]
+  expect_error(regionalepi:::.extend_demographic_snapshot_v5(prior, missing),
+    "exact 2021 coverage")
+
+  duplicate <- snapshot_2021_fixture()
+  duplicate$area$data$geo_id[[2L]] <- duplicate$area$data$geo_id[[1L]]
+  expect_error(regionalepi:::.extend_demographic_snapshot_v5(prior, duplicate),
+    "exact 2021 coverage|unique")
+
+  eisenach <- snapshot_2021_fixture()
+  eisenach$population$data$geo_id[[1L]] <- "16056"
+  expect_error(regionalepi:::.extend_demographic_snapshot_v5(prior, eisenach),
+    "exact 2021 coverage")
+
+  bad_notes <- snapshot_2021_fixture()
+  bad_notes$youth_dependency$provenance <- lapply(
+    bad_notes$youth_dependency$provenance, function(x) {
+      x$source_notes <- "unrelated note"; x
+    })
+  expect_error(regionalepi:::.extend_demographic_snapshot_v5(prior, bad_notes),
+    "Census 2011 basis")
+
+  bad_name <- snapshot_2021_fixture()
+  bad_name$population$data$geo_name[[1L]] <- "Nicht der Registername"
+  expect_error(regionalepi:::.extend_demographic_snapshot_v5(prior, bad_name),
+    "district names differ")
+
+  bad_marker <- snapshot_2021_fixture()
+  bad_marker$area$diagnostics$source_quality_markers <- "X"
+  expect_error(regionalepi:::.extend_demographic_snapshot_v5(prior, bad_marker),
+    "unexpected quality marker")
+
+  late <- snapshot_2021_fixture(c(0, 3, 6, 20))
+  expect_error(regionalepi:::.extend_demographic_snapshot_v5(prior, late),
+    "15-minute window")
 })
 
 test_that("snapshot annual-average population is reviewed and distinct", {
@@ -224,7 +422,8 @@ test_that("snapshot rejects content, status, and geography corruption", {
   changed <- snapshot
   changed$data$population$population[[1L]] <-
     changed$data$population$population[[1L]] + 1
-  expect_error(validate_demographic_snapshot(changed), "checksum")
+  expect_error(validate_demographic_snapshot(changed),
+    "does not preserve v4 observations|checksum")
 
   duplicate <- snapshot
   duplicate$data$area <- rbind(duplicate$data$area,
@@ -335,9 +534,9 @@ test_that("public snapshot preparation preserves dimensions and indicators", {
 
 test_that("public snapshot preparation retains strict existing failures", {
   snapshot <- regionalepi_demographic_snapshot()
-  expect_error(prepare_demographic_snapshot(snapshot, 2021L), "not covered")
+  expect_no_error(prepare_demographic_snapshot(snapshot, 2021L))
   expect_error(prepare_demographic_snapshot(snapshot, c(2022L, NA_integer_)),
-               "not covered")
+               "whole values")
   expect_error(prepare_demographic_snapshot(snapshot, c(2022L, 2022L)),
                "unique")
   expect_error(prepare_demographic_snapshot("reviewed_default", 2022:2025),
@@ -346,7 +545,8 @@ test_that("public snapshot preparation retains strict existing failures", {
   malformed <- snapshot
   malformed$data$population$population[[1L]] <-
     malformed$data$population$population[[1L]] + 1
-  expect_error(prepare_demographic_snapshot(malformed, 2022:2025), "checksum")
+  expect_error(prepare_demographic_snapshot(malformed, 2022:2025),
+    "does not preserve v4 observations|checksum")
 })
 
 test_that("public snapshot preparation leaves dynamic fits unchanged", {

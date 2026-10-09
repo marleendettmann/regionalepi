@@ -25,6 +25,45 @@ test_that("Shiny PoC defaults and reviewed period choices are stable", {
   expect_length(registry[["Norovirus-Gastroenteritis"]]$period_factories, 0L)
 })
 
+test_that("demographic reference selection supports reviewed custom regimes", {
+  current <- regionalepi:::.shiny_demographic_reference_selection("2022–2025")
+  expect_identical(current$years, 2022:2025)
+  expect_identical(current$selection_type, "preset")
+  expect_identical(current$configuration_type, "preset")
+  expect_identical(current$solution_review_status, "reviewed_reference")
+  expect_false(current$exploratory)
+
+  annual <- regionalepi:::.shiny_demographic_reference_selection(
+    "Benutzerdefinierter Referenzzeitraum", 2021L, 2021L)
+  expect_identical(annual$years, 2021L)
+  expect_true(annual$exploratory)
+  expect_true(annual$annual_typology)
+  expect_identical(annual$configuration_type, "custom")
+  expect_identical(annual$solution_review_status,
+    "not_individually_reviewed")
+  expect_identical(annual$geography_regime, "current_400_districts")
+
+  mixed_basis <- regionalepi:::.shiny_demographic_reference_selection(
+    "Benutzerdefinierter Referenzzeitraum", 2021L, 2022L)
+  expect_true(mixed_basis$census_comparability_notice)
+  expect_identical(mixed_basis$census_bases,
+    c("census_2011", "census_2022"))
+
+  historical <- regionalepi:::.shiny_demographic_reference_selection(
+    "Benutzerdefinierter Referenzzeitraum", 2018L, 2020L)
+  expect_identical(historical$years, 2018:2020)
+  expect_identical(historical$geography_regime,
+    "historical_401_districts")
+  expect_error(regionalepi:::.shiny_demographic_reference_selection(
+    "Benutzerdefinierter Referenzzeitraum", 2020L, 2021L),
+    "within 2017-2020")
+
+  reconciled <- regionalepi:::.shiny_reconcile_custom_demographic_years(
+    2020L, 2025L)
+  expect_identical(reconciled$end_year, 2020L)
+  expect_identical(reconciled$end_choices, 2020L)
+})
+
 test_that("historical pandemic frame exposes all reviewed dissertation periods", {
   window <- regionalepi:::.shiny_selected_window(
     "COVID-19", "covid19_pandemic_2020_22")
@@ -113,6 +152,10 @@ test_that("loaded analysis context preserves typology and incidence semantics", 
   ))
   expect_true(regionalepi:::.shiny_loaded_selection_changed(
     result, "dynamic", "2017–2020", "4", "snapshot"
+  ))
+  result$loaded_selection$demographic_years <- 2022:2025
+  expect_true(regionalepi:::.shiny_loaded_selection_changed(
+    result, "dynamic", "2022–2025", "4", "snapshot", 2021:2025
   ))
   expect_true(regionalepi:::.shiny_loaded_selection_changed(
     result, "dissertation", "2022–2025", "4", "snapshot"
@@ -1101,6 +1144,21 @@ test_that("Pass-3c consolidates distributions and methodology", {
   expect_false(grepl("reference_state",server_text,fixed=TRUE))
   expect_match(ui_text,'"Ausgewählte ISO-Kalenderwoche" = "week"',fixed=TRUE)
   expect_match(ui_text,'uiOutput("distribution_week_control")',fixed=TRUE)
+  expect_match(ui_text,paste0('c("2017–2020", "2022–2025", ',
+    '"Benutzerdefinierter Referenzzeitraum")'),
+    fixed=TRUE)
+  expect_match(ui_text,'selectInput("demographic_start_year", "Startjahr"',
+    fixed=TRUE)
+  expect_match(ui_text,'selectInput("demographic_end_year", "Endjahr"',
+    fixed=TRUE)
+  expect_match(server_text,"Benutzerdefinierte Konfiguration",fixed=TRUE)
+  expect_match(server_text,"Einjähriger Referenzzeitraum",fixed=TRUE)
+  expect_match(server_text,paste(
+    "Die konkrete Clusterlösung wurde nicht gesondert wissenschaftlich",
+    "validiert."),fixed=TRUE)
+  expect_false(grepl("Explorative Typologie|Explorative jährliche Typologie",
+    paste(ui_text,server_text)))
+  expect_match(server_text,"Zensus 2011, ab 2022",fixed=TRUE)
   expect_match(server_text,"output$weekly_distribution_plot",fixed=TRUE)
   expect_match(server_text,"output$analysis_week_distribution_png",fixed=TRUE)
   expect_match(server_text,"output$methods_page",fixed=TRUE)
@@ -1131,6 +1189,19 @@ test_that("typology configuration identity includes scientific and provenance di
     "snapshot-v4")))
   expect_false(identical(key,regionalepi:::.shiny_typology_configuration_key(
     current,"other-provenance")))
+  custom<-regionalepi:::.shiny_typology_configuration(
+    "2021–2023",3L,"snapshot",reference_years=2021:2023)
+  custom_key<-regionalepi:::.shiny_typology_configuration_key(
+    custom,"regionalepi_demography_47bd90242e6c148e")
+  expect_false(identical(key,custom_key))
+  expect_match(custom_key,"2021-2022-2023",fixed=TRUE)
+  expect_match(custom_key,"regionalepi_demography_47bd90242e6c148e",
+    fixed=TRUE)
+  expect_false(identical(
+    regionalepi:::.shiny_demographic_cache_key(
+      "2021–2023","snapshot",2021:2023),
+    regionalepi:::.shiny_demographic_cache_key(
+      "2022–2023","snapshot",2022:2023)))
 })
 
 test_that("map join is identifier-only and handles reviewed historical difference", {
@@ -1330,7 +1401,8 @@ test_that("runtime code does not look up ordinary package data in the namespace"
     "regionalepi_demographic_snapshot_v1",
     "regionalepi_demographic_snapshot_v2",
     "regionalepi_demographic_snapshot_v3",
-    "regionalepi_demographic_snapshot_v4"
+    "regionalepi_demographic_snapshot_v4",
+    "regionalepi_demographic_snapshot_v5"
   )
   direct_lookup <- paste0(
     "(?:get|get0)\\s*\\([^)]*\"(?:",
@@ -1774,7 +1846,7 @@ test_that("Shiny demographic snapshot is default and live mode is explicit", {
   expect_identical(current$source_mode, "snapshot")
   expect_identical(historical$source_mode, "snapshot")
   expect_identical(regionalepi:::.shiny_demography_status(current),
-    paste("Geprüfter Snapshot – Typologie-Datenstand 06.10.2026;",
+    paste("Geprüfter Snapshot – Typologie-Datenstand 09.10.2026;",
           "Jahresdurchschnittsbevölkerung 08.10.2026"))
   expect_identical(nrow(current$summary$data), 1200L)
   expect_identical(nrow(historical$summary$data), 1203L)
@@ -2395,5 +2467,26 @@ test_that("demographic startup is offline and independent of surveillance contro
       transition_before)
     expect_identical(retrievals,0L)
     expect_null(state$result)
+
+    session$setInputs(
+      demographic_period="Benutzerdefinierter Referenzzeitraum",
+      demographic_start_year="2021",demographic_end_year="2022")
+    session$flushReact()
+    expect_null(demographic_state$error)
+    expect_identical(demographic_state$result$demographic_years,2021:2022)
+    expect_identical(
+      demographic_state$result$reference_selection$selection_type,"custom")
+    expect_identical(
+      demographic_state$result$reference_selection$solution_review_status,
+      "not_individually_reviewed")
+    expect_true(
+      demographic_state$result$reference_selection$census_comparability_notice)
+    expect_identical(retrievals,0L)
+    custom_fit_count<-demographic_state$fit_count
+    session$setInputs(pathogen="Norovirus-Gastroenteritis",
+      window_id="norovirus_2025_26")
+    session$flushReact()
+    expect_identical(demographic_state$fit_count,custom_fit_count)
+    expect_identical(retrievals,0L)
   })
 })

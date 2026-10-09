@@ -227,9 +227,12 @@ its validated historical source incidence. `shiny` and `leaflet` remain suggeste
 dependencies; base graphics provide charts and runtime mapping does not use
 `sf`.
 
-The reviewed demographic snapshot preserves normalized 2017--2020 and
-2022--2024 source components, component statuses/provenance, and a deterministic
-checksum; density and downstream indicators remain ordinary derivations. A
+The reviewed demographic snapshot preserves normalized annual source
+components for 2017--2025, with separate provenance for inherited observations
+and the added 2021 source retrieval, plus a deterministic checksum. Dynamic
+reference periods must remain wholly within the historical 2017--2020 or the
+current 2021--2025 geography regime; density and downstream indicators remain
+ordinary derivations. A
 snapshot refresh is a reviewed development/release build and never an in-app
 mutation. Live queries start only by explicit user action and are cached only
 in session memory. Map selection is display state and never triggers retrieval or fitting.

@@ -67,7 +67,9 @@ establish a canonical territorial register vintage, so adapter-produced
 
 The installed demographic snapshot contains reviewed observations from tables
 `12411-07-01-4`, `12411-08-01-4`, `12411-01-01-4`, `11111-01-01-4`, and
-`12411-05-01-4`. The last component is the distinct official annual-average
+`12411-05-01-4`. Snapshot v5 covers 2017--2025 for the four typology source
+components and records the separately retrieved 2021 observations without
+rewriting inherited v4 provenance. The last component is the distinct official annual-average
 population for reporting years 2017--2025. Values for 2017--2021 use the
 Census 2011 progression basis; values from 2022 use the Census 2022 progression
 basis. This is a change in the population-estimation basis, not in the incidence

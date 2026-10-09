@@ -79,6 +79,14 @@
 #' change in the population-estimation basis, not in the incidence formula.
 #' Comparisons across the 2021/2022 transition should acknowledge this
 #' methodological discontinuity.
+#' Dynamic demographic reference periods may contain one or more contiguous
+#' years wholly within 2017--2020 or wholly within 2021--2025. Periods crossing
+#' 2020/2021 are rejected because the historical 401-district geography and the
+#' current 400-district geography are not silently harmonized for nonadditive
+#' indicators. User-defined configurations use the reviewed indicators and
+#' fitting method, but the resulting cluster solution is not reviewed
+#' individually. A one-year reference period uses that reporting year's
+#' demographic indicators.
 #'
 #' Source-provided SurvStat incidence is retained separately for provenance,
 #' methodological comparison, and historical reproduction. The derived measure

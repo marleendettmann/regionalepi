@@ -8,6 +8,8 @@ export_fixture <- function() {
     demographic = to_demography, fit = to_fit,
     map_join = regionalepi:::.shiny_map_assignments(map, to_fit),
     demographic_years = 2022:2025,
+    reference_selection = regionalepi:::.shiny_demographic_reference_selection(
+      "2022–2025"),
     configuration = list(k = 3L)
   )
   transition <- compare_dynamic_typology_transitions(
@@ -69,11 +71,44 @@ test_that("typology export tables equal the prepared displayed state", {
   expect_identical(assignments$dynamic_cluster_id, expected)
   expect_identical(unique(assignments$fit_id),
     fixture$prepared$fit$provenance$fit_id)
-  expect_true(all(c("snapshot_id", "fit_id", "source_data_status") %in%
+  expect_true(all(c("snapshot_id", "fit_id", "source_data_status",
+    "demographic_reference_years", "reference_selection",
+    "configuration_type", "solution_review_status", "exploratory",
+    "geography_regime", "census_bases", "indicator_set",
+    "typology_specification", "observation_source_status",
+    "observation_retrieved_at") %in%
     tables$Metadaten$field))
+  expect_identical(unique(assignments$snapshot_id),
+    "regionalepi_demography_47bd90242e6c148e")
+  expect_identical(unique(assignments$reference_selection), "preset")
+  expect_identical(unique(assignments$configuration_type), "preset")
+  expect_identical(unique(assignments$solution_review_status),
+    "reviewed_reference")
+  expect_false(any(assignments$exploratory))
   expect_identical(tables$`Quellen und Lizenz`$attribution[1:2], c(
     regionalepi:::.regionalepi_package_citation(),
     regionalepi:::.regionalepi_dissertation_citation()))
+
+  custom <- fixture$prepared
+  custom$reference_selection <-
+    regionalepi:::.shiny_demographic_reference_selection(
+      "Benutzerdefinierter Referenzzeitraum", 2022L, 2025L)
+  custom_tables <- regionalepi:::.typology_export_tables(
+    custom, fixture$map$provenance,
+    as.POSIXct("2026-10-08 12:00:00", tz = "UTC"))
+  expect_identical(custom_tables$Kreiszuordnungen$dynamic_cluster_id,
+    assignments$dynamic_cluster_id)
+  expect_identical(unique(custom_tables$Kreiszuordnungen$configuration_type),
+    "custom")
+  expect_identical(unique(
+    custom_tables$Kreiszuordnungen$solution_review_status),
+    "not_individually_reviewed")
+  expect_identical(custom_tables$Metadaten$value[
+    custom_tables$Metadaten$field == "configuration_label"],
+    "Benutzerdefinierte Konfiguration")
+  expect_match(custom_tables$Metadaten$value[
+    custom_tables$Metadaten$field == "solution_review_note"],
+    "nicht gesondert wissenschaftlich validiert", fixed = TRUE)
 })
 
 test_that("transition export is the exact cached comparison", {
@@ -91,6 +126,15 @@ test_that("transition export is the exact cached comparison", {
     as.integer(fixture$transition$count_matrix))
   expect_identical(unique(tables$Clusterwechsler$comparison_id),
     fixture$transition$provenance$comparison_id)
+  expect_identical(unique(tables$Clusterwechsler$snapshot_id),
+    "regionalepi_demography_47bd90242e6c148e")
+  expect_identical(unique(tables$Clusterwechsler$reference_selection),
+    "fixed_reviewed_comparison")
+  expect_identical(unique(tables$Clusterwechsler$configuration_type),
+    "preset")
+  expect_identical(unique(tables$Clusterwechsler$solution_review_status),
+    "reviewed_reference")
+  expect_false(any(tables$Clusterwechsler$exploratory))
   expect_identical(nrow(tables$Indikatorveränderungen), 400L)
   expect_identical(tables$`Quellen und Lizenz`$attribution[1:2], c(
     regionalepi:::.regionalepi_package_citation(),
@@ -161,6 +205,12 @@ test_that("epidemiology exports preserve loaded summaries and incidence semantic
     districts$median_period_incidence)
   expect_true(all(c("fit_id", "snapshot_id", "incidence_definition",
     "survstat_data_status") %in% tables$Metadaten$field))
+  expect_true(all(c("snapshot_id", "demographic_reference_years",
+    "reference_selection", "configuration_type", "solution_review_status",
+    "exploratory_typology",
+    "demographic_geography_regime", "demographic_census_bases",
+    "indicator_specification", "fitting_specification", "fit_id") %in%
+    names(tables[["Wöchentliche Clusterinzidenz"]])))
   expect_false(any(grepl("PASSWORD|Authorization|SOAP", unlist(tables),
     ignore.case = TRUE)))
   expect_identical(tables$`Quellen und Lizenz`$attribution[1:2], c(

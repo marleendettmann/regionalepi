@@ -10,7 +10,10 @@ prepare_demographic_snapshot(snapshot, reference_years)
 \item{snapshot}{A validated snapshot returned by
 \code{\link[=regionalepi_demographic_snapshot]{regionalepi_demographic_snapshot()}}.}
 
-\item{reference_years}{Explicit years covered by the reviewed snapshot.}
+\item{reference_years}{One or more contiguous years wholly within 2017--2020
+or wholly within 2021--2025. Periods crossing 2020/2021 are rejected
+because the stored nonadditive demographic indicators use different
+district geographies on either side of that boundary.}
 }
 \value{
 A list with five top-level fields: \code{annual}, the combined annual

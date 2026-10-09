@@ -3,8 +3,12 @@ pathogen_choices <- regionalepi:::.shiny_pathogen_choices()
 
 demographic_controls <- tagList(
   selectInput("demographic_period", "Demografischer Referenzzeitraum",
-    c("2022–2025", "2017–2020"), "2022–2025"),
-  selectInput("k", "Anzahl Cluster (explorativ)", 2:5, 3),
+    c("2017–2020", "2022–2025", "Benutzerdefinierter Referenzzeitraum"), "2022–2025"),
+  conditionalPanel("input.demographic_period == 'Benutzerdefinierter Referenzzeitraum'",
+    selectInput("demographic_start_year", "Startjahr", 2017:2025, 2022),
+    selectInput("demographic_end_year", "Endjahr", 2022:2025, 2025)),
+  uiOutput("demographic_reference_note"),
+  selectInput("k", "Anzahl Cluster", 2:5, 3),
   tags$details(tags$summary("Erweiterte Einstellungen"),
     uiOutput("demographic_source_control")),
   actionButton("prepare_demography", "Typologie vorbereiten / aktualisieren",

@@ -50,8 +50,8 @@ reported by SurvStat are retained with the results.
 
 Demographic data come from Regionaldatenbank Deutschland, provided by the
 Statistische Ämter des Bundes und der Länder. The package includes a reviewed
-snapshot for reproducible offline analysis. It contains the source data needed
-for the 2017--2020 and 2022--2025 demographic reference periods and supplies
+snapshot for reproducible offline analysis. It contains annual source data for
+2017--2025 and supplies
 the typology indicators used by the Shiny application by default, together
 with official annual-average population for reporting years 2017--2025.
 Snapshot mode therefore supports the complete default dynamic analysis without
@@ -62,6 +62,15 @@ from Regionaldatenbank Deutschland; see `?fetch_regional_population`,
 pages. Live retrieval of the typology data and annual-average population is
 optional and requires `REGIONALSTATISTIK_USER` and
 `REGIONALSTATISTIK_PASSWORD`.
+
+Dynamic typologies may use the reviewed presets 2017--2020 and 2022--2025 or a
+user-defined contiguous reference period wholly within 2017--2020 or
+2021--2025. For a user-defined configuration, the typology is fitted using the
+reviewed indicators and methods, but the specific cluster solution has not
+been reviewed individually. A reference period may contain a single reporting
+year. The 2020/2021 geography boundary cannot be crossed:
+historical nonadditive indicators retain Eisenach rather than silently merging
+it into Wartburgkreis.
 
 The annual-average population uses the Census 2011 progression basis for
 2017--2021 and the Census 2022 progression basis from 2022. This changes the

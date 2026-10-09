@@ -351,8 +351,9 @@ The bundled demographic snapshot is an explicit immutable Regionaldatenbank
 source state, not an opaque or silently stale cache. Normalized components
 preserve values, table/measure provenance, component retrieval times, the
 reviewed source-status compatibility rule, population bases, and a
-deterministic checksum. Its typology components cover exactly 2017--2020 and
-2022--2025.
+deterministic checksum. Version 5 carries annual typology components for every
+year from 2017 through 2025, with inherited v4 and newly retrieved 2021 source
+statuses recorded separately.
 It additionally carries official annual-average population for reporting years
 2017--2025 as a distinct source component. The 2017--2020 denominator is
 additively harmonized from Eisenach and Wartburgkreis to the reviewed current
@@ -373,6 +374,11 @@ package data. SurvStat retrieval remains live and separate.
 The persistent analysis sidebar feeds four display sections; changing tabs or
 the selected map district does not enter any retrieval or fitting dependency.
 The default remains the reviewed 2022--2025 snapshot, dynamic k = 3 typology,
+while user-defined contiguous reference periods are restricted to either the
+historical 2017--2020 geography or the current 2021--2025 geography. This
+prevents nonadditive indicators from being silently harmonized across the
+2020/2021 boundary. Such configurations use reviewed indicators and fitting
+methods, but their specific cluster solutions are not reviewed individually.
 and live SurvStat. The application uses dynamic typologies for regular
 surveillance analysis. The unchanged frozen 2017--2020 fit, historical
 ClD/ClJ/ClA labels, and reviewed 401-to-current-400 compatibility remain

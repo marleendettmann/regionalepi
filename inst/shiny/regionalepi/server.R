@@ -180,14 +180,47 @@ server <- function(input, output, session) {
     regionalepi:::.shiny_select_analysis_range(selected_window(),mode,reviewed_period())
   })
 
-  prepare_demographic_state <- function(period_label, k, source_mode) {
+  custom_demographic_years <- reactive({
+    regionalepi:::.shiny_reconcile_custom_demographic_years(
+      input$demographic_start_year,input$demographic_end_year)
+  })
+  observeEvent(input$demographic_start_year,{
+    custom<-custom_demographic_years()
+    updateSelectInput(session,"demographic_end_year",
+      choices=custom$end_choices,selected=custom$end_year)
+  },ignoreInit=TRUE,priority=200)
+  demographic_reference <- reactive({
+    req(input$demographic_period)
+    custom<-custom_demographic_years()
+    regionalepi:::.shiny_demographic_reference_selection(
+      input$demographic_period,custom$start_year,custom$end_year)
+  })
+  output$demographic_reference_note <- renderUI({
+    selection<-demographic_reference()
+    tagList(
+      if(identical(selection$configuration_type,"custom"))tagList(
+        p(class="status-info",strong("Benutzerdefinierte Konfiguration: "),
+          "Die Typologie wird für den gewählten Zeitraum anhand geprüfter demografischer Indikatoren und Berechnungsmethoden neu erstellt. Die konkrete Clusterlösung wurde nicht gesondert wissenschaftlich validiert."),
+        if(selection$annual_typology)p(class="app-note",
+          strong("Einjähriger Referenzzeitraum: "),
+          "Die Typologie verwendet die demografischen Indikatoren eines Berichtsjahres.")),
+      p(class="app-note",if(selection$geography_regime=="historical_401_districts")
+        "Historische Geografie mit 401 Kreisen einschließlich Eisenach. Zeiträume dürfen nicht über 2020 hinausreichen."
+        else "Aktuelle Vergleichsgeografie mit 400 Kreisen. Zeiträume dürfen nicht vor 2021 beginnen."),
+      if(selection$census_comparability_notice)p(class="status-quality",
+        "Vergleichbarkeit der Bevölkerungsbasis: 2021 basiert auf dem Zensus 2011, ab 2022 wird die Zensus-2022-Basis verwendet."))
+  })
+
+  prepare_demographic_state <- function(reference, k, source_mode) {
+    period_label <- reference$period_label
+    years <- reference$years
     configuration <- regionalepi:::.shiny_typology_configuration(
-      period_label, k, source_mode)
+      period_label, k, source_mode, reference_years=years)
     if (identical(source_mode,"live") &&
         !regionalepi:::.shiny_regional_credentials_available())
       stop("Live-Abruf derzeit nicht konfiguriert. Erforderlich sind die Umgebungsvariablen REGIONALSTATISTIK_USER und REGIONALSTATISTIK_PASSWORD. Hinweise zur sicheren Einrichtung: Methodik und Daten → Datenquellen und Provenienz.",call.=FALSE)
-    years <- configuration$reference_years
-    dkey <- regionalepi:::.shiny_demographic_cache_key(period_label,source_mode)
+    dkey <- regionalepi:::.shiny_demographic_cache_key(
+      period_label,source_mode,years)
     if(!exists(dkey,envir=cache,inherits=FALSE)) assign(dkey,
       if(source_mode=="snapshot") regionalepi:::.shiny_fetch_snapshot_demography(years) else regionalepi:::.shiny_fetch_demography(years),envir=cache)
     demographic <- get(dkey,envir=cache,inherits=FALSE)
@@ -210,7 +243,7 @@ server <- function(input, output, session) {
         "dissertation",3L),envir=cache)
     stability_fits <- lapply(2:5,function(stability_k) {
       stability_configuration <- regionalepi:::.shiny_typology_configuration(
-        period_label,stability_k,source_mode)
+        period_label,stability_k,source_mode,reference_years=years)
       key <- paste0("fit:",regionalepi:::.shiny_typology_configuration_key(
         stability_configuration,provenance_id))
       if(!exists(key,envir=cache,inherits=FALSE)) {
@@ -228,7 +261,8 @@ server <- function(input, output, session) {
       stability_fits[[2L]],"dynamic","profile_aligned",stability_policy,
       cache$map$features$geo_id)
     anchor_key <- paste0("fit:",regionalepi:::.shiny_typology_configuration_key(
-      regionalepi:::.shiny_typology_configuration(period_label,3L,source_mode),
+      regionalepi:::.shiny_typology_configuration(
+        period_label,3L,source_mode,reference_years=years),
       provenance_id))
     if(!exists(anchor_key,envir=cache,inherits=FALSE)) {
       assign(anchor_key,regionalepi:::.shiny_fit_typology(
@@ -252,6 +286,7 @@ server <- function(input, output, session) {
       display_metadata=display_metadata,palette_variant="profile_aligned",
       palette_alignment=palette_alignment,stability=stability,
       stability_metadata=stability_metadata,configuration=configuration,
+      reference_selection=reference,
       demographic_years=years,provenance_id=provenance_id,
       cache_keys=list(demographic=dkey,typology=tkey,map=mkey))
   }
@@ -284,14 +319,16 @@ server <- function(input, output, session) {
       to_demographic=demographics[[2L]],from_fit=fits[[1L]],to_fit=fits[[2L]])
   }
 
-  prepare_demography <- function(period_label,k,source_mode) {
+  prepare_demography <- function(reference,k,source_mode) {
     demographic_state$error <- NULL; demographic_state$busy <- TRUE
     on.exit(demographic_state$busy <- FALSE,add=TRUE)
     tryCatch({
       demographic_state$result <- prepare_demographic_state(
-        period_label,as.integer(k),source_mode)
-      demographic_state$selection <- list(demographic_period=period_label,
-        k=as.integer(k),demographic_source=source_mode)
+        reference,as.integer(k),source_mode)
+      demographic_state$selection <- list(
+        demographic_period=reference$period_label,
+        demographic_years=reference$years,k=as.integer(k),
+        demographic_source=source_mode)
       if(is.null(demographic_state$transition))
         demographic_state$transition<-prepare_transition_state()
       if(is.null(state$selected_geo_id)||
@@ -304,13 +341,14 @@ server <- function(input, output, session) {
   observeEvent(input$prepare_demography,{
     source_mode<-input$demographic_source
     if(is.null(source_mode)||!source_mode%in%c("snapshot","live"))source_mode<-"snapshot"
-    prepare_demography(input$demographic_period,input$k,source_mode)
+    prepare_demography(demographic_reference(),input$k,source_mode)
   },ignoreInit=TRUE)
-  observeEvent(list(input$demographic_period,input$k,input$demographic_source),{
+  observeEvent(list(input$demographic_period,input$demographic_start_year,
+      input$demographic_end_year,input$k,input$demographic_source),{
     source_mode<-input$demographic_source
     if(is.null(source_mode)||!source_mode%in%c("snapshot","live"))source_mode<-"snapshot"
     if(identical(source_mode,"snapshot"))
-      prepare_demography(input$demographic_period,input$k,source_mode)
+      prepare_demography(demographic_reference(),input$k,source_mode)
   },ignoreInit=FALSE,priority=50)
 
   observeEvent(input$show_typology,{
@@ -346,15 +384,17 @@ server <- function(input, output, session) {
       years<-seq.int(
         as.integer(format(request_range$start_date,"%Y")),
         as.integer(format(request_range$end_date,"%Y")))
-      mode <- "dynamic"; period_label <- input$demographic_period
+      mode <- "dynamic"; reference <- demographic_reference()
+      period_label <- reference$period_label
       source_mode <- input$demographic_source
       if(is.null(source_mode)||!source_mode%in%c("snapshot","live"))source_mode<-"snapshot"
       load_stage <- "demography"
-      pending <- list(demographic_period=period_label,k=as.integer(input$k),
+      pending <- list(demographic_period=period_label,
+        demographic_years=reference$years,k=as.integer(input$k),
         demographic_source=source_mode)
       if(is.null(demographic_state$result)||
          !identical(demographic_state$selection,pending)) {
-        if(!prepare_demography(period_label,input$k,source_mode))
+        if(!prepare_demography(reference,input$k,source_mode))
           stop(demographic_state$error,call.=FALSE)
       }
       prepared <- demographic_state$result
@@ -391,7 +431,15 @@ server <- function(input, output, session) {
         reporting_years=sort(unique(bundle$data$reporting_year)),
         analysis_range=request_range,
         loaded_selection=list(typology_mode=mode,
-          demographic_period=period_label,k=as.integer(input$k),
+          demographic_period=period_label,
+          demographic_years=reference$years,
+          reference_selection=reference$selection_type,
+          configuration_type=reference$configuration_type,
+          solution_review_status=reference$solution_review_status,
+          exploratory=reference$exploratory,
+          geography_regime=reference$geography_regime,
+          census_bases=reference$census_bases,
+          k=as.integer(input$k),
           demographic_source=source_mode),
         cache_keys=list(demographic=dkey,typology=tkey,surveillance=skey,map=mkey))
       if(is.null(state$selected_geo_id)||!state$selected_geo_id%in%map_join$data$geo_id) state$selected_geo_id<-"11000"
@@ -458,8 +506,9 @@ server <- function(input, output, session) {
   output$load_status <- renderUI({if(state$busy)p("Daten werden geladen …") else if(!is.null(state$error))p(class="status-error",regionalepi:::.shiny_app_display_error(state$error,!is.null(state$result))) else if(is.null(state$result))p("Noch keine Analyse geladen.") else p(class="status-ok","Analyse geladen: ",state$result$fit$provenance$fit_id)})
   loaded_selection_changed <- reactive({
     if(is.null(state$result))return(FALSE)
+    reference<-demographic_reference()
     regionalepi:::.shiny_loaded_selection_changed(state$result,"dynamic",
-      input$demographic_period,input$k,input$demographic_source)
+      reference$period_label,input$k,input$demographic_source,reference$years)
   })
   output$analysis_wide_status <- renderUI({
     req(state$result)
@@ -483,6 +532,8 @@ server <- function(input, output, session) {
     if(is.null(demographic_state$result))return(p("Typologie wird vorbereitet …"))
     p(class="status-ok","Typologie bereit: ",
       paste(range(demographic_state$result$demographic_years),collapse="–"),
+      regionalepi:::.shiny_demographic_reference_qualifier(
+        demographic_state$result$reference_selection),
       " · k = ",demographic_state$result$configuration$k)
   })
   output$active_demographic_status <- renderUI({
@@ -491,7 +542,9 @@ server <- function(input, output, session) {
     loaded<-if(is.null(state$result))NULL else state$result$loaded_selection
     tagList(p(strong(paste0("Demografische Typologie · ",
       paste(range(current$demographic_years),collapse="–")," · k=",
-      current$configuration$k))),
+      current$configuration$k,
+      regionalepi:::.shiny_demographic_reference_qualifier(
+        current$reference_selection)))),
       if(!is.null(loaded))p(class="app-note",
         strong("Für die angezeigte Analyse verwendet: "),
         paste0("Demografische Typologie · ",loaded$demographic_period,
@@ -509,7 +562,7 @@ server <- function(input, output, session) {
   observe({req(demographic_state$result,state$selected_geo_id);session$sendCustomMessage("regionalepi-select",state$selected_geo_id)})
   output$map_attribution <- renderUI({p(class="app-note",cache$map$provenance$attribution," · Ländergrenzen: ",cache$states$provenance$source_layer," · ",a(cache$map$provenance$license,href=cache$map$provenance$license_url,target="_blank"))})
 
-  output$analysis_heading <- renderUI({req(demographic_state$result);x<-demographic_state$result;context<-paste0("Demografische Typologie · ",paste(range(x$demographic_years),collapse="–")," · k=",x$configuration$k);tagList(h3(context),p(class="app-note",nrow(x$map_join$data)," Kreise"))})
+  output$analysis_heading <- renderUI({req(demographic_state$result);x<-demographic_state$result;context<-paste0("Demografische Typologie · ",paste(range(x$demographic_years),collapse="–")," · k=",x$configuration$k,regionalepi:::.shiny_demographic_reference_qualifier(x$reference_selection));tagList(h3(context),p(class="app-note",nrow(x$map_join$data)," Kreise"))})
   output$period_heading <- renderUI({req(state$result);r<-state$result$analysis_range;context<-regionalepi:::.shiny_period_context(state$result$window$pathogen,r,NULL,state$result$typology_mode,state$result$demographic_years,length(unique(state$result$fit$assignments$display_cluster_id)));tagList(h3(context$title),p(class="app-note",context$subtitle),p(class="app-note",context$typology),p(class="app-note","Inzidenz auf Basis der durchschnittlichen Jahresbevölkerung"),p(class="app-note","Beobachtungskontext: ",state$result$window$label))})
   output$comparability_note <- renderUI({
     req(state$result)
